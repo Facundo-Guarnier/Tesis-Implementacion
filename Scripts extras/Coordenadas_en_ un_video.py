@@ -27,7 +27,7 @@ class Coordinates:
         
             cv2.imshow("Frame", frame)
 
-            if cv2.waitKey(50) & 0xFF == ord('q'): 
+            if cv2.waitKey(70) & 0xFF == ord('q'): 
                 break
 
     def __del__(self):

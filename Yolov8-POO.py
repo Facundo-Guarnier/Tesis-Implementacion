@@ -13,18 +13,30 @@ class Detector:
         self.clases_seleccionadas = clases_seleccionadas
         
         #! Info del video
-        self.VIDEO_ORIGINAL = "video-original.mp4"
-        self.VIDEO_FINAL = f"video-deteccion.mp4"
-        self.RESOLUCION_VIDEO = (2160, 3840)
+        self.PATH_VIDEO_ORIGINAL = "Pruebas/video-original.mp4"
+        # self.PATH_VIDEO_ORIGINAL = "Pruebas/video-reescalado.mp4"
+        # self.PATH_VIDEO_ORIGINAL = "Pruebas/video-reescalado-(720, 1280).mp4"
+        self.PATH_VIDEO_FINAL = "Pruebas/video-deteccion.mp4"
+        
+        self.RESOLUCION_VIDEO_ACTUAL = self.obtener_resolucion(self.PATH_VIDEO_ORIGINAL)
+
+        self.FACTOR_ESCALA = self.set_factor_escala()
 
         #! Instancia de ByteTracker, proporciona el seguimiento de los objetos.
         self.byte_tracker = sv.ByteTrack(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
 
         #! Dibujar box en los objetos
-        self.box_annotator = sv.BoxAnnotator(thickness=4, text_thickness=4, text_scale=2)
+        self.box_annotator = sv.BoxAnnotator(
+            thickness=max(1, int(4 * self.FACTOR_ESCALA)), 
+            text_thickness=max(1, int(4 * self.FACTOR_ESCALA)), 
+            text_scale=max(1, int(2 * self.FACTOR_ESCALA)),
+        )
 
         #! Dibujar Trace (el recorrido) de un objeto
-        self.trace_annotator = sv.TraceAnnotator(thickness=4, trace_length=50)
+        self.trace_annotator = sv.TraceAnnotator(
+            thickness=max(1, int(4 * self.FACTOR_ESCALA)), 
+            trace_length=max(1, int(50 * self.FACTOR_ESCALA)),
+        )
 
         #! Instancia de LineZone para usar "Linea contadora"
         # self.line_zone = sv.LineZone(start=LINE_START, end=LINE_END)
@@ -38,17 +50,25 @@ class Detector:
         #! Polígono (sv) de detección
         self.poligono_zona = sv.PolygonZone(
             polygon=ZONE, 
-            frame_resolution_wh=self.RESOLUCION_VIDEO
+            frame_resolution_wh=self.RESOLUCION_VIDEO_ACTUAL
         )
 
         #! Dibujar polígono (sv)
         self.poligono_dibujado = sv.PolygonZoneAnnotator(
             zone=self.poligono_zona,
             color=sv.Color(255,0,0),
-            thickness=4,
-            text_scale=2,
-            text_thickness=4,
+            thickness=max(1, int(4 * self.FACTOR_ESCALA)),
+            text_scale=max(1, int(2 * self.FACTOR_ESCALA)),
+            text_thickness=max(1, int(4 * self.FACTOR_ESCALA)),
         )
+
+
+    def obtener_resolucion(self, video_path):
+        cap = cv2.VideoCapture(video_path)
+        ancho = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        alto = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        return ((ancho, alto))
 
 
     def poligono_cv2(self, frame, detections):
@@ -57,8 +77,15 @@ class Detector:
         - Cuenta los objetos que están dentro del polígono.
         """
 
+
         #! Dibujar el polígono de detección
-        cv2.polylines(img=frame, pts=[ZONE], isClosed=True, color=(0,0,255),  thickness=15)
+        cv2.polylines(
+            img=frame, 
+            pts=[ZONE], 
+            isClosed=True, 
+            color=(0,0,255),  
+            thickness=max(1, int(15 * self.FACTOR_ESCALA)),
+        )
 
         detecciones_poligono = 0
         for box in detections.xyxy:
@@ -77,9 +104,26 @@ class Detector:
             else:
                 color = [0,0,255]
 
-            cv2.circle(img=frame, center=(x,y), radius=15, color=color, thickness=15)
+            cv2.circle(
+                img=frame, 
+                center=(x,y), 
+                radius=max(1, int(15 * self.FACTOR_ESCALA)), 
+                color=color, 
+                thickness=max(1, int(15 * self.FACTOR_ESCALA))
+            )
 
-        cv2.putText(img=frame, text=f"Vehiculos {detecciones_poligono}", org=(250, 3150), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=9, color=(50,50,200), thickness=9)
+        cv2.putText(
+            img=frame, 
+            text=f"Vehiculos {detecciones_poligono}", 
+            org=(
+                max(1, int(250 * self.FACTOR_ESCALA)), 
+                max(1, int(3150 * self.FACTOR_ESCALA))
+            ), 
+            fontFace=cv2.FONT_HERSHEY_PLAIN, 
+            fontScale=max(1, int(9 * self.FACTOR_ESCALA)), 
+            color=(50,50,200), 
+            thickness=max(1, int(9 * self.FACTOR_ESCALA)),
+        )
 
         return frame
 
@@ -178,20 +222,53 @@ class Detector:
         Ejecuta el modelo y realiza la detección de objetos en el video.
         """
         print("Procesando video...")
+        print(f"Factor de escala: {self.FACTOR_ESCALA}")
         sv.process_video(
-            source_path = self.VIDEO_ORIGINAL,
-            target_path = self.VIDEO_FINAL,
+            source_path = self.PATH_VIDEO_ORIGINAL,
+            target_path = self.PATH_VIDEO_FINAL,
             callback=self.callback
         )
         print("Video procesado.")
 
 
+    def escalar_punto(self, ZONE, resolucion_video):
+        
+        if (2160, 3840) == resolucion_video:
+            return ZONE
+        
+        ZONE_objetivo = []
+        for punto in ZONE:
+            x_original, y_original = punto
+            ancho_original, alto_original = (2160, 3840)
+            ancho_objetivo, alto_objetivo = resolucion_video
+
+            # Calcular las proporciones de escala en x e y
+            escala_x = ancho_objetivo / ancho_original
+            escala_y = alto_objetivo / alto_original
+
+            # Aplicar la escala al punto
+            x_objetivo = int(x_original * escala_x)
+            y_objetivo = int(y_original * escala_y)
+            ZONE_objetivo.append([x_objetivo, y_objetivo])
+
+        return np.array(ZONE_objetivo)
+
+
+    def set_factor_escala(self):
+        """
+        - Devuelve el factor de escala entre la resolución original y la actual.
+        - El objetivo es que los elementos (letras y lineas) se vean bien en cualquier resolución.
+        """
+        ancho_original, alto_original = (2160, 3840)
+        ancho_actual, alto_actual, = self.RESOLUCION_VIDEO_ACTUAL 
+        return ancho_actual / ancho_original
+
 
 #* ---------------------------------------------------------------------------------
 if __name__ == "__main__":
     #! Puntos para la linea contadora
-    LINE_START = sv.Point(1080, 0) #xy
-    LINE_END = sv.Point(1080, 3800)
+    # LINE_START = sv.Point(1080, 0) #xy
+    # LINE_END = sv.Point(1080, 3800)
 
     #! Puntos del polígono de detección
     ZONE = np.array([
@@ -202,12 +279,14 @@ if __name__ == "__main__":
         [1084, 2080],
     ])
     
-    MODEL = "yolov8n.pt"    #Nano: 0:38 min
-    # MODEL = "yolov8s.pt"    #Small: 0:51 min
-    # MODEL = "yolov8x.pt"    #Xtra Large: 2:30 min
+    MODEL = "yolov8n.pt"    #Nano 4k 30fps: 0:38 min
+    # MODEL = "yolov8s.pt"    #Small 4k 30fps: 0:51 min
+    # MODEL = "yolov8x.pt"    #Xtra Large 4k 30fps: 2:30 min
     CLASES_SELECCIONADAS = [2, 3, 5, 7]
     
     detector = Detector(MODEL, CLASES_SELECCIONADAS)
+    
+    ZONE = detector.escalar_punto(ZONE, detector.RESOLUCION_VIDEO_ACTUAL)
     
     detector.procesar_video()
 
@@ -217,6 +296,11 @@ if __name__ == "__main__":
 
 
 #TODO:
+# [ ] 
+# [ ]
+# [ ]
+# [ ] Ver si puedo estabilizar los videos.
 # [ ] Cambiar los pixeles por porcentajes, así puedo reducir la calidad del video sin que afecte al poligono.
 # [ ] Reemplazar cv2.circle por sv.CircleAnnotator
+
 # [x] Borrar la linea de in/out
