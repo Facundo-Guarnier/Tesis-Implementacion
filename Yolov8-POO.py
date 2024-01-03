@@ -7,21 +7,38 @@ import numpy as np
 class Detector:
     def __init__(self, nombre_modelo, clases_seleccionadas):
         
-        #! Cargar modelo pre-entrenado YOLOv8
+        self.definir_modelo(nombre_modelo, clases_seleccionadas)
+        self.definir_parametros_video()
+        self.definir_parametros_supervision()
+    
+    
+    def definir_modelo(self, nombre_modelo, clases_seleccionadas):
+        """
+        - Cargar modelo pre-entrenado YOLOv8.
+        - Definir las clases que se van a detectar.
+        """
         self.modelo = ul.YOLO(f"Modelos/{nombre_modelo}")
         self.CLASES  = self.modelo.model.names
-        self.clases_seleccionadas = clases_seleccionadas
-        
-        #! Info del video
+        self.CLASES_SELECCIONADAS = clases_seleccionadas
+    
+    
+    def definir_parametros_video(self):
+        """
+        - Define Paths, resolución del video y factor de escala.
+        """
         self.PATH_VIDEO_ORIGINAL = "Pruebas/video-original.mp4"
-        # self.PATH_VIDEO_ORIGINAL = "Pruebas/video-reescalado.mp4"
-        # self.PATH_VIDEO_ORIGINAL = "Pruebas/video-reescalado-(720, 1280).mp4"
+        # self.PATH_VIDEO_ORIGINAL = "Pruebas/video-reescalado-720x1280.mp4"
         self.PATH_VIDEO_FINAL = "Pruebas/video-deteccion.mp4"
         
         self.RESOLUCION_VIDEO_ACTUAL = self.obtener_resolucion(self.PATH_VIDEO_ORIGINAL)
-
         self.FACTOR_ESCALA = self.set_factor_escala()
 
+
+    def definir_parametros_supervision(self):
+        """
+        Define los parámetros de supervisión necesario para la edición de los frames.
+        """
+        
         #! Instancia de ByteTracker, proporciona el seguimiento de los objetos.
         self.byte_tracker = sv.ByteTrack(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
 
@@ -37,12 +54,6 @@ class Detector:
             thickness=max(1, int(4 * self.FACTOR_ESCALA)), 
             trace_length=max(1, int(50 * self.FACTOR_ESCALA)),
         )
-
-        #! Instancia de LineZone para usar "Linea contadora"
-        # self.line_zone = sv.LineZone(start=LINE_START, end=LINE_END)
-
-        #! Dibujar linea contadora
-        # self.line_zone_annotator = sv.LineZoneAnnotator(thickness=4, text_thickness=4, text_scale=2)
 
         #! Dibujar círculos en los objetos
         # self.circle_annotator = sv.CircleAnnotator(thickness=4)
@@ -69,6 +80,39 @@ class Detector:
         alto = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
         return ((ancho, alto))
+
+
+    def escalar_puntos(self, ZONE, resolucion_video):
+        
+        if (2160, 3840) == resolucion_video:
+            return ZONE
+        
+        ZONE_objetivo = []
+        for punto in ZONE:
+            x_original, y_original = punto
+            ancho_original, alto_original = (2160, 3840)
+            ancho_objetivo, alto_objetivo = resolucion_video
+
+            # Calcular las proporciones de escala en x e y
+            escala_x = ancho_objetivo / ancho_original
+            escala_y = alto_objetivo / alto_original
+
+            # Aplicar la escala al punto
+            x_objetivo = int(x_original * escala_x)
+            y_objetivo = int(y_original * escala_y)
+            ZONE_objetivo.append([x_objetivo, y_objetivo])
+
+        return np.array(ZONE_objetivo)
+
+
+    def set_factor_escala(self):
+        """
+        - Devuelve el factor de escala entre la resolución original y la actual.
+        - El objetivo es que los elementos (letras y lineas) se vean bien en cualquier resolución.
+        """
+        ancho_original, alto_original = (2160, 3840)
+        ancho_actual, alto_actual, = self.RESOLUCION_VIDEO_ACTUAL 
+        return ancho_actual / ancho_original
 
 
     def poligono_cv2(self, frame, detections):
@@ -136,21 +180,19 @@ class Detector:
         es por otro motivo.
         """
         detecciones = self.poligono_zona.trigger(detections)
-        frame = self.poligono_dibujado.annotate(
+        return self.poligono_dibujado.annotate(
             scene=frame,
         )
-        return frame
 
 
     def trace(self, frame, detections):
         """
         - Dibuja el recorrido de un objeto.
         """
-        frame = self.trace_annotator.annotate(
+        return self.trace_annotator.annotate(
             scene=frame,
             detections=detections
         )
-        return frame
 
 
     def box(self, frame, detections):
@@ -163,12 +205,12 @@ class Detector:
             etiqueta = f"{self.CLASES[class_id]} {confidence:0.2f}"
             etiquetas.append(etiqueta)
             
-        frame = self.box_annotator.annotate(
+        return self.box_annotator.annotate(
             scene=frame,
             detections=detections,
             labels=etiquetas,
         )
-        return frame
+        
 
 
     def callback(self, frame: np.ndarray, index:int) -> np.ndarray:
@@ -182,7 +224,7 @@ class Detector:
         detections = sv.Detections.from_ultralytics(results)
 
         #! Filtrar las clases que no se necesitan
-        detections = detections[np.isin(detections.class_id, CLASES_SELECCIONADAS)]
+        detections = detections[np.isin(detections.class_id, self.CLASES_SELECCIONADAS)]
 
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
@@ -198,19 +240,10 @@ class Detector:
 
         new_frame = self.box(new_frame, detections)
 
-
         #! Círculos en el centro de las boxes (descomentar CircleAnnotator)
         # new_frame = circle_annotator.annotate(
         #     scene=new_frame,
         #     detections=detections,
-        # )
-
-
-        #! Linea contadora
-        # line_zone.trigger(detections)
-        # new_frame = line_zone_annotator.annotate(
-        #     scene=new_frame,
-        #     line_counter=line_zone
         # )
 
 
@@ -231,45 +264,9 @@ class Detector:
         print("Video procesado.")
 
 
-    def escalar_punto(self, ZONE, resolucion_video):
-        
-        if (2160, 3840) == resolucion_video:
-            return ZONE
-        
-        ZONE_objetivo = []
-        for punto in ZONE:
-            x_original, y_original = punto
-            ancho_original, alto_original = (2160, 3840)
-            ancho_objetivo, alto_objetivo = resolucion_video
-
-            # Calcular las proporciones de escala en x e y
-            escala_x = ancho_objetivo / ancho_original
-            escala_y = alto_objetivo / alto_original
-
-            # Aplicar la escala al punto
-            x_objetivo = int(x_original * escala_x)
-            y_objetivo = int(y_original * escala_y)
-            ZONE_objetivo.append([x_objetivo, y_objetivo])
-
-        return np.array(ZONE_objetivo)
-
-
-    def set_factor_escala(self):
-        """
-        - Devuelve el factor de escala entre la resolución original y la actual.
-        - El objetivo es que los elementos (letras y lineas) se vean bien en cualquier resolución.
-        """
-        ancho_original, alto_original = (2160, 3840)
-        ancho_actual, alto_actual, = self.RESOLUCION_VIDEO_ACTUAL 
-        return ancho_actual / ancho_original
-
 
 #* ---------------------------------------------------------------------------------
 if __name__ == "__main__":
-    #! Puntos para la linea contadora
-    # LINE_START = sv.Point(1080, 0) #xy
-    # LINE_END = sv.Point(1080, 3800)
-
     #! Puntos del polígono de detección
     ZONE = np.array([
         [444, 2064],
@@ -279,14 +276,13 @@ if __name__ == "__main__":
         [1084, 2080],
     ])
     
-    MODEL = "yolov8n.pt"    #Nano 4k 30fps: 0:38 min
-    # MODEL = "yolov8s.pt"    #Small 4k 30fps: 0:51 min
-    # MODEL = "yolov8x.pt"    #Xtra Large 4k 30fps: 2:30 min
-    CLASES_SELECCIONADAS = [2, 3, 5, 7]
+    MODEL = "yolov8n.pt"
+    # MODEL = "yolov8s.pt"
+    # MODEL = "yolov8x.pt"
     
-    detector = Detector(MODEL, CLASES_SELECCIONADAS)
+    detector = Detector(MODEL, [2, 3, 5, 7])
     
-    ZONE = detector.escalar_punto(ZONE, detector.RESOLUCION_VIDEO_ACTUAL)
+    ZONE = detector.escalar_puntos(ZONE, detector.RESOLUCION_VIDEO_ACTUAL)
     
     detector.procesar_video()
 
@@ -296,11 +292,11 @@ if __name__ == "__main__":
 
 
 #TODO:
+# [ ] Agregar la deteccion en las distintas Zonas.
 # [ ] 
 # [ ]
-# [ ]
 # [ ] Ver si puedo estabilizar los videos.
-# [ ] Cambiar los pixeles por porcentajes, así puedo reducir la calidad del video sin que afecte al poligono.
 # [ ] Reemplazar cv2.circle por sv.CircleAnnotator
 
+# [x] Cambiar tamaño fijo de letras y lineas por un factor de escala.
 # [x] Borrar la linea de in/out
