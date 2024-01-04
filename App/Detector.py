@@ -6,7 +6,7 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo, clases_seleccionadas):
+    def __init__(self, nombre_modelo, clases_seleccionadas, notificar):
         
         self.definir_modelo(nombre_modelo, clases_seleccionadas)
         self.definir_paths()
@@ -14,6 +14,7 @@ class Detector:
         self.resolucion_video_actual = None
         self.factor_escala_actual = None
         self.zona_actual = None
+        self.notificar = notificar
 
 
     def definir_modelo(self, nombre_modelo, clases_seleccionadas):
@@ -144,6 +145,7 @@ class Detector:
             color=(50,50,200), 
             thickness=max(1, int(6 * self.factor_escala_actual)),
         )
+        
 
         return frame
 
@@ -283,12 +285,10 @@ class Detector:
                             archivo_video_ruta_salida=archivo_video_ruta_salida
                         )
                         print(f"  Videos procesado\n")
-            if i >= 1:
+            if i >= 2:
                 break
             
         print(f"\nVideos procesados con exito.")
-
-
 
 
 

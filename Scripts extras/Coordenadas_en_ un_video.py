@@ -4,7 +4,6 @@ class Coordinates:
     def __init__(self, video_path: str):
         self.cap = cv2.VideoCapture(video_path)
 
-        # cv2.namedWindow("Frame")
         # Establecer el tamaño de la ventana a la mitad del tamaño original
         cv2.namedWindow("Frame", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Frame", 560, 960)
