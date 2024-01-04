@@ -1,4 +1,5 @@
 import os, time, cv2
+from Zona import Zona
 import matplotlib.path as mplPath
 import ultralytics as ul
 import supervision as sv
@@ -8,10 +9,13 @@ class Detector:
     def __init__(self, nombre_modelo, clases_seleccionadas):
         
         self.definir_modelo(nombre_modelo, clases_seleccionadas)
-        self.definir_parametros_video()
-        self.definir_parametros_supervision()
-    
-    
+        self.definir_paths()
+
+        self.resolucion_video_actual = None
+        self.factor_escala_actual = None
+        self.zona_actual = None
+
+
     def definir_modelo(self, nombre_modelo, clases_seleccionadas):
         """
         - Cargar modelo pre-entrenado YOLOv8.
@@ -20,27 +24,18 @@ class Detector:
         self.modelo = ul.YOLO(f"Modelos/{nombre_modelo}")
         self.CLASES  = self.modelo.model.names
         self.CLASES_SELECCIONADAS = clases_seleccionadas
-    
-    
-    def definir_parametros_video(self):
+
+
+    def definir_paths(self):
         """
-        - Define Paths, resolución del video y factor de escala.
         """
-        self.PATH_VIDEO_ORIGINAL = "Pruebas/video-original.mp4"
-        self.PATH_VIDEO_ORIGINAL = "Pruebas/video-reescalado-720x1280.mp4"
-        self.PATH_VIDEO_RESULTADO = "Pruebas/video-deteccion.mp4"
-        
         self.PATH_CARPETA_ORIGEN_VIDEOS = "Dataset_reescalado/"
         self.PATH_CARPETA_RESULTADO_VIDEOS = "Resultados/"
-        
-        
-        self.RESOLUCION_VIDEO_ACTUAL = self.obtener_resolucion(self.PATH_VIDEO_ORIGINAL)
-        self.factor_escala = self.calcular_factor_escala()
 
 
     def definir_parametros_supervision(self):
         """
-        Define los parámetros de supervisión necesario para la edición de los frames.
+        Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
         """
         
         #! Instancia de ByteTracker, proporciona el seguimiento de los objetos.
@@ -48,15 +43,15 @@ class Detector:
 
         #! Dibujar box en los objetos
         self.box_annotator = sv.BoxAnnotator(
-            thickness=max(1, int(4 * self.factor_escala)), 
-            text_thickness=max(1, int(4 * self.factor_escala)), 
-            text_scale=max(1, int(2 * self.factor_escala)),
+            thickness=max(1, int(4 * self.factor_escala_actual)), 
+            text_thickness=max(1, int(3 * self.factor_escala_actual)), 
+            text_scale=max(1, int(2 * self.factor_escala_actual)),
         )
 
         #! Dibujar Trace (el recorrido) de un objeto
         self.trace_annotator = sv.TraceAnnotator(
-            thickness=max(1, int(4 * self.factor_escala)), 
-            trace_length=max(1, int(50 * self.factor_escala)),
+            thickness=max(1, int(4 * self.factor_escala_actual)), 
+            trace_length=max(1, int(50 * self.factor_escala_actual)),
         )
 
         #! Dibujar círculos en los objetos
@@ -64,17 +59,17 @@ class Detector:
 
         #! Polígono (sv) de detección
         self.poligono_zona = sv.PolygonZone(
-            polygon=ZONE, 
-            frame_resolution_wh=self.RESOLUCION_VIDEO_ACTUAL
+            polygon=self.zona_actual.puntos_reescalados, 
+            frame_resolution_wh=self.resolucion_video_actual
         )
 
         #! Dibujar polígono (sv)
         self.poligono_dibujado = sv.PolygonZoneAnnotator(
             zone=self.poligono_zona,
             color=sv.Color(255,0,0),
-            thickness=max(1, int(4 * self.factor_escala)),
-            text_scale=max(1, int(2 * self.factor_escala)),
-            text_thickness=max(1, int(4 * self.factor_escala)),
+            thickness=max(1, int(4 * self.factor_escala_actual)),
+            text_scale=max(1, int(2 * self.factor_escala_actual)),
+            text_thickness=max(1, int(4 * self.factor_escala_actual)),
         )
 
 
@@ -86,36 +81,13 @@ class Detector:
         return ((ancho, alto))
 
 
-    def escalar_puntos(self, ZONE, resolucion_video):
-        
-        if (2160, 3840) == resolucion_video:
-            return ZONE
-        
-        ZONE_objetivo = []
-        for punto in ZONE:
-            x_original, y_original = punto
-            ancho_original, alto_original = (2160, 3840)
-            ancho_objetivo, alto_objetivo = resolucion_video
-
-            # Calcular las proporciones de escala en x e y
-            escala_x = ancho_objetivo / ancho_original
-            escala_y = alto_objetivo / alto_original
-
-            # Aplicar la escala al punto
-            x_objetivo = int(x_original * escala_x)
-            y_objetivo = int(y_original * escala_y)
-            ZONE_objetivo.append([x_objetivo, y_objetivo])
-
-        return np.array(ZONE_objetivo)
-
-
     def calcular_factor_escala(self):
         """
-        - Devuelve el factor de escala entre la resolución original y la actual.
-        - El objetivo es que los elementos (letras y lineas) se vean bien en cualquier resolución.
+        Escala los distintos elementos (letras y lineas) en base a la resolución del video.
+        Lo elementos fueron diseñados para una resolución de 1080x1920.
         """
-        ancho_original, alto_original = (2160, 3840)
-        ancho_actual, alto_actual, = self.RESOLUCION_VIDEO_ACTUAL 
+        ancho_original, alto_original = (1080, 1920)
+        ancho_actual, alto_actual, = self.resolucion_video_actual 
         return ancho_actual / ancho_original
 
 
@@ -129,10 +101,10 @@ class Detector:
         #! Dibujar el polígono de detección
         cv2.polylines(
             img=frame, 
-            pts=[ZONE], 
+            pts=[self.zona_actual.puntos_reescalados], 
             isClosed=True, 
             color=(0,0,255),  
-            thickness=max(1, int(15 * self.factor_escala)),
+            thickness=max(1, int(10 * self.factor_escala_actual)),
         )
 
         detecciones_poligono = 0
@@ -145,7 +117,7 @@ class Detector:
 
             #! Validar el punto dentro del poligono
             color = ""  # BGR
-            if mplPath.Path(ZONE).contains_point((x,y)):
+            if mplPath.Path(self.zona_actual.puntos_reescalados).contains_point((x,y)):
                 detecciones_poligono += 1
                 color = [255,80,0]
 
@@ -155,22 +127,22 @@ class Detector:
             cv2.circle(
                 img=frame, 
                 center=(x,y), 
-                radius=max(1, int(15 * self.factor_escala)), 
+                radius=max(1, int(10 * self.factor_escala_actual)), 
                 color=color, 
-                thickness=max(1, int(15 * self.factor_escala))
+                thickness=max(1, int(10 * self.factor_escala_actual))
             )
-
+            
         cv2.putText(
             img=frame, 
             text=f"Vehiculos {detecciones_poligono}", 
             org=(
-                max(1, int(250 * self.factor_escala)), 
-                max(1, int(3150 * self.factor_escala))
+                max(1, int(250 * self.factor_escala_actual)), 
+                max(1, int(1800 * self.factor_escala_actual))
             ), 
             fontFace=cv2.FONT_HERSHEY_PLAIN, 
-            fontScale=max(1, int(9 * self.factor_escala)), 
+            fontScale=max(1, int(6 * self.factor_escala_actual)), 
             color=(50,50,200), 
-            thickness=max(1, int(9 * self.factor_escala)),
+            thickness=max(1, int(6 * self.factor_escala_actual)),
         )
 
         return frame
@@ -252,28 +224,31 @@ class Detector:
         return new_frame
 
 
-    def procesar_un_video(self):
-        """
-        Ejecuta el modelo y realiza la detección de objetos en el video.
-        """
-        print("Procesando video...")
-        print(f"Factor de escala: {self.factor_escala}")
+    def preparar_parametros(self, zonas: list, carpeta_video: str, archivo_video_ruta_entrada: str, archivo_video_ruta_salida: str):
+        
+        #! Busca la clase correspondiente a la zona
+        self.zona_actual = next((zona for zona in zonas if zona.nombre == carpeta_video), None)
+        
+        self.resolucion_video_actual = self.obtener_resolucion(archivo_video_ruta_entrada)
+        
+        self.zona_actual.escalar_puntos(self.resolucion_video_actual)
+        
+        self.factor_escala_actual = self.calcular_factor_escala()
+        print(f"  Factor de escala: {self.factor_escala_actual}")
+        
+        self.definir_parametros_supervision()
+        
         sv.process_video(
-            source_path = self.PATH_VIDEO_ORIGINAL,
-            target_path = self.PATH_VIDEO_RESULTADO,
+            source_path = archivo_video_ruta_entrada,
+            target_path = archivo_video_ruta_salida,
             callback=self.callback
         )
-        print("Video procesado.")
 
 
-    def procesar_carpeta_videos(self):
-        """
-        """
+    def analizar_carpeta_videos(self, zonas: list):
         print("Procesando videos...")
-        print(f"Factor de escala: {self.factor_escala}")
-        
         i = 0
-        
+    
         #! Crear la carpeta de resultados si no existe
         if not os.path.exists(self.PATH_CARPETA_RESULTADO_VIDEOS):
             os.makedirs(self.PATH_CARPETA_RESULTADO_VIDEOS)
@@ -284,7 +259,7 @@ class Detector:
 
             #! Verificar si es una carpeta
             if os.path.isdir(carpeta_video_ruta):
-                print(f"Procesando carpeta: {carpeta_video}")
+                print(f"\nProcesando carpeta: {carpeta_video}")
                 
                 #! Crear la carpeta de salida espejo
                 carpeta_salida_ruta = os.path.join(self.PATH_CARPETA_RESULTADO_VIDEOS, carpeta_video)
@@ -298,62 +273,50 @@ class Detector:
 
                     #! Verificar si es un archivo y tiene una extensión de video
                     if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
-
-                        self.factor_escala = self.calcular_factor_escala()
-                        sv.process_video(
-                            source_path = archivo_video_ruta_entrada,
-                            target_path = archivo_video_ruta_salida,
-                            callback=self.callback
-                        )
+                        
                         i += 1
-                        print(f"Videos procesados: {i}")
+                        print(f" -Video N°{i}: {archivo_video}")
+                        self.preparar_parametros(
+                            zonas=zonas, 
+                            carpeta_video=carpeta_video, 
+                            archivo_video_ruta_entrada=archivo_video_ruta_entrada, 
+                            archivo_video_ruta_salida=archivo_video_ruta_salida
+                        )
+                        print(f"  Videos procesado\n")
+            if i >= 1:
+                break
             
-        print(f"Videos procesados con exito.")
+        print(f"\nVideos procesados con exito.")
 
 
 
 
 
-#* ---------------------------------------------------------------------------------
-if __name__ == "__main__":
-    #! Puntos del polígono de detección
-    ZONE = np.array([
-        [444, 2064],
-        [559, 1884],
-        [1678, 1824],
-        [1886, 1940],
-        [1084, 2080],
-    ])
-    
-    MODEL = "yolov8n.pt"
-    # MODEL = "yolov8s.pt"
-    # MODEL = "yolov8x.pt"
-    
-    detector = Detector(MODEL, [2, 3, 5, 7])
-    
-    ZONE = detector.escalar_puntos(ZONE, detector.RESOLUCION_VIDEO_ACTUAL)
-    
-    detector.procesar_carpeta_videos()
-    # detector.procesar_un_video()
 
 
 
+# def procesar_un_video(self):
+#     """
+#     Ejecuta el modelo y realiza la detección de objetos en el video.
+#     """
+#     print("Procesando video...")
+#     print(f"Factor de escala: {self.factor_escala}")
+#     sv.process_video(
+#         source_path = self.PATH_VIDEO_ORIGINAL,
+#         target_path = self.PATH_VIDEO_RESULTADO,
+#         callback=self.callback
+#     )
+#     print("Video procesado.")
 
-Ya se procesan las distintas carpetas de videos, 
-ahora hay que agregar la detección en las distintas zonas dentro de los videos.
 
-
-
-#TODO:
-# [ ] Agregar la deteccion en las distintas Zonas.
-# [ ] Hacer que devuelva la cantidad de vehiculos en cada zona.
-# [ ]
-# [ ]
-# [ ]
-# [ ] Agregar try/except.
-# [ ] ¿Es necesario guardar los videos en la carpeta Resultados?
-# [ ] Ver si puedo estabilizar los videos.
-# [ ] Reemplazar cv2.circle por sv.CircleAnnotator
-
-# [x] Cambiar tamaño fijo de letras y lineas por un factor de escala.
-# [x] Borrar la linea de in/out
+# def escalar_puntos(self, zone, resolucion_video):
+#     resolucion_puntos = zone[0]
+#     if resolucion_puntos == resolucion_video:
+#         return zone[1]
+#     ZONE_objetivo = []
+#     for punto in zone:
+#         x_original, y_original = punto
+#         x_objetivo = int(x_original * self.factor_escala_actual)
+#         y_objetivo = int(y_original * self.factor_escala_actual)
+#         ZONE_objetivo.append([x_objetivo, y_objetivo])
+#     return np.array(ZONE_objetivo)
