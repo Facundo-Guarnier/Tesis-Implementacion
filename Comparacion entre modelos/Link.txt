@@ -1,5 +1,2 @@
 https://learnopencv.com/ultralytics-yolov8/
 
- "yolov8n.pt"    #Nano: 0:38 min
- "yolov8s.pt"    #Small: 0:51 min
- "yolov8x.pt"    #Xtra Large: 2:30 min

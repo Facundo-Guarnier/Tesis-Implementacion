@@ -42,7 +42,7 @@ def reescalar_carpeta_videos(carpeta_entrada, carpeta_salida, nueva_resolucion):
     for carpeta_video in os.listdir(carpeta_entrada):
         carpeta_video_ruta = os.path.join(carpeta_entrada, carpeta_video)
 
-        # Verificar si es una carpeta
+        #! Verificar si es una carpeta
         if os.path.isdir(carpeta_video_ruta):
             #! Crear la carpeta de salida espejo
             carpeta_salida_ruta = os.path.join(carpeta_salida, carpeta_video)
