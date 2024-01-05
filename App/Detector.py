@@ -28,9 +28,8 @@ class Detector:
 
 
     def __definir_paths(self):
-        """
-        """
-        self.PATH_CARPETA_ORIGEN_VIDEOS = "Dataset_reescalado/"
+        # self.PATH_CARPETA_ORIGEN_VIDEOS = "Dataset_reescalado/"
+        self.PATH_CARPETA_ORIGEN_VIDEOS = "Pruebas/"
         self.PATH_CARPETA_RESULTADO_VIDEOS = "Resultados/"
 
 

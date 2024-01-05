@@ -14,8 +14,7 @@ with open('zonas.yaml', 'r') as archivo:
 
 zonas = [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
 
-print("Notificador")
-notificador = Notificador()
+notificador = Notificador(False)
 
 detector = Detector(MODEL, [2, 3, 5, 7], notificador)
 detector.analizar_carpeta_videos(zonas)
