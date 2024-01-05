@@ -6,18 +6,18 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo, clases_seleccionadas, notificar):
+    def __init__(self, nombre_modelo, clases_seleccionadas, notificador):
         
-        self.definir_modelo(nombre_modelo, clases_seleccionadas)
-        self.definir_paths()
+        self.__definir_modelo(nombre_modelo, clases_seleccionadas)
+        self.__definir_paths()
 
         self.resolucion_video_actual = None
         self.factor_escala_actual = None
         self.zona_actual = None
-        self.notificar = notificar
+        self.notificador = notificador
 
 
-    def definir_modelo(self, nombre_modelo, clases_seleccionadas):
+    def __definir_modelo(self, nombre_modelo, clases_seleccionadas):
         """
         - Cargar modelo pre-entrenado YOLOv8.
         - Definir las clases que se van a detectar.
@@ -27,14 +27,14 @@ class Detector:
         self.CLASES_SELECCIONADAS = clases_seleccionadas
 
 
-    def definir_paths(self):
+    def __definir_paths(self):
         """
         """
         self.PATH_CARPETA_ORIGEN_VIDEOS = "Dataset_reescalado/"
         self.PATH_CARPETA_RESULTADO_VIDEOS = "Resultados/"
 
 
-    def definir_parametros_supervision(self):
+    def __definir_parametros_supervision(self):
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
         """
@@ -74,7 +74,7 @@ class Detector:
         )
 
 
-    def obtener_resolucion(self, video_path):
+    def __obtener_resolucion(self, video_path):
         cap = cv2.VideoCapture(video_path)
         ancho = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         alto = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -82,7 +82,7 @@ class Detector:
         return ((ancho, alto))
 
 
-    def calcular_factor_escala(self):
+    def __calcular_factor_escala(self):
         """
         Escala los distintos elementos (letras y lineas) en base a la resolución del video.
         Lo elementos fueron diseñados para una resolución de 1080x1920.
@@ -92,7 +92,7 @@ class Detector:
         return ancho_actual / ancho_original
 
 
-    def poligono_cv2(self, frame, detections):
+    def __poligono_cv2(self, frame, detections):
         """
         - Dibuja el centro de los objetos y el polígono de detección. 
         - Cuenta los objetos que están dentro del polígono.
@@ -146,11 +146,12 @@ class Detector:
             thickness=max(1, int(6 * self.factor_escala_actual)),
         )
         
+        self.notificador.notificar(f"{self.zona_actual.nombre} {detecciones_poligono} | ")
 
         return frame
 
 
-    def poligono_sv(self, frame, detections):
+    def __poligono_sv(self, frame, detections):
         """
         - Dibuja el centro de los objetos y el poligono de detección. 
         - Tiene el problema de que no cuenta bien los objetos dentro del poligono, no
@@ -163,7 +164,7 @@ class Detector:
         )
 
 
-    def trace(self, frame, detections):
+    def __trace(self, frame, detections):
         """
         - Dibuja el recorrido de un objeto.
         """
@@ -173,7 +174,7 @@ class Detector:
         )
 
 
-    def box(self, frame, detections):
+    def __box(self, frame, detections):
         """
         - Hace las etiquetas de cada box.
         - Dibuja una box por cada objeto.
@@ -190,7 +191,7 @@ class Detector:
         )
 
 
-    def callback(self, frame: np.ndarray, index:int) -> np.ndarray:
+    def __callback(self, frame: np.ndarray, index:int) -> np.ndarray:
         """
         - Procesamiento de video.
         - Se ejecuta por cada frame del video.
@@ -210,12 +211,12 @@ class Detector:
         #! Nuevo frame para su edición
         new_frame = frame.copy()
 
-        new_frame = self.poligono_cv2(new_frame, detections)
-        # new_frame = poligono_sv(new_frame, detections)
+        new_frame = self.__poligono_cv2(new_frame, detections)
+        # new_frame = self.__poligono_sv(new_frame, detections)
 
-        new_frame = self.trace(new_frame, detections)
+        new_frame = self.__trace(new_frame, detections)
 
-        new_frame = self.box(new_frame, detections)
+        new_frame = self.__box(new_frame, detections)
 
         #! Círculos en el centro de las boxes (descomentar CircleAnnotator)
         # new_frame = circle_annotator.annotate(
@@ -226,24 +227,24 @@ class Detector:
         return new_frame
 
 
-    def preparar_parametros(self, zonas: list, carpeta_video: str, archivo_video_ruta_entrada: str, archivo_video_ruta_salida: str):
+    def __preparar_parametros(self, zonas: list, carpeta_video: str, archivo_video_ruta_entrada: str, archivo_video_ruta_salida: str):
         
         #! Busca la clase correspondiente a la zona
         self.zona_actual = next((zona for zona in zonas if zona.nombre == carpeta_video), None)
         
-        self.resolucion_video_actual = self.obtener_resolucion(archivo_video_ruta_entrada)
+        self.resolucion_video_actual = self.__obtener_resolucion(archivo_video_ruta_entrada)
         
         self.zona_actual.escalar_puntos(self.resolucion_video_actual)
         
-        self.factor_escala_actual = self.calcular_factor_escala()
+        self.factor_escala_actual = self.__calcular_factor_escala()
         print(f"  Factor de escala: {self.factor_escala_actual}")
         
-        self.definir_parametros_supervision()
+        self.__definir_parametros_supervision()
         
         sv.process_video(
             source_path = archivo_video_ruta_entrada,
             target_path = archivo_video_ruta_salida,
-            callback=self.callback
+            callback=self.__callback
         )
 
 
@@ -278,14 +279,14 @@ class Detector:
                         
                         i += 1
                         print(f" -Video N°{i}: {archivo_video}")
-                        self.preparar_parametros(
+                        self.__preparar_parametros(
                             zonas=zonas, 
                             carpeta_video=carpeta_video, 
                             archivo_video_ruta_entrada=archivo_video_ruta_entrada, 
                             archivo_video_ruta_salida=archivo_video_ruta_salida
                         )
                         print(f"  Videos procesado\n")
-            if i >= 2:
+            if i >= 1:
                 break
             
         print(f"\nVideos procesados con exito.")

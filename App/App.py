@@ -1,4 +1,4 @@
-from Notificado import Notificado
+from Notificador import Notificador
 from Detector import Detector
 import yaml
 from Zona import Zona
@@ -14,24 +14,18 @@ with open('zonas.yaml', 'r') as archivo:
 
 zonas = [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
 
-noti = Notificado()
+print("Notificador")
+notificador = Notificador()
 
-detector = Detector(MODEL, [2, 3, 5, 7], noti)
+detector = Detector(MODEL, [2, 3, 5, 7], notificador)
 detector.analizar_carpeta_videos(zonas)
-
-print(noti.getNotificaciones())
-
-
-Estoy intentando hacer un sistema de notificacion
-Creo que voy a tener que implementar el patron observer o talves sockets
 
 
 
 #TODO:
-# [ ] Hacer que devuelva la cantidad de vehículos en cada zona.
 
-# [ ]
-# [ ]
+# [ ] Ver si puedo hacer que el detector sea en vivo.
+# [ ] Ver si puedo detectar varios videos a la vez.
 # [ ]
 
 # [ ] Agregar try/except.
@@ -39,6 +33,8 @@ Creo que voy a tener que implementar el patron observer o talves sockets
 # [ ] Ver si puedo estabilizar los videos.
 # [ ] Reemplazar cv2.circle por sv.CircleAnnotator
 
+# [x] Sistema de notificaciones (productor/consumidor) para que el detector pueda enviar la cantidad de vehículos mediante socket.
+# [x] Hacer que devuelva la cantidad de vehículos en cada zona.
 # [x] Agregar la detección en las distintas Zonas.
 # [x] Cambiar tamaño fijo de letras y lineas por un factor de escala.
 # [x] Borrar la linea de in/out
