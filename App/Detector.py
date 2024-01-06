@@ -1,4 +1,6 @@
 import os, time, cv2
+from Notificador import Notificador
+from Video import Video
 from Zona import Zona
 import matplotlib.path as mplPath
 import ultralytics as ul
@@ -6,26 +8,13 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo, clases_seleccionadas, notificador:None, path_origen, path_resultado):
+    def __init__(self, nombre_modelo:str, notificador: Notificador):
         
-        self.__definir_modelo(nombre_modelo, clases_seleccionadas)
-
-        self.resolucion_video_actual = None
-        self.factor_escala_actual = None
-        self.zona_actual = None
         self.notificador = notificador
-
-        self.PATH_CARPETA_ORIGEN_VIDEOS = path_origen
-        self.PATH_CARPETA_RESULTADO_VIDEOS = path_resultado
-
-    def __definir_modelo(self, nombre_modelo, clases_seleccionadas):
-        """
-        - Cargar modelo pre-entrenado YOLOv8.
-        - Definir las clases que se van a detectar.
-        """
+        
         self.modelo = ul.YOLO(f"Modelos/{nombre_modelo}")
+        self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus CREO
         self.CLASES  = self.modelo.model.names
-        self.CLASES_SELECCIONADAS = clases_seleccionadas
 
 
     def __definir_parametros_supervision(self):
@@ -34,56 +23,34 @@ class Detector:
         """
         
         #! Instancia de ByteTracker, proporciona el seguimiento de los objetos.
-        self.byte_tracker = sv.ByteTrack(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
+        self.byte_tracker = sv.ByteTrack(
+            track_thresh=0.25, 
+            match_thresh=0.8, 
+            track_buffer=self.video.fps,    #! Cantidad de frames que se mantiene el seguimiento de un objeto (1 segundo) 
+            frame_rate=self.video.fps,
+        )
 
         #! Dibujar box en los objetos
         self.box_annotator = sv.BoxAnnotator(
-            thickness=max(1, int(4 * self.factor_escala_actual)), 
-            text_thickness=max(1, int(3 * self.factor_escala_actual)), 
-            text_scale=max(1, int(2 * self.factor_escala_actual)),
+            thickness=max(1, int(4 * self.video.factor_escala)), 
+            text_thickness=max(1, int(3 * self.video.factor_escala)), 
+            text_scale=max(1, int(2 * self.video.factor_escala)),
         )
-
-        #! Dibujar Trace (el recorrido) de un objeto
-        self.trace_annotator = sv.TraceAnnotator(
-            thickness=max(1, int(4 * self.factor_escala_actual)), 
-            trace_length=max(1, int(50 * self.factor_escala_actual)),
-        )
-
-        #! Dibujar círculos en los objetos
-        # self.circle_annotator = sv.CircleAnnotator(thickness=4)
 
         #! Polígono (sv) de detección
         self.poligono_zona = sv.PolygonZone(
-            polygon=self.zona_actual.puntos_reescalados, 
-            frame_resolution_wh=self.resolucion_video_actual
+            polygon=self.video.zona.puntos_reescalados, 
+            frame_resolution_wh=self.video.resolucion
         )
 
         #! Dibujar polígono (sv)
         self.poligono_dibujado = sv.PolygonZoneAnnotator(
             zone=self.poligono_zona,
             color=sv.Color(255,0,0),
-            thickness=max(1, int(4 * self.factor_escala_actual)),
-            text_scale=max(1, int(2 * self.factor_escala_actual)),
-            text_thickness=max(1, int(4 * self.factor_escala_actual)),
+            thickness=max(1, int(4 * self.video.factor_escala)),
+            text_scale=max(1, int(2 * self.video.factor_escala)),
+            text_thickness=max(1, int(4 * self.video.factor_escala)),
         )
-
-
-    def __obtener_resolucion(self, video_path):
-        cap = cv2.VideoCapture(video_path)
-        ancho = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        alto = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-        return ((ancho, alto))
-
-
-    def __calcular_factor_escala(self):
-        """
-        Escala los distintos elementos (letras y lineas) en base a la resolución del video.
-        Lo elementos fueron diseñados para una resolución de 1080x1920.
-        """
-        ancho_original, alto_original = (1080, 1920)
-        ancho_actual, alto_actual, = self.resolucion_video_actual 
-        return ancho_actual / ancho_original
 
 
     def __poligono_cv2(self, frame, detections):
@@ -92,14 +59,13 @@ class Detector:
         - Cuenta los objetos que están dentro del polígono.
         """
 
-
         #! Dibujar el polígono de detección
         cv2.polylines(
             img=frame, 
-            pts=[self.zona_actual.puntos_reescalados], 
+            pts=[self.video.zona.puntos_reescalados], 
             isClosed=True, 
             color=(0,0,255),  
-            thickness=max(1, int(10 * self.factor_escala_actual)),
+            thickness=max(1, int(10 * self.video.factor_escala)),
         )
 
         detecciones_poligono = 0
@@ -112,7 +78,7 @@ class Detector:
 
             #! Validar el punto dentro del poligono
             color = ""  # BGR
-            if mplPath.Path(self.zona_actual.puntos_reescalados).contains_point((x,y)):
+            if mplPath.Path(self.video.zona.puntos_reescalados).contains_point((x,y)):
                 detecciones_poligono += 1
                 color = [255,80,0]
 
@@ -122,51 +88,27 @@ class Detector:
             cv2.circle(
                 img=frame, 
                 center=(x,y), 
-                radius=max(1, int(10 * self.factor_escala_actual)), 
+                radius=max(1, int(10 * self.video.factor_escala)), 
                 color=color, 
-                thickness=max(1, int(10 * self.factor_escala_actual))
+                thickness=max(1, int(10 * self.video.factor_escala))
             )
             
         cv2.putText(
             img=frame, 
             text=f"Vehiculos {detecciones_poligono}", 
             org=(
-                max(1, int(250 * self.factor_escala_actual)), 
-                max(1, int(1800 * self.factor_escala_actual))
+                max(1, int(250 * self.video.factor_escala)), 
+                max(1, int(1800 * self.video.factor_escala))
             ), 
             fontFace=cv2.FONT_HERSHEY_PLAIN, 
-            fontScale=max(1, int(6 * self.factor_escala_actual)), 
+            fontScale=max(1, int(6 * self.video.factor_escala)), 
             color=(50,50,200), 
-            thickness=max(1, int(6 * self.factor_escala_actual)),
+            thickness=max(1, int(6 * self.video.factor_escala)),
         )
         
-        if self.notificador is not None:
-            self.notificador.notificar(f"{self.zona_actual.nombre} {detecciones_poligono} | ")
+        self.notificador.notificar(f"{self.video.nombre} {detecciones_poligono} | ")
 
         return frame
-
-
-    def __poligono_sv(self, frame, detections):
-        """
-        - Dibuja el centro de los objetos y el poligono de detección. 
-        - Tiene el problema de que no cuenta bien los objetos dentro del poligono, no
-        se si es porque cuenta cuando la box está completa dentro del poligono o si
-        es por otro motivo.
-        """
-        detecciones = self.poligono_zona.trigger(detections)
-        return self.poligono_dibujado.annotate(
-            scene=frame,
-        )
-
-
-    def __trace(self, frame, detections):
-        """
-        - Dibuja el recorrido de un objeto.
-        """
-        return self.trace_annotator.annotate(
-            scene=frame,
-            detections=detections
-        )
 
 
     def __box(self, frame, detections):
@@ -175,8 +117,8 @@ class Detector:
         - Dibuja una box por cada objeto.
         """
         etiquetas = []
-        for xyxy, mask, confidence, class_id, tracker_id in detections:
-            etiqueta = f"{self.CLASES[class_id]} {confidence:0.2f}"
+        for xyxy, mask, confianza, class_id, tracker_id in detections:
+            etiqueta = f"{self.CLASES[class_id]} {confianza:0.2f}"
             etiquetas.append(etiqueta)
             
         return self.box_annotator.annotate(
@@ -186,7 +128,7 @@ class Detector:
         )
 
 
-    def callback(self, frame: np.ndarray, index:int) -> np.ndarray:
+    def __callback(self, frame: np.ndarray, index:int) -> np.ndarray:
         """
         - Procesamiento de video.
         - Se ejecuta por cada frame del video.
@@ -202,93 +144,61 @@ class Detector:
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
 
+        frame = self.__poligono_cv2(frame, detections)
 
-        #! Nuevo frame para su edición
-        new_frame = frame.copy()
+        frame = self.__box(frame, detections)
 
-        new_frame = self.__poligono_cv2(new_frame, detections)
-        # new_frame = self.__poligono_sv(new_frame, detections)
-
-        new_frame = self.__trace(new_frame, detections)
-
-        new_frame = self.__box(new_frame, detections)
-
-        #! Círculos en el centro de las boxes (descomentar CircleAnnotator)
-        # new_frame = circle_annotator.annotate(
-        #     scene=new_frame,
-        #     detections=detections,
-        # )
-
-        return new_frame
+        return frame
 
 
-    def __preparar_parametros(self, zonas: list, carpeta_video: str, archivo_video_ruta_entrada: str, archivo_video_ruta_salida: str):
+    def procesar_guardar(self, video: Video):
         
-        #! Busca la clase correspondiente a la zona
-        self.zona_actual = next((zona for zona in zonas if zona.nombre == carpeta_video), None)
+        self.video = video
+        self.video.zona.escalar_puntos(self.video.resolucion)
         
-        self.resolucion_video_actual = self.__obtener_resolucion(archivo_video_ruta_entrada)
-        
-        self.zona_actual.escalar_puntos(self.resolucion_video_actual)
-        
-        self.factor_escala_actual = self.__calcular_factor_escala()
-        print(f"  Factor de escala: {self.factor_escala_actual}")
+        print(f"  Factor de escala: {self.video.factor_escala}")
         
         self.__definir_parametros_supervision()
         
         sv.process_video(
-            source_path = archivo_video_ruta_entrada,
-            target_path = archivo_video_ruta_salida,
+            source_path = video.path_origen,
+            target_path = video.path_resultado,
             callback=self.__callback
         )
 
 
-    def analizar_carpeta_videos(self, zonas: list):
-        print("Procesando videos...")
-        i = 0
-    
-        #! Crear la carpeta de resultados si no existe
-        if not os.path.exists(self.PATH_CARPETA_RESULTADO_VIDEOS):
-            os.makedirs(self.PATH_CARPETA_RESULTADO_VIDEOS)
-
-        #! Recorrer todas las carpetas en la carpeta de entrada
-        for carpeta_video in os.listdir(self.PATH_CARPETA_ORIGEN_VIDEOS):
-            carpeta_video_ruta = os.path.join(self.PATH_CARPETA_ORIGEN_VIDEOS, carpeta_video)
-
-            #! Verificar si es una carpeta
-            if os.path.isdir(carpeta_video_ruta):
-                print(f"\nProcesando carpeta: {carpeta_video}")
-                
-                #! Crear la carpeta de salida espejo
-                carpeta_salida_ruta = os.path.join(self.PATH_CARPETA_RESULTADO_VIDEOS, carpeta_video)
-                if not os.path.exists(carpeta_salida_ruta):
-                    os.makedirs(carpeta_salida_ruta)
-
-                #! Procesar todos los archivos en la carpeta de video
-                for archivo_video in os.listdir(carpeta_video_ruta):
-                    archivo_video_ruta_entrada = os.path.join(carpeta_video_ruta, archivo_video)
-                    archivo_video_ruta_salida = os.path.join(carpeta_salida_ruta, archivo_video)
-
-                    #! Verificar si es un archivo y tiene una extensión de video
-                    if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
-                        
-                        i += 1
-                        print(f" -Video N°{i}: {archivo_video}")
-                        self.__preparar_parametros(
-                            zonas=zonas, 
-                            carpeta_video=carpeta_video, 
-                            archivo_video_ruta_entrada=archivo_video_ruta_entrada, 
-                            archivo_video_ruta_salida=archivo_video_ruta_salida
-                        )
-                        print(f"  Videos procesado\n")
-            # if i >= 1:
-            #     break
-            
-        print(f"\nVideos procesados con exito.")
 
 
 
 
+
+#! Círculos en el centro de las boxes (descomentar CircleAnnotator)
+# frame = circle_annotator.annotate(
+#     scene=frame,
+#     detections=detections,
+# )
+
+# def __trace(self, frame, detections):
+#     """
+#     - Dibuja el recorrido de un objeto.
+#     """
+#     return self.trace_annotator.annotate(
+#         scene=frame,
+#         detections=detections
+#     )
+
+
+# def __poligono_sv(self, frame, detections):
+#     """
+#     - Dibuja el centro de los objetos y el poligono de detección. 
+#     - Tiene el problema de que no cuenta bien los objetos dentro del poligono, no
+#     se si es porque cuenta cuando la box está completa dentro del poligono o si
+#     es por otro motivo.
+#     """
+#     detecciones = self.poligono_zona.trigger(detections)
+#     return self.poligono_dibujado.annotate(
+#         scene=frame,
+#     )
 
 
 # def procesar_un_video(self):
@@ -300,7 +210,7 @@ class Detector:
 #     sv.process_video(
 #         source_path = self.PATH_VIDEO_ORIGINAL,
 #         target_path = self.PATH_VIDEO_RESULTADO,
-#         callback=self.callback
+#         __callback=self.__callback
 #     )
 #     print("Video procesado.")
 
@@ -312,7 +222,7 @@ class Detector:
 #     ZONE_objetivo = []
 #     for punto in zone:
 #         x_original, y_original = punto
-#         x_objetivo = int(x_original * self.factor_escala_actual)
-#         y_objetivo = int(y_original * self.factor_escala_actual)
+#         x_objetivo = int(x_original * self.video.factor_escala)
+#         y_objetivo = int(y_original * self.video.factor_escala)
 #         ZONE_objetivo.append([x_objetivo, y_objetivo])
 #     return np.array(ZONE_objetivo)

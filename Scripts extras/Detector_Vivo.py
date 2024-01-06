@@ -44,8 +44,8 @@ class Detector_Vivo:
 
 
     def video(self, guardar=False):
-        # cap = cv2.VideoCapture(r"Pruebas\video-original.mp4")
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(r"Pruebas\video-original.mp4")
+        # cap = cv2.VideoCapture(0)
         # cap = cv2.VideoCapture(r"Pruebas\video-original.mp4")  # 0 es generalmente el índice de la cámara web predeterminada
         
         if guardar:
