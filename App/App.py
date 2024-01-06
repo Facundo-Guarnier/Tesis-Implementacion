@@ -16,8 +16,10 @@ zonas = [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos']
 
 notificador = Notificador(False)
 
-detector = Detector(MODEL, [2, 3, 5, 7], notificador)
+detector = Detector(MODEL, [2, 3, 5, 7], notificador, "Dataset_reescalado-576x1024-5fps/", "Resultados/")
 detector.analizar_carpeta_videos(zonas)
+
+
 
 
 

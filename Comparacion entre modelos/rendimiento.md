@@ -21,4 +21,6 @@ Nano       | (720, 1280)  | 15  | 8.8 seg   | False
 Nano       | (2160, 3840) | 30  | 24.3 seg  | False
 
 
+
 8.45 min para procesar 590Mb sin Ahorro de energía.
+2.41 min para procesar 184Mb sin Ahorro de energía.

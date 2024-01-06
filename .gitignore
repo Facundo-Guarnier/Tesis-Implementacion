@@ -1,9 +1,10 @@
 Dataset/*
-Dataset_reescalado/*
+Dataset_reescalado*
 Modelos/*
 Resultados/*
 **/video-deteccion*
 **/video-reescalado*
+
 
 
 # Byte-compiled / optimized / DLL files

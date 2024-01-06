@@ -6,16 +6,17 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo, clases_seleccionadas, notificador):
+    def __init__(self, nombre_modelo, clases_seleccionadas, notificador, path_origen, path_resultado):
         
         self.__definir_modelo(nombre_modelo, clases_seleccionadas)
-        self.__definir_paths()
 
         self.resolucion_video_actual = None
         self.factor_escala_actual = None
         self.zona_actual = None
         self.notificador = notificador
 
+        self.PATH_CARPETA_ORIGEN_VIDEOS = path_origen
+        self.PATH_CARPETA_RESULTADO_VIDEOS = path_resultado
 
     def __definir_modelo(self, nombre_modelo, clases_seleccionadas):
         """
@@ -25,12 +26,6 @@ class Detector:
         self.modelo = ul.YOLO(f"Modelos/{nombre_modelo}")
         self.CLASES  = self.modelo.model.names
         self.CLASES_SELECCIONADAS = clases_seleccionadas
-
-
-    def __definir_paths(self):
-        # self.PATH_CARPETA_ORIGEN_VIDEOS = "Dataset_reescalado/"
-        self.PATH_CARPETA_ORIGEN_VIDEOS = "Pruebas/"
-        self.PATH_CARPETA_RESULTADO_VIDEOS = "Resultados/"
 
 
     def __definir_parametros_supervision(self):
@@ -285,8 +280,8 @@ class Detector:
                             archivo_video_ruta_salida=archivo_video_ruta_salida
                         )
                         print(f"  Videos procesado\n")
-            if i >= 1:
-                break
+            # if i >= 1:
+            #     break
             
         print(f"\nVideos procesados con exito.")
 
