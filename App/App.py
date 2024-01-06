@@ -25,15 +25,15 @@ detector.analizar_carpeta_videos(zonas)
 
 #TODO:
 
-# [ ] Ver si puedo hacer que el detector sea en vivo.
+# [ ] Usar el callback de Detector en la clase de detectar en Vivo.
 # [ ] Ver si puedo detectar varios videos a la vez.
-# [ ]
 
 # [ ] Agregar try/except.
 # [ ] ¿Es necesario guardar los videos en la carpeta Resultados?
 # [ ] Ver si puedo estabilizar los videos.
 # [ ] Reemplazar cv2.circle por sv.CircleAnnotator
 
+# [x] Ver si puedo hacer que el detector sea en vivo.
 # [x] Sistema de notificaciones (productor/consumidor) para que el detector pueda enviar la cantidad de vehículos mediante socket.
 # [x] Hacer que devuelva la cantidad de vehículos en cada zona.
 # [x] Agregar la detección en las distintas Zonas.

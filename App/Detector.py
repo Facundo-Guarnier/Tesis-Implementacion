@@ -6,7 +6,7 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo, clases_seleccionadas, notificador, path_origen, path_resultado):
+    def __init__(self, nombre_modelo, clases_seleccionadas, notificador:None, path_origen, path_resultado):
         
         self.__definir_modelo(nombre_modelo, clases_seleccionadas)
 
@@ -140,7 +140,8 @@ class Detector:
             thickness=max(1, int(6 * self.factor_escala_actual)),
         )
         
-        self.notificador.notificar(f"{self.zona_actual.nombre} {detecciones_poligono} | ")
+        if self.notificador is not None:
+            self.notificador.notificar(f"{self.zona_actual.nombre} {detecciones_poligono} | ")
 
         return frame
 
@@ -185,7 +186,7 @@ class Detector:
         )
 
 
-    def __callback(self, frame: np.ndarray, index:int) -> np.ndarray:
+    def callback(self, frame: np.ndarray, index:int) -> np.ndarray:
         """
         - Procesamiento de video.
         - Se ejecuta por cada frame del video.
