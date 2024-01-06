@@ -8,7 +8,7 @@ import numpy as np
 
 
 class App:
-    def __init__(self, modelo_nombre, zonas, notificar:False):
+    def __init__(self, modelo_nombre:str, zonas:list[Zona], notificar=False):
         
         self.detector = Detector(
             nombre_modelo=modelo_nombre, 

@@ -1,7 +1,7 @@
 import socket
 
 class Notificador:
-    def __init__(self, estado:True) -> None:
+    def __init__(self, estado=False):
         self.estado = estado
         
         if self.estado:
@@ -17,12 +17,12 @@ class Notificador:
             print("Notificador desactivado.")
 
 
-    def notificar(self, notificacion):
+    def notificar(self, notificacion:str) -> None:
         if self.estado:
             print(f"Notificación enviada: '{notificacion}'")
             self.client_socket.send(notificacion.encode())
 
 
-    def finalizar(self):
+    def finalizar(self) -> None:
         print("Finalizando conexión...")
         self.client_socket.close()

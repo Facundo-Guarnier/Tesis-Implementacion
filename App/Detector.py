@@ -8,7 +8,7 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo:str, notificador: Notificador):
+    def __init__(self, nombre_modelo:str, notificador:Notificador):
         
         self.notificador = notificador
         
@@ -128,7 +128,7 @@ class Detector:
         )
 
 
-    def __callback(self, frame: np.ndarray, index:int) -> np.ndarray:
+    def __callback(self, frame:np.ndarray, n_frame:int) -> np.ndarray:
         """
         - Procesamiento de video.
         - Se ejecuta por cada frame del video.
@@ -151,7 +151,7 @@ class Detector:
         return frame
 
 
-    def procesar_guardar(self, video: Video):
+    def procesar_guardar(self, video:Video):
         
         self.video = video
         self.video.zona.escalar_puntos(self.video.resolucion)
@@ -166,6 +166,51 @@ class Detector:
             callback=self.__callback
         )
 
+
+    def procesar_vivo(self, guardar=False, video=Video):
+        cap = cv2.VideoCapture(video.path_origen)
+        
+        self.video = video
+        self.video.zona.escalar_puntos(self.video.resolucion)
+        self.__definir_parametros_supervision()
+        
+        if guardar:
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(video.path_resultado, fourcc, fps, (width, height))
+
+        total_t = 0
+        total_frames = 0
+        
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            start_t = time.time()
+            results = self.modelo(frame)[0]
+            end_t = time.time()
+            
+            total_t += end_t - start_t
+            total_frames += 1
+            
+            detections = sv.Detections.from_ultralytics(results)
+            frame = self.__callback(frame, total_frames)
+            
+            cv2.imshow('frame', frame)
+            
+            if guardar:
+                out.write(frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):  # Salir del bucle si se presiona 'q'
+                break
+
+        print(f"Tiempo promedio de predicción: {total_t / total_frames}")
+        cap.release()
+        cv2.destroyAllWindows()
+        print("Guardado en: ", video.path_resultado)   
 
 
 
