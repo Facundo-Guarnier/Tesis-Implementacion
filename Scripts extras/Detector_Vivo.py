@@ -11,10 +11,10 @@ class Detector_Vivo:
         self.clases = [2, 3, 5, 7]
 
         self.model = YOLO(r"Modelos/yolov8n.pt")
-        self.box_annotator = sv.BoundingBoxAnnotator()
+        self.CLASES  = self.model.model.names
 
         self.byte_tracker = sv.ByteTrack(track_thresh=0.25, track_buffer=30, match_thresh=0.8, frame_rate=30)
-
+        
         self.box_annotator = sv.BoxAnnotator(
             thickness=max(1, int(4)), 
             text_thickness=max(1, int(3)), 
@@ -25,19 +25,28 @@ class Detector_Vivo:
     def callback(self, frame, detections):
         results = self.model(frame, verbose=False)[0]
         detections = sv.Detections.from_ultralytics(results)
-        detections = detections[np.isin(detections.class_id, self.clases)]
+        # detections = detections[np.isin(detections.class_id, self.clases)]
         detections = self.byte_tracker.update_with_detections(detections)
 
-        frame = self.box_annotator.annotate(frame, detections=detections)
+        etiquetas = []
+        for xyxy, mask, confidence, class_id, tracker_id in detections:
+            etiqueta = f"{self.CLASES[class_id]} {confidence:0.2f}"
+            etiquetas.append(etiqueta)
+        
+        print(etiquetas)
+        frame = self.box_annotator.annotate(
+            frame, 
+            detections=detections,
+            labels=etiquetas,
+        )
 
         return frame
 
 
     def video(self, guardar=False):
-        cap = cv2.VideoCapture(r"Pruebas\video-reescalado-720x1280-5fps.mp4")  # 0 es generalmente el índice de la cámara web predeterminada
+        # cap = cv2.VideoCapture(r"Pruebas\video-original.mp4")
+        cap = cv2.VideoCapture(0)
         # cap = cv2.VideoCapture(r"Pruebas\video-original.mp4")  # 0 es generalmente el índice de la cámara web predeterminada
-        
-        
         
         if guardar:
             fps = cap.get(cv2.CAP_PROP_FPS)
