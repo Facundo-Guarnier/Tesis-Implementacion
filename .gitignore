@@ -1,7 +1,7 @@
-Dataset/*
+Dataset*
 Dataset_reescalado*
-Modelos/*
-Resultados/*
+Resultados*
+Modelos*
 **/video-deteccion*
 **/video-reescalado*
 
