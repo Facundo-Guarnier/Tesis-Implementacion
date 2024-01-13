@@ -16,7 +16,7 @@ def cambiarEstado(semaforo, estado):
 #! Obtener el estado actual del semáforo
 def getEstado(semaforo):
     e = traci.trafficlight.getRedYellowGreenState(semaforo)
-    print("Estado del semáforo: {e}")
+    print(f"Estado del semáforo: {e}")
     return e    
 
 
@@ -28,8 +28,6 @@ while traci.simulation.getMinExpectedNumber() > 0:
     print("")
     print("Paso simulación: ", traci.simulation.getTime())
 
-
-
     getEstado("585119522")
 
     # cambiarEstado("585119522", "rrrrrrrrrr")
@@ -39,8 +37,11 @@ while traci.simulation.getMinExpectedNumber() > 0:
 
 
     #! Avanzar la simulación un paso
-    print("Avanzar la simulación un paso")
     traci.simulationStep()
 
 #! Detener la simulación de SUMO al finalizar
 traci.close()
+
+
+# https://sumo.dlr.de/docs/Tools/Trip.html
+# python tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\Mapa\osm.net.xml.gz --fringe-factor 20 --random --binomial 4
