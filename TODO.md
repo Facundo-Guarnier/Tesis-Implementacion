@@ -17,6 +17,7 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 [ ] Ver si puedo estabilizar los videos.
 [ ] Que conviene: El Detector notifique a la Lógica o la Lógica consulte al Detector. 
 [ ] ¿Uso socket o paso a Flask como si fuera una APIs?
+[ ] Detectar ambulancias y patrulleros.
 
 [~] Ver si puedo detectar varios videos a la vez.: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 

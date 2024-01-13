@@ -2,23 +2,45 @@ import time
 import traci
 import traci.constants as tc
 
+
+#! Obtener la cantidad de vehículos en una calle
+def getVehiculos(edge):
+    v = traci.edge.getLastStepVehicleNumber(edge)
+    print(f"Vehículos: {v}")
+    return v
+
+#! Cambiar el color del semáforo (ejemplo: ponerlo en verde)
+def cambiarEstado(semaforo, estado):
+    traci.trafficlight.setRedYellowGreenState(semaforo, estado)
+
+#! Obtener el estado actual del semáforo
+def getEstado(semaforo):
+    e = traci.trafficlight.getRedYellowGreenState(semaforo)
+    print("Estado del semáforo: {e}")
+    return e    
+
+
 #! Iniciar la simulación de SUMO
-traci.start(["sumo", "-c", r"mapa\osm.sumocfg"])
+traci.start(["sumo-gui", "-c", "SUMO/Mapa/osm.sumocfg"])
 
 #! Main loop
 while traci.simulation.getMinExpectedNumber() > 0:
-    #! Obtener el estado actual del semáforo
-    semaforo_estado = traci.trafficlight.getRedYellowGreenState("cluster_10816689636_10816689929_1663714600")
-    print("Estado del semáforo: " + semaforo_estado)
+    print("")
+    print("Paso simulación: ", traci.simulation.getTime())
 
-    #! Cambiar el color del semáforo (ejemplo: ponerlo en verde)
-    nuevo_estado = "GGGG"
-    traci.trafficlight.setRedYellowGreenState("cluster_10816689636_10816689929_1663714600", nuevo_estado)
+
+
+    getEstado("585119522")
+
+    # cambiarEstado("585119522", "rrrrrrrrrr")
+
+    getVehiculos("376549265")
+
+
 
     #! Avanzar la simulación un paso
     print("Avanzar la simulación un paso")
     traci.simulationStep()
-    time.sleep(1)
 
 #! Detener la simulación de SUMO al finalizar
 traci.close()
