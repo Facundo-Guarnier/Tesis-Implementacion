@@ -1,5 +1,4 @@
 import os, time, cv2
-from Notificador import Notificador
 from Video import Video
 from Zona import Zona
 import matplotlib.path as mplPath
@@ -8,12 +7,24 @@ import supervision as sv
 import numpy as np
 
 class Detector:
-    def __init__(self, nombre_modelo:str, notificador:Notificador):
+    """
+    Clase singleton.
+    """
+    _instance = None  #! Almacenar única instancia
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, nombre_modelo:str):
+        if hasattr(self, '_initialized'):  #! Verificar si la instancia ya está inicializada
+            return
+        self._initialized = True  #! Marcar la instancia como inicializada
         
-        self.notificador = notificador
         
         self.modelo = ul.YOLO(f"Modelos/{nombre_modelo}")
-        self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus CREO
+        self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
 
 
@@ -106,8 +117,6 @@ class Detector:
             thickness=max(1, int(6 * self.video.factor_escala)),
         )
         
-        self.notificador.notificar(f"{self.video.nombre} {detecciones_poligono} | ")
-
         return frame
 
 

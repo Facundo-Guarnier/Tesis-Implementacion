@@ -1,5 +1,5 @@
-from Notificador import Notificador
 from Detector import Detector
+from Api import DetectorFlask
 from Video import Video
 from Zona import Zona
 
@@ -8,11 +8,11 @@ import numpy as np
 
 
 class App:
-    def __init__(self, modelo_nombre:str, zonas:list[Zona], notificar:bool=False):
+
+    def __init__(self, modelo_nombre: str, zonas: list, notificar: bool = False):
         
         self.detector = Detector(
             nombre_modelo=modelo_nombre, 
-            notificador=Notificador(notificar)
         )
         self.zonas = zonas
     
@@ -100,6 +100,10 @@ if __name__ == "__main__":
         zonas=zonas
     )   
     
+    #T* API
+    # api = DetectorFlask(name="Nombre de la API",  app=app)
+    # api.run(debug=True)
+    
     # app.analizar_carpeta_videos(
     #     origen="Dataset_reescalado-576x1024-5fps/", 
     #     destino="Resultados/",
@@ -112,3 +116,5 @@ if __name__ == "__main__":
         # path_video="Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
         # path_video="Pruebas/video-reescalado-576x1024-5fps.mp4",
     )
+    
+    
