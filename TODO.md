@@ -5,7 +5,8 @@
 [ ] 
 
 [ ] Tomar mediciones de tiempo en los semáforos reales.
-[ ] Que conviene: El Detector notifique a la Lógica o la Lógica consulte al Detector. 
+[ ] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector. 
+    Creo que conviene que la lógica solicite la cantidad al detector.
 
 
 # Toma de decisiones
@@ -22,10 +23,10 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 [ ] Usar el callback de Detector en la clase de detectar en Vivo.
 [ ] Agregar try/except.
 [ ] Ver si puedo estabilizar los videos.
-[ ] ¿Uso socket o paso a Flask como si fuera una APIs?
+[ ] Pasar el socket a Flask como si fuera una API.
 [ ] Detectar ambulancias y patrulleros.
 
-[~] Ver si puedo detectar varios videos a la vez.: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
+[~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 
 [x] Ver si puedo hacer que el detector sea en vivo.
 [x] Sistema de notificaciones (productor/consumidor) para que el detector pueda enviar la cantidad de vehículos mediante socket.

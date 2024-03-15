@@ -8,7 +8,7 @@ import numpy as np
 
 
 class App:
-    def __init__(self, modelo_nombre:str, zonas:list[Zona], notificar=False):
+    def __init__(self, modelo_nombre:str, zonas:list[Zona], notificar:bool=False):
         
         self.detector = Detector(
             nombre_modelo=modelo_nombre, 
@@ -18,6 +18,9 @@ class App:
     
     
     def analizar_carpeta_videos(self, origen:str, destino:str):
+        """
+        Procesa todos los videos en la carpeta de origen y guarda los resultados en la carpeta de destino.
+        """
         print("Procesando videos...")
         i = 0
     
@@ -45,9 +48,6 @@ class App:
 
                     #! Verificar si es un archivo y tiene una extensión de video
                     if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
-                        
-                        i += 1
-                        
                         video = Video(
                             path_origen=archivo_video_ruta_entrada, 
                             path_resultado=archivo_video_ruta_salida,
@@ -59,27 +59,24 @@ class App:
                             video=video
                         )
                         print(f"  Videos procesado\n")
-            # if i >= 1:
-            #     break
             
         print(f"\nVideos procesados con éxito.")
 
-    def vivo(self):
+
+    def analizar_un_video_vivo(self, path_video:str, guardar:bool=False):
         """
-        Ejecuta el modelo y realiza la detección de objetos en el video.
+        Ejecuta el modelo y realiza la detección de objetos en el video mostrando el resultado en tiempo real.
         """
         
         video = Video(
-            path_origen="Pruebas/video-reescalado-576x1024-5fps.mp4",
-            # path_origen="Pruebas/video-original.mp4",
-            # path_origen="Pruebas/video-reescalado-720x1280-15fps.mp4",
+            path_origen=path_video,
             path_resultado=None,
-            zona=next((zona for zona in self.zonas if zona.nombre == "FHD"), None),
+            zona=next((zona for zona in self.zonas if zona.nombre == "Zona J"), None),
         )
         
         print("Procesando video...")
         self.detector.procesar_vivo(
-            guardar=False,
+            guardar=guardar,
             video=video
         )
         print("Video procesado.")
@@ -91,7 +88,7 @@ if __name__ == "__main__":
     modelo_nombre = "yolov8n.pt"
 
     #! Leer el archivo YAML de zonas.
-    with open('zonas.yaml', 'r') as archivo:
+    with open(b'zonas.yaml', 'r') as archivo:
         datos_yaml = yaml.safe_load(archivo)
 
     #! Lista de instancias de Zona.
@@ -108,4 +105,10 @@ if __name__ == "__main__":
     #     destino="Resultados/",
     # )
     
-    app.vivo()
+    app.analizar_un_video_vivo(
+        guardar=True,
+        # path_video="Dataset/Zona J/20240102_133419.mp4"
+        path_video="Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+        # path_video="Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+        # path_video="Pruebas/video-reescalado-576x1024-5fps.mp4",
+    )

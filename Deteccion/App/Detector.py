@@ -152,6 +152,9 @@ class Detector:
 
 
     def procesar_guardar(self, video:Video):
+        """
+        Procesa un video y guarda el resultado.
+        """
         
         self.video = video
         self.video.zona.escalar_puntos(self.video.resolucion)
@@ -167,7 +170,12 @@ class Detector:
         )
 
 
-    def procesar_vivo(self, guardar=False, video=Video):
+    def procesar_vivo(self, video:Video, guardar:bool=False ):
+        """
+        - Procesa un video y muestra el resultado en vivo.
+        - Si guardar=True, guarda el resultado.
+        """
+        
         cap = cv2.VideoCapture(video.path_origen)
         
         self.video = video
@@ -186,6 +194,8 @@ class Detector:
         start_time = time.time()
         total_frames = 0
         
+        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('frame', 460, 820) 
         
         while True:
             frame_count += 1
@@ -204,7 +214,9 @@ class Detector:
             if guardar:
                 out.write(frame)
             
-            cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1*self.video.factor_escala, (0, 255, 0), 2)
+            
+
             cv2.imshow('frame', frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):  # Salir del bucle si se presiona 'q'
@@ -217,7 +229,8 @@ class Detector:
 
         cap.release()
         cv2.destroyAllWindows()
-        print("Guardado en: ", video.path_resultado)   
+        if guardar:
+            print("Guardado en: ", video.path_resultado)   
 
 
 

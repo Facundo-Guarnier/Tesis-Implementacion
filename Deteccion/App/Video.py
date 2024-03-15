@@ -1,3 +1,4 @@
+import os
 import cv2
 
 
@@ -5,7 +6,10 @@ class Video:
     def __init__(self, path_origen, path_resultado, zona):
         
         self.path_origen = path_origen
-        self.path_resultado = path_resultado
+        if not path_resultado:
+            self.path_resultado = os.path.join(os.getcwd(), "resultado.mp4")
+        else:
+            self.path_resultado = path_resultado
         self.zona = zona
         
         self.nombre = path_origen.split("/")[-1]
@@ -23,11 +27,13 @@ class Video:
         cap.release()
         return ((ancho, alto))
 
+
     def __fps(self):
         cap = cv2.VideoCapture(self.path_origen)
         fps = cap.get(cv2.CAP_PROP_FPS)
         cap.release()
         return fps
+
 
     def __calcular_factor_escala(self):
         """

@@ -20,7 +20,7 @@ def reescalar_video(ruta_entrada, ruta_salida, nueva_resolucion, factor_reduccio
     _, extension = os.path.splitext(ruta_entrada)
     nombre_base, _ = os.path.splitext(ruta_salida)
     
-    ruta_salida = nombre_base + f"-{nueva_resolucion[0]}x{nueva_resolucion[1]}-{round(fps_nuevo)}fps{extension}"
+    # ruta_salida = nombre_base + f"-{nueva_resolucion[0]}x{nueva_resolucion[1]}-{round(fps_nuevo)}fps{extension}"
     
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(ruta_salida, fourcc, fps_nuevo, nueva_resolucion)
