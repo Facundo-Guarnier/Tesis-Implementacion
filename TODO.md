@@ -3,6 +3,7 @@
 
 [ ] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
     Ver principalmente clase App, Api y Detector.
+    Video no deberia manejar zona.
 
 [ ] Tomar mediciones de tiempo en los semáforos reales.
 [ ] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
@@ -38,3 +39,13 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 # Instalaciones
 
 - pip install Flask
+
+# Estructura
+Detector/
+├── App/
+│   ├── __init__.py
+│   ├── Detector.py
+│   ├── Api.py
+│   └── ...
+├── requirements.txt
+└── run.py

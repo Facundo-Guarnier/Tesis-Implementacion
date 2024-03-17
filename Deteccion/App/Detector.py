@@ -17,13 +17,14 @@ class Detector:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, nombre_modelo:str):
+    def __init__(self):
         if hasattr(self, '_initialized'):  #! Verificar si la instancia ya está inicializada
             return
         self._initialized = True  #! Marcar la instancia como inicializada
         
+        #TODO Leerlo desde config.yaml
+        # self.modelo = 
         
-        self.modelo = ul.YOLO(f"Modelos/{nombre_modelo}")
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
 

@@ -1,5 +1,4 @@
 from Detector import Detector
-from Api import DetectorFlask
 from Video import Video
 from Zona import Zona
 
@@ -9,14 +8,16 @@ import numpy as np
 
 class App:
 
-    def __init__(self, modelo_nombre: str, zonas: list, notificar: bool = False):
+    def __init__(self):
         
-        self.detector = Detector(
-            nombre_modelo=modelo_nombre, 
-        )
-        self.zonas = zonas
-    
-    
+        self.detector = Detector()
+
+        # #! Leer el archivo YAML de zonas.
+        # with open(b'App/zonas.yaml', 'r') as archivo:
+        #     datos_yaml = yaml.safe_load(archivo)
+        # self.zonas = [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
+
+
     def analizar_carpeta_videos(self, origen:str, destino:str):
         """
         Procesa todos los videos en la carpeta de origen y guarda los resultados en la carpeta de destino.
@@ -63,7 +64,7 @@ class App:
         print(f"\nVideos procesados con éxito.")
 
 
-    def analizar_un_video_vivo(self, path_video:str, guardar:bool=False):
+    def analizar_un_video(self, path_video:str, guardar:bool=False):
         """
         Ejecuta el modelo y realiza la detección de objetos en el video mostrando el resultado en tiempo real.
         """
@@ -80,41 +81,3 @@ class App:
             video=video
         )
         print("Video procesado.")
-
-
-if __name__ == "__main__":
-    
-    #! Definir modelo pre-entrenado a usar.
-    modelo_nombre = "yolov8n.pt"
-
-    #! Leer el archivo YAML de zonas.
-    with open(b'zonas.yaml', 'r') as archivo:
-        datos_yaml = yaml.safe_load(archivo)
-
-    #! Lista de instancias de Zona.
-    zonas = [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
-
-    app = App(
-        modelo_nombre=modelo_nombre, 
-        notificar=False, 
-        zonas=zonas
-    )   
-    
-    #T* API
-    # api = DetectorFlask(name="Nombre de la API",  app=app)
-    # api.run(debug=True)
-    
-    # app.analizar_carpeta_videos(
-    #     origen="Dataset_reescalado-576x1024-5fps/", 
-    #     destino="Resultados/",
-    # )
-    
-    app.analizar_un_video_vivo(
-        guardar=True,
-        # path_video="Dataset/Zona J/20240102_133419.mp4"
-        path_video="Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-        # path_video="Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-        # path_video="Pruebas/video-reescalado-576x1024-5fps.mp4",
-    )
-    
-    
