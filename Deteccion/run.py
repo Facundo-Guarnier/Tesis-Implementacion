@@ -7,32 +7,24 @@ from threading import Thread
 #! API flask
 def run_flask():
     api = DetectorFlask(name="Nombre de la API")
-    api.run(debug=True) 
+    api.run(debug=False) 
 
 #! Deteccionde vehiculos
 def run_app():
-    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    i = 0
-    while True:
-        time.sleep(5)
-        print(f"{i}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        i += 1
-        
-    # app = App()
+    app = App()
     
     # app.analizar_carpeta_videos(
     #     origen="Dataset_reescalado-576x1024-5fps/", 
     #     destino="Resultados/",
     # )
     
-    # app.analizar_un_video(
-    #     guardar=True,
-    #     # path_video="Dataset/Zona J/20240102_133419.mp4"
-    #     path_video="Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-    #     # path_video="Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-    #     # path_video="Pruebas/video-reescalado-576x1024-5fps.mp4",
-    # )
+    app.analizar_un_video(
+        guardar=True,
+        # path_video="Dataset/Zona J/20240102_133419.mp4"
+        path_video="Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+        # path_video="Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+        # path_video="Pruebas/video-reescalado-576x1024-5fps.mp4",
+    )
 
 
 def señal(nro_senial, marco):
@@ -42,11 +34,6 @@ def señal(nro_senial, marco):
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, señal)
-    
-    #* ACÁ ME QUEDÉ
-    #* Estoy intentando evitar que se duplique el hilo de la detección de vehículos.
-    #* Al parecer es culpa de flask.
-    #* No correr flask en otro hilo porque necesita estar en el hilo principal porque necesita la terminal.
     
     app_thread = Thread(target=run_app)
     app_thread.start()

@@ -6,7 +6,10 @@
     Video no deberia manejar zona.
 
 [ ] Tomar mediciones de tiempo en los semáforos reales.
-[ ] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
+
+[~] No puedo usar flask en debug porque duplica al hilo detector.
+
+[x] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
     Creo que conviene que la lógica solicite la cantidad al detector.
 
 # Toma de decisiones

@@ -7,8 +7,8 @@ from App.zonas.Zona import Zona
 class ZonaList:
     """
     Clase de tipo "Singleton" que:
-    - Representa una lista de zonas (List[Zona]).
     - Se encarga de cargar las zonas desde un archivo YAML.
+    - Representa una lista de zonas (List[Zona]).
     """
     _instance = None
 
@@ -46,3 +46,9 @@ class ZonaList:
                 return zona.cantidad_detecciones
         
         return -1  #! Retornar -1 si la zona no se encuentra
+    
+    def get_zonas(self) -> List[Zona]:
+        """
+        Devuelve la lista de zonas.
+        """
+        return self.zonas

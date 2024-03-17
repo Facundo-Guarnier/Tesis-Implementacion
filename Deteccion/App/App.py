@@ -2,8 +2,9 @@ from App.Detector import Detector
 from App.Video import Video
 from App.zonas.Zona import Zona
 
-import yaml, os
-import numpy as np
+import os
+
+from App.zonas.ZonaList import ZonaList
 
 
 class App:
@@ -63,11 +64,12 @@ class App:
         """
         Ejecuta el modelo y realiza la detección de objetos en el video mostrando el resultado en tiempo real.
         """
+        zonas = ZonaList()
         
         video = Video(
             path_origen=path_video,
             path_resultado=None,
-            zona=next((zona for zona in self.zonas if zona.nombre == "Zona J"), None),
+            zona=next((zona for zona in zonas.get_zonas() if zona.nombre == "Zona J"), None),
         )
         
         print("Procesando video...")

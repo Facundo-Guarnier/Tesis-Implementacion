@@ -1,8 +1,7 @@
 from App.config import configuracion
-from App.zonas.Zona import Zona
 from App.Video import Video
 
-import os, time, cv2
+import time, cv2
 import matplotlib.path as mplPath
 import ultralytics as ul
 import supervision as sv
@@ -26,7 +25,8 @@ class Detector:
             return
         self._initialized = True  #! Marcar la instancia como inicializada
         
-        self.modelo = configuracion['modelo'] 
+        
+        self.modelo = ul.YOLO(f"Modelos/{configuracion['modelo']}")
         
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
@@ -107,7 +107,8 @@ class Detector:
                 color=color, 
                 thickness=max(1, int(10 * self.video.factor_escala))
             )
-            
+        
+        #! Escribir la cantidad de detecciones en el frame
         cv2.putText(
             img=frame, 
             text=f"Vehiculos {detecciones_poligono}", 
@@ -120,6 +121,9 @@ class Detector:
             color=(50,50,200), 
             thickness=max(1, int(6 * self.video.factor_escala)),
         )
+        
+        #! Guardar la cantidad de detecciones en la clase Zona para la API.
+        self.video.zona.cantidad_detecciones = detecciones_poligono
         
         return frame
 
