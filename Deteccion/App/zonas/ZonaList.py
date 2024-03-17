@@ -2,7 +2,7 @@ from typing import List
 import numpy as np
 import yaml
 
-from Zona import Zona
+from App.zonas.Zona import Zona
 
 class ZonaList:
     """
@@ -21,7 +21,7 @@ class ZonaList:
 
     @staticmethod
     def __cargar_zonas() -> List[Zona]:
-        with open('App/zonas.yaml', 'r') as archivo:
+        with open('App/zonas/zonas.yaml', 'r') as archivo:
             datos_yaml = yaml.safe_load(archivo)
             return [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
 

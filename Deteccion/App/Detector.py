@@ -1,10 +1,13 @@
+from App.config import configuracion
+from App.zonas.Zona import Zona
+from App.Video import Video
+
 import os, time, cv2
-from Video import Video
-from Zona import Zona
 import matplotlib.path as mplPath
 import ultralytics as ul
 import supervision as sv
 import numpy as np
+
 
 class Detector:
     """
@@ -12,18 +15,18 @@ class Detector:
     """
     _instance = None  #! Almacenar única instancia
 
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
+    def __new__(cls):
+        if not cls._instance:
             cls._instance = super().__new__(cls)
         return cls._instance
+
 
     def __init__(self):
         if hasattr(self, '_initialized'):  #! Verificar si la instancia ya está inicializada
             return
         self._initialized = True  #! Marcar la instancia como inicializada
         
-        #TODO Leerlo desde config.yaml
-        # self.modelo = 
+        self.modelo = configuracion['modelo'] 
         
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names

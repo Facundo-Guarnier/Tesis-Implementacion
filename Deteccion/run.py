@@ -1,14 +1,25 @@
+import time, os, signal
 from App.Api import DetectorFlask
 from App.App import App
-import multiprocessing
 
-def api():
+from threading import Thread
+
+#! API flask
+def run_flask():
     api = DetectorFlask(name="Nombre de la API")
     api.run(debug=True) 
 
-
-def app():
-    app = App()
+#! Deteccionde vehiculos
+def run_app():
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    i = 0
+    while True:
+        time.sleep(5)
+        print(f"{i}+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        i += 1
+        
+    # app = App()
     
     # app.analizar_carpeta_videos(
     #     origen="Dataset_reescalado-576x1024-5fps/", 
@@ -24,11 +35,22 @@ def app():
     # )
 
 
+def señal(nro_senial, marco):
+    print("Finalizando el proceso ID:", os.getpid())
+    os._exit(0)
+
+
 if __name__ == "__main__":
-    multiprocessing.set_start_method('spawn')
-    p1 = multiprocessing.Process(target=api)
-    p2 = multiprocessing.Process(target=app)
-    p1.start()
-    p2.start()
-    p1.join()
-    p2.join()
+    signal.signal(signal.SIGINT, señal)
+    
+    #* ACÁ ME QUEDÉ
+    #* Estoy intentando evitar que se duplique el hilo de la detección de vehículos.
+    #* Al parecer es culpa de flask.
+    #* No correr flask en otro hilo porque necesita estar en el hilo principal porque necesita la terminal.
+    
+    app_thread = Thread(target=run_app)
+    app_thread.start()
+
+    run_flask()
+    
+    app_thread.join()

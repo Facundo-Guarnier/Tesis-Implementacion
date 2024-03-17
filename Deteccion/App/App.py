@@ -1,6 +1,6 @@
-from Detector import Detector
-from Video import Video
-from Zona import Zona
+from App.Detector import Detector
+from App.Video import Video
+from App.zonas.Zona import Zona
 
 import yaml, os
 import numpy as np
@@ -11,11 +11,6 @@ class App:
     def __init__(self):
         
         self.detector = Detector()
-
-        # #! Leer el archivo YAML de zonas.
-        # with open(b'App/zonas.yaml', 'r') as archivo:
-        #     datos_yaml = yaml.safe_load(archivo)
-        # self.zonas = [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
 
 
     def analizar_carpeta_videos(self, origen:str, destino:str):
