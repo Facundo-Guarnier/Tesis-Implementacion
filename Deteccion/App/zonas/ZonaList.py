@@ -1,8 +1,8 @@
-from typing import List
 import numpy as np
 import yaml
 
 from App.zonas.Zona import Zona
+from typing import List
 
 class ZonaList:
     """
@@ -37,7 +37,7 @@ class ZonaList:
         return cantidad_detecciones
 
 
-    def get_cantidad_zona(self, zona_nombre: str) -> int:
+    def get_cantidad_zona(self, zona_nombre:str) -> int:
         """
         Cantidad de vehículos en una zona específica.
         """

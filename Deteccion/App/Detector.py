@@ -1,38 +1,26 @@
-from App.config import configuracion
-from App.Video import Video
-
-import time, cv2
 import matplotlib.path as mplPath
 import ultralytics as ul
 import supervision as sv
 import numpy as np
+import time, cv2
+
+from App.config import configuracion
+from App.Video import Video
 
 
 class Detector:
     """
-    Clase singleton.
+    Clase que procesa los videos, realiza la detección de objetos, dibuja 
+    los polígonos de zonas y los centros de cada objeto detectado. 
     """
-    _instance = None  #! Almacenar única instancia
-
-    def __new__(cls):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-
+    
     def __init__(self):
-        if hasattr(self, '_initialized'):  #! Verificar si la instancia ya está inicializada
-            return
-        self._initialized = True  #! Marcar la instancia como inicializada
-        
-        
         self.modelo = ul.YOLO(f"Modelos/{configuracion['modelo']}")
-        
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
 
 
-    def __definir_parametros_supervision(self):
+    def __definir_parametros_supervision(self) -> None:
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
         """
@@ -52,23 +40,23 @@ class Detector:
             text_scale=max(1, int(2 * self.video.factor_escala)),
         )
 
-        #! Polígono (sv) de detección
-        self.poligono_zona = sv.PolygonZone(
-            polygon=self.video.zona.puntos_reescalados, 
-            frame_resolution_wh=self.video.resolucion
-        )
+        # #! Polígono (sv) de detección
+        # self.poligono_zona = sv.PolygonZone(
+        #     polygon=self.video.zona.puntos_reescalados, 
+        #     frame_resolution_wh=self.video.resolucion
+        # )
 
-        #! Dibujar polígono (sv)
-        self.poligono_dibujado = sv.PolygonZoneAnnotator(
-            zone=self.poligono_zona,
-            color=sv.Color(255,0,0),
-            thickness=max(1, int(4 * self.video.factor_escala)),
-            text_scale=max(1, int(2 * self.video.factor_escala)),
-            text_thickness=max(1, int(4 * self.video.factor_escala)),
-        )
+        # #! Dibujador polígono (sv)
+        # self.poligono_dibujador = sv.PolygonZoneAnnotator(
+        #     zone=self.poligono_zona,
+        #     color=sv.Color(255,0,0),
+        #     thickness=max(1, int(4 * self.video.factor_escala)),
+        #     text_scale=max(1, int(2 * self.video.factor_escala)),
+        #     text_thickness=max(1, int(4 * self.video.factor_escala)),
+        # )
 
 
-    def __poligono_cv2(self, frame, detections):
+    def __poligono_cv2(self, frame, detections:sv.Detections) -> np.ndarray:
         """
         - Dibuja el centro de los objetos y el polígono de detección. 
         - Cuenta los objetos que están dentro del polígono.
@@ -128,7 +116,7 @@ class Detector:
         return frame
 
 
-    def __box(self, frame, detections):
+    def __box_sv(self, frame:np.ndarray, detections:sv.Detections) -> np.ndarray:
         """
         - Hace las etiquetas de cada box.
         - Dibuja una box por cada objeto.
@@ -163,22 +151,21 @@ class Detector:
 
         frame = self.__poligono_cv2(frame, detections)
 
-        frame = self.__box(frame, detections)
+        frame = self.__box_sv(frame, detections)
 
         return frame
 
 
-    def procesar_guardar(self, video:Video):
+    def procesar_guardar(self, video:Video) -> None:
         """
-        Procesa un video y guarda el resultado.
+        Procesa un video y guarda el resultado sin mostrarlo en una ventana en vivo.
         """
         
         self.video = video
         self.video.zona.escalar_puntos(self.video.resolucion)
-        
+        self.__definir_parametros_supervision()
         print(f"  Factor de escala: {self.video.factor_escala}")
         
-        self.__definir_parametros_supervision()
         
         sv.process_video(
             source_path = video.path_origen,
@@ -187,7 +174,7 @@ class Detector:
         )
 
 
-    def procesar_vivo(self, video:Video, guardar:bool=False ):
+    def procesar_vivo(self, video:Video, guardar:bool=False) -> None:
         """
         - Procesa un video y muestra el resultado en vivo.
         - Si guardar=True, guarda el resultado.
@@ -224,8 +211,7 @@ class Detector:
             
             results = self.modelo(frame)[0]
             
-            
-            detections = sv.Detections.from_ultralytics(results)
+            # detections = sv.Detections.from_ultralytics(results)
             frame = self.__callback(frame, total_frames)
             
             if guardar:
@@ -277,7 +263,7 @@ class Detector:
 #     es por otro motivo.
 #     """
 #     detecciones = self.poligono_zona.trigger(detections)
-#     return self.poligono_dibujado.annotate(
+#     return self.poligono_dibujador.annotate(
 #         scene=frame,
 #     )
 

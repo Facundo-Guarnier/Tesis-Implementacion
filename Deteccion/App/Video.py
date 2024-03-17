@@ -1,26 +1,27 @@
-import os
-import cv2
+import os, cv2
+
+from App.zonas.Zona import Zona
 
 
 class Video:
-    def __init__(self, path_origen, path_resultado, zona):
+    def __init__(self, path_origen:str, zona:Zona, path_resultado:str=None):
         
+        self.zona = zona
         self.path_origen = path_origen
         if not path_resultado:
             self.path_resultado = os.path.join(os.getcwd(), "resultado.mp4")
         else:
             self.path_resultado = path_resultado
-        self.zona = zona
         
-        self.nombre = path_origen.split("/")[-1]
-        self.carpeta = path_origen.split("/")[-2]
+        # self.nombre = path_origen.split("/")[-1]
+        # self.carpeta = path_origen.split("/")[-2]
         
         self.fps = self.__fps()
         self.resolucion = self.__obtener_resolucion()
         self.factor_escala = self.__calcular_factor_escala()
 
 
-    def __obtener_resolucion(self):
+    def __obtener_resolucion(self) -> tuple[int, int]:
         cap = cv2.VideoCapture(self.path_origen)
         ancho = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         alto = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -28,14 +29,14 @@ class Video:
         return ((ancho, alto))
 
 
-    def __fps(self):
+    def __fps(self) -> int:
         cap = cv2.VideoCapture(self.path_origen)
         fps = cap.get(cv2.CAP_PROP_FPS)
         cap.release()
         return fps
 
 
-    def __calcular_factor_escala(self):
+    def __calcular_factor_escala(self) -> float:
         """
         Escala los distintos elementos (letras y lineas) en base a la resolución del video.
         Lo elementos fueron diseñados para una resolución de 1080x1920.

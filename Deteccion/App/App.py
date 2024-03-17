@@ -1,10 +1,8 @@
-from App.Detector import Detector
-from App.Video import Video
-from App.zonas.Zona import Zona
-
 import os
 
 from App.zonas.ZonaList import ZonaList
+from App.Detector import Detector
+from App.Video import Video
 
 
 class App:
@@ -12,9 +10,10 @@ class App:
     def __init__(self):
         
         self.detector = Detector()
+        self.zonas = ZonaList()
 
 
-    def analizar_carpeta_videos(self, origen:str, destino:str):
+    def analizar_carpeta_videos(self, origen:str, destino:str) -> None:
         """
         Procesa todos los videos en la carpeta de origen y guarda los resultados en la carpeta de destino.
         """
@@ -47,8 +46,8 @@ class App:
                     if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
                         video = Video(
                             path_origen=archivo_video_ruta_entrada, 
-                            path_resultado=archivo_video_ruta_salida,
-                            zona=next((zona for zona in self.zonas if zona.nombre == carpeta_video), None),     #! Busca la clase correspondiente a la zona actual.
+                            # path_resultado=archivo_video_ruta_salida,
+                            zona=next((zona for zona in self.zonas.get_zonas() if zona.nombre == carpeta_video), None),     #! Busca la clase correspondiente a la zona actual.
                         )
                         
                         print(f" -Video N°{i}: {archivo_video}")
@@ -60,16 +59,15 @@ class App:
         print(f"\nVideos procesados con éxito.")
 
 
-    def analizar_un_video(self, path_video:str, guardar:bool=False):
+    def analizar_un_video(self, path_video:str, guardar:bool=False) -> None:
         """
         Ejecuta el modelo y realiza la detección de objetos en el video mostrando el resultado en tiempo real.
         """
-        zonas = ZonaList()
-        
+                
         video = Video(
             path_origen=path_video,
-            path_resultado=None,
-            zona=next((zona for zona in zonas.get_zonas() if zona.nombre == "Zona J"), None),
+            # path_resultado=None,
+            zona=next((zona for zona in self.zonas.get_zonas() if zona.nombre == "Zona J"), None),
         )
         
         print("Procesando video...")

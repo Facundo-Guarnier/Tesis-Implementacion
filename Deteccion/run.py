@@ -5,25 +5,26 @@ from App.App import App
 from threading import Thread
 
 #! API flask
-def run_flask():
+def run_flask() -> None:
     api = DetectorFlask(name="Nombre de la API")
     api.run(debug=False) 
 
-#! Deteccionde vehiculos
-def run_app():
+
+#! Detección de vehículos
+def run_app() -> None:
     app = App()
     
     # app.analizar_carpeta_videos(
-    #     origen="Dataset_reescalado-576x1024-5fps/", 
+    #     origen="Dataset/Dataset_reescalado-576x1024-5fps/", 
     #     destino="Resultados/",
     # )
     
     app.analizar_un_video(
         guardar=True,
-        # path_video="Dataset/Zona J/20240102_133419.mp4"
+        # path_video="Dataset/Dataset_original/Zona J/20240102_133419.mp4"
         path_video="Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-        # path_video="Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-        # path_video="Pruebas/video-reescalado-576x1024-5fps.mp4",
+        # path_video="Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+        # path_video="Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
     )
 
 
