@@ -34,7 +34,7 @@ class Coordinates:
         cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    v = r"Dataset\Zona L\20240102_133830.mp4"
+    v = r"Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
     c = Coordinates(v)
     print("Terminado")
 

@@ -1,0 +1,48 @@
+import os, signal
+from Deteccion.App.Api import DetectorFlask
+from Deteccion.App.App import App
+
+from threading import Thread
+
+#! API flask
+def run_flask() -> None:
+    api = DetectorFlask(name="Nombre de la API")
+    api.run(debug=False) 
+
+
+#! Detección de vehículos
+def run_app() -> None:
+    app = App()
+    
+    #! Procesar todo el dataset
+    # app.analizar_carpeta_videos(
+    #     origen="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/", 
+    #     destino="Resultados/",
+    # )
+    
+    #! Procesar un video específico del dataset
+    app.analizar_un_video(
+        guardar=True,
+        # path_video="Deteccion/Dataset/Dataset_original/Zona J/20240102_133419.mp4"
+        path_video="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+        # path_video="Deteccion/Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+        # path_video="Deteccion/Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
+    )
+
+
+def señal(nro_senial:int, marco) -> None:
+    print("Finalizando el proceso ID:", os.getpid())
+    os._exit(0)
+
+
+if __name__ == "__main__":
+    
+    #T* Deteccion 
+    signal.signal(signal.SIGINT, señal)
+    
+    app_thread = Thread(target=run_app)
+    app_thread.start()
+
+    # run_flask()
+    
+    app_thread.join()

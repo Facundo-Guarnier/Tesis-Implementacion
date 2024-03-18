@@ -1,15 +1,20 @@
-import os, cv2
+import os, cv2, datetime
 
-from App.zonas.Zona import Zona
+from Deteccion.App.zonas.Zona import Zona
 
 
 class Video:
-    def __init__(self, path_origen:str, zona:Zona, path_resultado:str=None):
+    def __init__(self, path_origen:str, zona:Zona, path_resultado:str=""):
         
         self.zona = zona
         self.path_origen = path_origen
-        if not path_resultado:
-            self.path_resultado = os.path.join(os.getcwd(), "resultado.mp4")
+        if path_resultado == "":
+            destino = os.path.join(os.getcwd(), "Resultados")
+            #! Crear la carpeta de resultados si no existe
+            if not os.path.exists(destino):
+                os.makedirs(destino)
+            self.path_resultado = os.path.join(destino, f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
+
         else:
             self.path_resultado = path_resultado
         
@@ -29,7 +34,7 @@ class Video:
         return ((ancho, alto))
 
 
-    def __fps(self) -> int:
+    def __fps(self) -> float:
         cap = cv2.VideoCapture(self.path_origen)
         fps = cap.get(cv2.CAP_PROP_FPS)
         cap.release()

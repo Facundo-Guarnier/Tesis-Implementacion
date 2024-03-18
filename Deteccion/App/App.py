@@ -1,8 +1,8 @@
 import os
 
-from App.zonas.ZonaList import ZonaList
-from App.Detector import Detector
-from App.Video import Video
+from Deteccion.App.zonas.ZonaList import ZonaList
+from Deteccion.App.Detector import Detector
+from Deteccion.App.Video import Video
 
 
 class App:
@@ -24,39 +24,44 @@ class App:
         if not os.path.exists(destino):
             os.makedirs(destino)
 
+        try: 
         #! Recorrer todas las carpetas en la carpeta de entrada
-        for carpeta_video in os.listdir(origen):
-            carpeta_video_ruta = os.path.join(origen, carpeta_video)
+            for carpeta_video in os.listdir(origen):
+                carpeta_video_ruta = os.path.join(origen, carpeta_video)
 
-            #! Verificar si es una carpeta
-            if os.path.isdir(carpeta_video_ruta):
-                print(f"\nProcesando carpeta: {carpeta_video}")
-                
-                #! Crear la carpeta de salida espejo
-                carpeta_salida_ruta = os.path.join(destino, carpeta_video)
-                if not os.path.exists(carpeta_salida_ruta):
-                    os.makedirs(carpeta_salida_ruta)
+                #! Verificar si es una carpeta
+                if os.path.isdir(carpeta_video_ruta):
+                    print(f"\nProcesando carpeta: {carpeta_video}")
+                    
+                    #! Crear la carpeta de salida espejo
+                    carpeta_salida_ruta = os.path.join(destino, carpeta_video)
+                    if not os.path.exists(carpeta_salida_ruta):
+                        os.makedirs(carpeta_salida_ruta)
 
-                #! Procesar todos los archivos en la carpeta de video
-                for archivo_video in os.listdir(carpeta_video_ruta):
-                    archivo_video_ruta_entrada = os.path.join(carpeta_video_ruta, archivo_video)
-                    archivo_video_ruta_salida = os.path.join(carpeta_salida_ruta, archivo_video)
+                    #! Procesar todos los archivos en la carpeta de video
+                    for archivo_video in os.listdir(carpeta_video_ruta):
+                        archivo_video_ruta_entrada = os.path.join(carpeta_video_ruta, archivo_video)
+                        archivo_video_ruta_salida = os.path.join(carpeta_salida_ruta, archivo_video)
 
-                    #! Verificar si es un archivo y tiene una extensión de video
-                    if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
-                        video = Video(
-                            path_origen=archivo_video_ruta_entrada, 
-                            # path_resultado=archivo_video_ruta_salida,
-                            zona=next((zona for zona in self.zonas.get_zonas() if zona.nombre == carpeta_video), None),     #! Busca la clase correspondiente a la zona actual.
-                        )
-                        
-                        print(f" -Video N°{i}: {archivo_video}")
-                        self.detector.procesar_guardar(
-                            video=video
-                        )
-                        print(f"  Videos procesado\n")
+                        #! Verificar si es un archivo y tiene una extensión de video
+                        if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
+                            video = Video(
+                                path_origen=archivo_video_ruta_entrada, 
+                                path_resultado=archivo_video_ruta_salida,
+                                zona=next((zona for zona in self.zonas.get() if zona.nombre == carpeta_video), self.zonas.get()[0]),     #! Busca la clase correspondiente a la zona actual, sino devuelve la primera zona (Default).
+                            )
+                            
+                            print(f" -Video N°{i}: {archivo_video}")
+                            self.detector.procesar_guardar(
+                                video=video
+                            )
+                            print(f"  Videos procesado\n")
             
-        print(f"\nVideos procesados con éxito.")
+            print(f"\nVideos procesados con éxito.")
+        
+        except Exception as e:
+            print(f"Error: {e}")
+            print(f"Error al procesar la carpeta: {origen}")
 
 
     def analizar_un_video(self, path_video:str, guardar:bool=False) -> None:
@@ -66,8 +71,7 @@ class App:
                 
         video = Video(
             path_origen=path_video,
-            # path_resultado=None,
-            zona=next((zona for zona in self.zonas.get_zonas() if zona.nombre == "Zona J"), None),
+            zona=next((zona for zona in self.zonas.get() if zona.nombre == "Zona J"), self.zonas.get()[0]),
         )
         
         print("Procesando video...")

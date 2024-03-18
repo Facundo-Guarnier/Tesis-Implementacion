@@ -1,11 +1,11 @@
 import matplotlib.path as mplPath
-import ultralytics as ul
-import supervision as sv
+import ultralytics as ul 
+import supervision as sv 
 import numpy as np
 import time, cv2
 
-from App.config import configuracion
-from App.Video import Video
+from Deteccion.App.config import configuracion
+from Deteccion.App.Video import Video
 
 
 class Detector:
@@ -15,7 +15,7 @@ class Detector:
     """
     
     def __init__(self):
-        self.modelo = ul.YOLO(f"Modelos/{configuracion['modelo']}")
+        self.modelo = ul.YOLO(f"Deteccion/Modelos/{configuracion['modelo']}")
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
 
@@ -80,7 +80,7 @@ class Detector:
             y = int((box[1] + box[3])//2)
 
             #! Validar el punto dentro del poligono
-            color = ""  # BGR
+            color:list[int]  # BGR
             if mplPath.Path(self.video.zona.puntos_reescalados).contains_point((x,y)):
                 detecciones_poligono += 1
                 color = [255,80,0]
@@ -190,7 +190,8 @@ class Detector:
             fps = cap.get(cv2.CAP_PROP_FPS)
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = 1983148141
             out = cv2.VideoWriter(video.path_resultado, fourcc, fps, (width, height))
 
         fps = 0

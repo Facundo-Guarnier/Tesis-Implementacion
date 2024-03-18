@@ -1,8 +1,8 @@
+from typing import List
 import numpy as np
 import yaml
 
-from App.zonas.Zona import Zona
-from typing import List
+from Deteccion.App.zonas.Zona import Zona
 
 class ZonaList:
     """
@@ -15,15 +15,17 @@ class ZonaList:
     def __new__(cls):
         if not cls._instance:
             cls._instance = super().__new__(cls)
-            cls._instance.zonas = cls.__cargar_zonas()
         return cls._instance
 
 
-    @staticmethod
-    def __cargar_zonas() -> List[Zona]:
-        with open('App/zonas/zonas.yaml', 'r') as archivo:
+    def __init__(self):
+        self.zonas = self.__cargar_zonas()
+    
+    
+    def __cargar_zonas(self) -> List[Zona]:
+        with open('Deteccion/App/zonas/zonas.yaml', 'r') as archivo:
             datos_yaml = yaml.safe_load(archivo)
-            return [Zona(zona['Nombre'], tuple(zona['Resolucion']), np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
+            return [Zona(nombre=zona['Nombre'], resolucion=tuple(zona['Resolucion']), puntos_originales=np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
 
 
     def get_cantidades(self) -> dict:
@@ -47,8 +49,9 @@ class ZonaList:
         
         return -1  #! Retornar -1 si la zona no se encuentra
     
-    def get_zonas(self) -> List[Zona]:
+    
+    def get(self) -> List[Zona]:
         """
-        Devuelve la lista de zonas.
+        Devuelve la lista de todas las zonas.
         """
         return self.zonas

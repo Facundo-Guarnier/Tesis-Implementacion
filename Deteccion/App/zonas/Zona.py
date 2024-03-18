@@ -9,7 +9,7 @@ class Zona:
     - Cantidad de detecciones: cantidad de detecciones que han ocurrido en la zona.
     """
     
-    def __init__(self, nombre: str, resolucion: tuple, puntos_originales: np.array):
+    def __init__(self, nombre: str, resolucion: tuple, puntos_originales:np.ndarray) -> None:
         self.nombre = nombre
         self.__resolucion = resolucion
         self.puntos_originales = puntos_originales

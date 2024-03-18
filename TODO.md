@@ -2,10 +2,10 @@
 # General
 
 [ ] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
-    Ver principalmente clase App, Api y Detector.
-    Video no deberia manejar zona.
-    Detector hace falta que sea singleton?
-    Detector tiene procesar_guardar y procesar_vivo, optimizar estas 2.
+    - [ ] Ver principalmente clase App, Api y Detector.
+    - [ ] Video no deberia manejar zona.
+    - [x] Detector hace falta que sea singleton?
+    - [ ] Detector tiene procesar_guardar y procesar_vivo, optimizar estas 2.
 
 [ ] Agregar una detección que sea en vivo con cámara.
 [ ] Tomar mediciones de tiempo en los semáforos reales.
@@ -48,6 +48,8 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 # Instalaciones
 
 - pip install Flask
+- pip install mypy -> Para ver los tipos de datos de las variables.
+- pip install types-PyYAML
 
 
 # Estructura

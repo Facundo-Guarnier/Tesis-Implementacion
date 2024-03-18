@@ -1,5 +1,6 @@
-from App.zonas.ZonaList import ZonaList
-from flask import Flask, jsonify
+from flask import Flask, jsonify, Response
+
+from Deteccion.App.zonas.ZonaList import ZonaList 
 
 class DetectorFlask(Flask):
     """
@@ -15,7 +16,7 @@ class DetectorFlask(Flask):
         self.route('/cantidad/<zona>', methods=['GET'])(self.cantidad_zona)
 
 
-    def cantidades(self) -> jsonify:
+    def cantidades(self) -> tuple[Response, int]:
         """
         Cantidades de vehículos en todas las zonas.
         """
@@ -23,7 +24,7 @@ class DetectorFlask(Flask):
         return jsonify(zonas.get_cantidades()), 200
 
 
-    def cantidad_zona(self, zona:str) -> jsonify:
+    def cantidad_zona(self, zona:str) -> tuple[Response, int]:
         """
         Cantidad de vehículos en una zona específica.
         """
