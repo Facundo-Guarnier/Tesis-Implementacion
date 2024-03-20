@@ -180,67 +180,117 @@ class Detector:
         - Si guardar=True, guarda el resultado.
         """
         
-        cap = cv2.VideoCapture(video.path_origen)
-        
         self.video = video
+        
+        cap = cv2.VideoCapture(self.video.path_origen)
         self.video.zona.escalar_puntos(self.video.resolucion)
         self.__definir_parametros_supervision()
         
         if guardar:
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            fourcc = 1983148141
-            out = cv2.VideoWriter(video.path_resultado, fourcc, fps, (width, height))
+            out_guardar = cv2.VideoWriter(
+                filename=self.video.path_resultado, 
+                fourcc=1983148141,      #! mp4v 
+                fps=cap.get(cv2.CAP_PROP_FPS), 
+                frameSize=(
+                    int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),     #! width 
+                    int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),    #! height
+                    )
+            )
 
         fps = 0
         frame_count = 0
         start_time = time.time()
         total_frames = 0
         
-        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('frame', 460, 820) 
+        cv2.namedWindow('Detectando en un video', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Detectando en un video', 460, 820) 
         
         while True:
             frame_count += 1
             total_frames += 1
 
+            #! Salir si no hay más frames
             ret, frame = cap.read()
             if not ret:
                 break
             
-            results = self.modelo(frame)[0]
-            
-            # detections = sv.Detections.from_ultralytics(results)
+            #! Procesar el frame
             frame = self.__callback(frame, total_frames)
             
+            #! Guardar el frame sin mostrar los fps.
             if guardar:
-                out.write(frame)
+                out_guardar.write(frame)
             
-            cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1*self.video.factor_escala, (0, 255, 0), 2)
-            
-
-            cv2.imshow('frame', frame)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # Salir del bucle si se presiona 'q'
-                break
-            
+            #! Mostrar el FPS
             if time.time() - start_time >= 1:
                 fps = frame_count
                 frame_count = 0
                 start_time = time.time()
+            
+            cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1*self.video.factor_escala, (0, 255, 0), 2)
+            
+            #! Mostrar el frame en la ventana
+            cv2.imshow('Detectando en un video', frame)
+
+            #! Salir del bucle con la tecla 'q'.
+            if cv2.waitKey(1) & 0xFF == ord('q'):  
+                break
 
         cap.release()
         cv2.destroyAllWindows()
         if guardar:
-            print("Guardado en: ", video.path_resultado)   
+            print("Guardado en: ", self.video.path_resultado)   
+
+
+    def procesar_camara(self) -> None:
+        """
+        Procesa la cámara en vivo y muestra el resultado en tiempo real.
+        """
+        
+        cap = cv2.VideoCapture(0)
+        
+        self.__definir_parametros_supervision()
+        
+        fps = 0
+        frame_count = 0
+        start_time = time.time()
+        total_frames = 0
+        
+        cv2.namedWindow('Detectando con cámara', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Detectando con cámara', 820, 460) 
+        
+        while True:
+            frame_count += 1
+
+            #! Salir si no hay más frames
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            #! Procesar el frame
+            frame = self.__callback(frame, total_frames)
+            
+            #! Mostrar el FPS
+            if time.time() - start_time >= 1:
+                fps = frame_count
+                frame_count = 0
+                start_time = time.time()
+            
+            cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
+            #! Mostrar el frame en la ventana
+            cv2.imshow('Detectando con cámara', frame)  
+
+            #! Salir del bucle con la tecla 'q'.
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        cap.release()
+        cv2.destroyAllWindows()
 
 
 
-
-
-#! Círculos en el centro de las boxes (descomentar CircleAnnotator)
+# #! Círculos en el centro de las boxes (descomentar CircleAnnotator)
 # frame = circle_annotator.annotate(
 #     scene=frame,
 #     detections=detections,
@@ -267,30 +317,3 @@ class Detector:
 #     return self.poligono_dibujador.annotate(
 #         scene=frame,
 #     )
-
-
-# def procesar_un_video(self):
-#     """
-#     Ejecuta el modelo y realiza la detección de objetos en el video.
-#     """
-#     print("Procesando video...")
-#     print(f"Factor de escala: {self.factor_escala}")
-#     sv.process_video(
-#         source_path = self.PATH_VIDEO_ORIGINAL,
-#         target_path = self.PATH_VIDEO_RESULTADO,
-#         __callback=self.__callback
-#     )
-#     print("Video procesado.")
-
-
-# def escalar_puntos(self, zone, resolucion_video):
-#     resolucion_puntos = zone[0]
-#     if resolucion_puntos == resolucion_video:
-#         return zone[1]
-#     ZONE_objetivo = []
-#     for punto in zone:
-#         x_original, y_original = punto
-#         x_objetivo = int(x_original * self.video.factor_escala)
-#         y_objetivo = int(y_original * self.video.factor_escala)
-#         ZONE_objetivo.append([x_objetivo, y_objetivo])
-#     return np.array(ZONE_objetivo)
