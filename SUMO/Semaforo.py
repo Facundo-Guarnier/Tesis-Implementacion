@@ -1,6 +1,5 @@
 import time
 import traci
-import traci.constants as tc
 
 
 #! Obtener la cantidad de vehículos en una calle
@@ -20,28 +19,29 @@ def getEstado(semaforo):
     return e    
 
 
-#! Iniciar la simulación de SUMO
-traci.start(["sumo-gui", "-c", "SUMO/Mapa/osm.sumocfg"])
+def main():
+    #! Iniciar la simulación de SUMO
+    traci.start(["sumo-gui", "-c", "SUMO/Mapa/osm.sumocfg"])
 
-#! Main loop
-while traci.simulation.getMinExpectedNumber() > 0:
-    print("")
-    print("Paso simulación: ", traci.simulation.getTime())
+    #! Main loop
+    while traci.simulation.getMinExpectedNumber() > 0:
+        print("")
+        print("Paso simulación: ", traci.simulation.getTime())
 
-    getEstado("585119522")
+        getEstado("585119522")
 
-    # cambiarEstado("585119522", "rrrrrrrrrr")
+        # cambiarEstado("585119522", "rrrrrrrrrr")
 
-    getVehiculos("376549265")
-
-
-
-    #! Avanzar la simulación un paso
-    traci.simulationStep()
-
-#! Detener la simulación de SUMO al finalizar
-traci.close()
+        getVehiculos("376549265")
 
 
-# https://sumo.dlr.de/docs/Tools/Trip.html
-# python tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\Mapa\osm.net.xml.gz --fringe-factor 20 --random --binomial 4
+
+        #! Avanzar la simulación un paso
+        traci.simulationStep()
+
+    #! Detener la simulación de SUMO al finalizar
+    traci.close()
+
+
+if __name__ == "__main__":
+    main()
