@@ -1,18 +1,23 @@
 import os, signal
-from Deteccion.App.Api import DetectorFlask
-from Deteccion.App.App import App
 
+from Deteccion.App.Api import DetectorFlask
+from Deteccion.App.App import App as AppD
+from SUMO.App import App as AppS
+from SUMO.Api import SumoFlask
+# from SUMO.Api import SumoFlask
 from threading import Thread
 
-#! API flask
-def run_flask() -> None:
-    api = DetectorFlask(name="Nombre de la API")
-    api.run(debug=False) 
+
+def señal(nro_senial:int, marco) -> None:
+    print("Finalizando el proceso ID:", os.getpid())
+    os._exit(0)
 
 
-#! Detección de vehículos
-def run_app() -> None:
-    app = App()
+def run_app_deteccion() -> None:
+    """
+    Detección de vehículos.
+    """
+    app = AppD()
     
     #! Procesar todo el dataset
     # app.analizar_carpeta_videos(
@@ -30,19 +35,44 @@ def run_app() -> None:
     )
 
 
-def señal(nro_senial:int, marco) -> None:
-    print("Finalizando el proceso ID:", os.getpid())
-    os._exit(0)
+def run_flask_deteccion() -> None:
+    """
+    API flask de detección.
+    """
+    api = DetectorFlask(name="API Deteccion")
+    api.run(debug=False) 
+
+
+def run_app_sumo() -> None:
+    """
+    Simulación de tráfico con SUMO.
+    """
+    app = AppS()
+    app.iniciar_simulacion()
+
+
+def run_flask_sumo() -> None:
+    """
+    API flask de SUMO.
+    """
+    api = SumoFlask(name="API SUMO")
+    api.run(debug=False) 
 
 
 if __name__ == "__main__":
     
-    #T* Deteccion 
     signal.signal(signal.SIGINT, señal)
     
-    app_thread = Thread(target=run_app)
-    app_thread.start()
+    #T* Deteccion 
+    # app_thread = Thread(target=run_app_deteccion)
+    # app_thread.start()
+    # run_flask_deteccion()
 
-    # run_flask()
+    #T* SUMO
+    app_thread = Thread(target=run_app_sumo)
+    app_thread.start()
+    run_flask_sumo()
+    
+
     
     app_thread.join()

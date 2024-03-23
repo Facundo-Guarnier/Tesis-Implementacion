@@ -1,17 +1,16 @@
 
 # General
 
-[ ] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
-    - [ ] Ver principalmente clase App, Api y Detector.
-    - [ ] Video no deberia manejar zona.
-    - [x] Detector hace falta que sea singleton?
-    - [ ] Detector tiene procesar_guardar y procesar_vivo, optimizar estas 2.
-
 [ ] Agregar una detección que sea en vivo con cámara.
 [ ] Tomar mediciones de tiempo en los semáforos reales.
 
 [~] No puedo usar flask en debug porque duplica al hilo detector.
 
+[x] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
+    - [x] Ver principalmente clase App, Api y Detector.
+    - [-] Video no deberia manejar zona.
+    - [x] Detector hace falta que sea singleton?
+    - [x] Detector tiene procesar_guardar y procesar_vivo, optimizar estas 2.
 [x] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
     Creo que conviene que la lógica solicite la cantidad al detector.
 
@@ -29,13 +28,13 @@ https://www.tutorai.me/modules/Introducci%C3%B3n%20a%20la%20biblioteca%20sumo%20
 
 https://www.youtube.com/watch?v=sy8uRDZw8pk
 https://www.youtube.com/watch?v=oig4o9RW_aM
-[ ] Usar el callback de Detector en la clase de detectar en Vivo.
 [ ] Agregar try/except.
 [ ] Ver si puedo estabilizar los videos.
 [ ] Detectar ambulancias y patrulleros.
 
 [~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 
+[x] Usar el callback de Detector en la clase de detectar en Vivo.
 [x] Pasar el socket a Flask como si fuera una API.
 [x] Ver si puedo hacer que el detector sea en vivo.
 [x] Sistema de notificaciones (productor/consumidor) para que el detector pueda enviar la cantidad de vehículos mediante socket.
@@ -48,16 +47,21 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 # Instalaciones
 
 - pip install Flask
-- pip install mypy -> Para ver los tipos de datos de las variables.
+- pip install mypy      #Para ver los tipos de datos de las variables.
 - pip install types-PyYAML
 
 
 # Estructura
 Detector/
 ├── App/
-│   ├── __init__.py
 │   ├── Detector.py
 │   ├── Api.py
 │   └── ...
-├── requirements.txt
-└── run.py
+|
+├── SUMO/
+│   ├── semaforo.py
+│   └── ...
+|
+├── run.py
+├── clases.drawio
+└── ...
