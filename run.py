@@ -4,7 +4,6 @@ from Deteccion.App.Api import DetectorFlask
 from Deteccion.App.App import App as AppD
 from SUMO.App import App as AppS
 from SUMO.Api import SumoFlask
-# from SUMO.Api import SumoFlask
 from threading import Thread
 
 
@@ -68,11 +67,10 @@ if __name__ == "__main__":
     # app_thread.start()
     # run_flask_deteccion()
 
+
     #T* SUMO
     app_thread = Thread(target=run_app_sumo)
     app_thread.start()
     run_flask_sumo()
-    
-
     
     app_thread.join()

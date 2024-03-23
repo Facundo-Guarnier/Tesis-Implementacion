@@ -1,11 +1,20 @@
-from SUMO.zonas.ZonaList import ZonaList
 import traci
 
+from SUMO.zonas.ZonaList import ZonaList
+
+
 class App:
-    
+    _instance = None
+
+    def __new__(cls):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+            #! Iniciar la simulación de SUMO
+            traci.start(["sumo-gui", "-c", "SUMO/Mapa/osm.sumocfg"])
+        return cls._instance
+
+
     def __init__(self):
-        #! Iniciar la simulación de SUMO
-        traci.start(["sumo-gui", "-c", "SUMO/Mapa/osm.sumocfg"])
         self.zonas = ZonaList()
     
     def getVehiculos(self, zona_name: str) -> int:
@@ -39,6 +48,7 @@ class App:
             #! Establecer la cantidad detectada en cada zona.
             for zona in self.zonas.zonas:
                 zona.cantidad_detecciones = self.getVehiculos(zona.nombre)
+            
             
             #! Avanzar la simulación un paso
             traci.simulationStep()

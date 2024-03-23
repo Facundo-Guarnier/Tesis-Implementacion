@@ -1,0 +1,86 @@
+{
+    "client": "Thunder Client",
+    "collectionName": "Tesis",
+    "dateExported": "2024-03-23T17:18:29.455Z",
+    "version": "1.1",
+    "folders": [
+        {
+            "_id": "239710e5-250e-4a47-a9b3-514b1ad93f4b",
+            "name": "zonas",
+            "containerId": "",
+            "created": "2024-03-23T15:44:59.706Z",
+            "sortNum": 10000
+        },
+        {
+            "_id": "859a860b-99d3-4651-a7f2-17e7dd258e8e",
+            "name": "semaforo",
+            "containerId": "",
+            "created": "2024-03-23T15:45:09.127Z",
+            "sortNum": 20000
+        }
+    ],
+    "requests": [
+        {
+            "_id": "e16837ca-2302-40f0-a8e1-782732f8b192",
+            "colId": "f40c444e-fc73-4799-aa71-e8f54536c1ba",
+            "containerId": "239710e5-250e-4a47-a9b3-514b1ad93f4b",
+            "name": "deteccion",
+            "url": "http://127.0.0.1:5000/cantidad",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2024-03-23T11:45:24.871Z",
+            "modified": "2024-03-23T11:45:33.668Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "1006e735-8b99-4578-9edb-5aec902c6a86",
+            "colId": "f40c444e-fc73-4799-aa71-e8f54536c1ba",
+            "containerId": "859a860b-99d3-4651-a7f2-17e7dd258e8e",
+            "name": "estado",
+            "url": "http://127.0.0.1:5000/semaforo/585119522",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2024-03-23T15:40:27.574Z",
+            "modified": "2024-03-23T15:41:30.496Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "1e0f6b31-f9f5-42a2-b4a7-898d250ff142",
+            "colId": "f40c444e-fc73-4799-aa71-e8f54536c1ba",
+            "containerId": "239710e5-250e-4a47-a9b3-514b1ad93f4b",
+            "name": "deteccion/zona",
+            "url": "http://127.0.0.1:5000/cantidad/Zona J",
+            "method": "GET",
+            "sortNum": 20000,
+            "created": "2024-03-23T11:46:07.331Z",
+            "modified": "2024-03-23T11:46:19.729Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "96510d83-0565-4420-b2be-bc9b1cfeb0a8",
+            "colId": "f40c444e-fc73-4799-aa71-e8f54536c1ba",
+            "containerId": "859a860b-99d3-4651-a7f2-17e7dd258e8e",
+            "name": "cambiar estado ",
+            "url": "http://127.0.0.1:5000/semaforo/585119522?estado=ggggggggggg ",
+            "method": "PUT",
+            "sortNum": 20000,
+            "created": "2024-03-23T15:42:15.242Z",
+            "modified": "2024-03-23T15:43:29.234Z",
+            "headers": [],
+            "params": [
+                {
+                    "name": "estado",
+                    "value": "ggggggggggg ",
+                    "isPath": false
+                }
+            ],
+            "tests": []
+        }
+    ]
+}

@@ -1,4 +1,3 @@
-
 # General
 
 [ ] Agregar una detección que sea en vivo con cámara.
@@ -6,21 +5,21 @@
 
 [~] No puedo usar flask en debug porque duplica al hilo detector.
 
-[x] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
-    - [x] Ver principalmente clase App, Api y Detector.
-    - [-] Video no deberia manejar zona.
-    - [x] Detector hace falta que sea singleton?
-    - [x] Detector tiene procesar_guardar y procesar_vivo, optimizar estas 2.
 [x] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
     Creo que conviene que la lógica solicite la cantidad al detector.
 
 
 # Toma de decisiones
+[ ] 
+
+
+# SUMO
 
 https://www.youtube.com/watch?v=zQH1n0Fvxes
 https://www.tutorai.me/modules/Introducci%C3%B3n%20a%20la%20biblioteca%20sumo%20TraCI?description=Este+m%C3%B3dulo+te+proporcionar%C3%A1+una+introducci%C3%B3n+a+la+biblioteca+sumo+TraCI%2C+explicando+qu%C3%A9+es+y+para+qu%C3%A9+se+utiliza?utm_source=manual&utm_medium=link&utm_campaign=first
 [ ] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 4 carriles)
 
+[x] Api
 [x] Aprender sobre SUMO, a ver si puedo obtener info de la cantidad de vehículos y si puedo modificar los semáforos.
 
 
@@ -34,6 +33,11 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 
 [~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 
+[x] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
+    - [x] Ver principalmente clase App, Api y Detector.
+    - [-] Video no deberia manejar zona.
+    - [x] Detector hace falta que sea singleton?
+    - [x] Detector tiene procesar_guardar y procesar_vivo, optimizar estas 2.
 [x] Usar el callback de Detector en la clase de detectar en Vivo.
 [x] Pasar el socket a Flask como si fuera una API.
 [x] Ver si puedo hacer que el detector sea en vivo.
@@ -49,6 +53,9 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 - pip install Flask
 - pip install mypy      #Para ver los tipos de datos de las variables.
 - pip install types-PyYAML
+- pip install cvzone
+- pip install --upgrade opencv-python
+- pip install ultralytics
 
 
 # Estructura
