@@ -63,14 +63,14 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, señal)
     
     #T* Deteccion 
-    # app_thread = Thread(target=run_app_deteccion)
-    # app_thread.start()
-    # run_flask_deteccion()
+    app_thread = Thread(target=run_app_deteccion)
+    app_thread.start()
+    run_flask_deteccion()
 
 
     #T* SUMO
-    app_thread = Thread(target=run_app_sumo)
-    app_thread.start()
-    run_flask_sumo()
+    # app_thread = Thread(target=run_app_sumo)
+    # app_thread.start()
+    # run_flask_sumo()
     
     app_thread.join()

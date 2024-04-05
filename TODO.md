@@ -27,8 +27,9 @@ https://www.tutorai.me/modules/Introducci%C3%B3n%20a%20la%20biblioteca%20sumo%20
 
 https://www.youtube.com/watch?v=sy8uRDZw8pk
 https://www.youtube.com/watch?v=oig4o9RW_aM
+[ ] Detectar varios videos a la vez.
+
 [ ] Agregar try/except.
-[ ] Ver si puedo estabilizar los videos.
 [ ] Detectar ambulancias y patrulleros.
 
 [~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
