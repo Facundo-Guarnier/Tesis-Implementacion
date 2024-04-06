@@ -75,11 +75,11 @@ def reescalar_carpeta_videos(carpeta_entrada, carpeta_salida, nueva_resolucion, 
 
 
 nueva_resolucion = (576, 1024)
-factor_reduccion_fps = 6
+factor_reduccion_fps = 6    #! 30/factor = fps
 
 # #! Reescalar todos los videos carpetas 
-carpeta_entrada = "Dataset"
-carpeta_salida = "Dataset_reescalado"
+carpeta_entrada = "Deteccion/Dataset/Dataset_original"
+carpeta_salida = "Deteccion/Dataset/Dataset_reescalado"
 reescalar_carpeta_videos(carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps)
 
 #! Reescalar un único video

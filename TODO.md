@@ -14,10 +14,12 @@
 
 
 # SUMO
+netedit
 
 https://www.youtube.com/watch?v=zQH1n0Fvxes
 https://www.tutorai.me/modules/Introducci%C3%B3n%20a%20la%20biblioteca%20sumo%20TraCI?description=Este+m%C3%B3dulo+te+proporcionar%C3%A1+una+introducci%C3%B3n+a+la+biblioteca+sumo+TraCI%2C+explicando+qu%C3%A9+es+y+para+qu%C3%A9+se+utiliza?utm_source=manual&utm_medium=link&utm_campaign=first
 [ ] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 4 carriles)
+[ ] Reducir la longitud de las calles que son "zonas" para que no tome toda la calle. Ej: todo el lateral del acceso al lado del carrefour.
 
 [x] Api
 [x] Aprender sobre SUMO, a ver si puedo obtener info de la cantidad de vehículos y si puedo modificar los semáforos.
@@ -57,17 +59,23 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 - pip install cvzone
 - pip install --upgrade opencv-python
 - pip install ultralytics
-
+- pip install traci
 
 # Estructura
-Detector/
-├── App/
-│   ├── Detector.py
-│   ├── Api.py
-│   └── ...
+Main/
+├── Detector/
+|   ├── App/
+│   |   ├── Detector.py
+│   |   ├── Api.py
+│   |   └── ...
+|   ├── Dataset/
+│       ├── Dataset_original/ 
+│       └── ...
 |
 ├── SUMO/
-│   ├── semaforo.py
+│   ├── App.py
+│   ├── Api.py
+│   ├── Mapa/
 │   └── ...
 |
 ├── run.py
