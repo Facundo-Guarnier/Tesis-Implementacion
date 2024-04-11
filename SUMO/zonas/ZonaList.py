@@ -26,18 +26,18 @@ class ZonaList:
         Definir las zonas de la simulación.
         """
         return [
-            Zona(nombre="Zona A", id="376549265"),
-            Zona(nombre="Zona B", id="93893687#1"),
-            Zona(nombre="Zona C", id="-93893687#3"),
-            Zona(nombre="Zona D", id="E9"),
-            Zona(nombre="Zona E", id="-93893687#1"),
-            Zona(nombre="Zona F", id="-105241833#4"),
-            Zona(nombre="Zona G", id="45896901#0"),
-            Zona(nombre="Zona H", id="-105241833#3"),
-            Zona(nombre="Zona I", id="105241833#1"),
-            Zona(nombre="Zona J", id="E5"),
-            Zona(nombre="Zona K", id="105241833#3"),
-            Zona(nombre="Zona L", id="105241833#4"),
+            Zona(nombre="Zona A", id="A"),
+            Zona(nombre="Zona B", id="B"),
+            Zona(nombre="Zona C", id="C"),
+            Zona(nombre="Zona D", id="D"),
+            Zona(nombre="Zona E", id="E"),
+            Zona(nombre="Zona F", id="F"),
+            Zona(nombre="Zona G", id="G"),
+            Zona(nombre="Zona H", id="H"),
+            Zona(nombre="Zona I", id="I"),
+            Zona(nombre="Zona J", id="J"),
+            Zona(nombre="Zona K", id="K"),
+            Zona(nombre="Zona L", id="L"),
         ]
 
 
