@@ -15,12 +15,18 @@
 
 # SUMO
 netedit
+python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\Mapa\osm.net.xml.gz --fringe-factor 50 --random --binomial 4
+
+
+python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\MapaDe0\red.net.xml -r routes.rou.xml -e 20000 --period 2.2,1.9 --fringe-factor max --seed 7 --random
+-e: tiempo
+--period: cantidad que sale por segundo entre esos 2 números (1/periodo)
+--fringe-factor: Solo spawn en los bordes
+
 
 https://www.youtube.com/watch?v=zQH1n0Fvxes
-https://www.tutorai.me/modules/Introducci%C3%B3n%20a%20la%20biblioteca%20sumo%20TraCI?description=Este+m%C3%B3dulo+te+proporcionar%C3%A1+una+introducci%C3%B3n+a+la+biblioteca+sumo+TraCI%2C+explicando+qu%C3%A9+es+y+para+qu%C3%A9+se+utiliza?utm_source=manual&utm_medium=link&utm_campaign=first
-[ ] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 4 carriles)
-[ ] Reducir la longitud de las calles que son "zonas" para que no tome toda la calle. Ej: todo el lateral del acceso al lado del carrefour.
-
+[x] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 2 carriles)
+[x] Reducir la longitud de las calles que son "zonas" para que no tome toda la calle. Ej: todo el lateral del acceso al lado del carrefour.
 [x] Api
 [x] Aprender sobre SUMO, a ver si puedo obtener info de la cantidad de vehículos y si puedo modificar los semáforos.
 
