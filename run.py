@@ -47,7 +47,7 @@ def run_app_sumo() -> None:
     Simulación de tráfico con SUMO.
     """
     app = AppS()
-    app.iniciar_simulacion()
+    app.iniciar()
 
 
 def run_flask_sumo() -> None:
@@ -71,6 +71,6 @@ if __name__ == "__main__":
     #T* SUMO
     app_thread = Thread(target=run_app_sumo)
     app_thread.start()
-    # run_flask_sumo()
+    run_flask_sumo()
     
     app_thread.join()

@@ -10,21 +10,23 @@
 
 
 # Toma de decisiones
-[ ] 
+[ ] Agregar algún tipo de regla para los vehiculos que llevan mucho esperando. 
+[ ] Evitar que los semaforos se pongan todos en verdes
+[ ] Evitar que un semaforo se quede para siempre en verde.
+[ ] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
 
 
 # SUMO
 netedit
 python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\Mapa\osm.net.xml.gz --fringe-factor 50 --random --binomial 4
-
-
 python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\MapaDe0\red.net.xml -r routes.rou.xml -e 20000 --period 2.2,1.9 --fringe-factor max --seed 7 --random
 -e: tiempo
 --period: cantidad que sale por segundo entre esos 2 números (1/periodo)
 --fringe-factor: Solo spawn en los bordes
 
-
 https://www.youtube.com/watch?v=zQH1n0Fvxes
+[ ]  Se puede medir las emisiones de  CO2 con SUMO (getCO2Emission), consumo combustible, etc.
+
 [x] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 2 carriles)
 [x] Reducir la longitud de las calles que son "zonas" para que no tome toda la calle. Ej: todo el lateral del acceso al lado del carrefour.
 [x] Api
@@ -87,3 +89,36 @@ Main/
 ├── run.py
 ├── clases.drawio
 └── ...
+
+
+Semaforo 1: 
+GGGGGGrrrrr
+yyyyyyrrrrr
+rrrrrrGGgGG
+rrrrrrGyGyy
+rrGGGGGrGrr
+rrGGGGyryrr
+
+Semaforo 2:
+GgGGrrrrGgGg
+GgGGrrrryyyy
+GGGGGGrrrrrr
+yyyyGGrrrrrr
+GrrrGGGGrrrr
+yrrryyyyrrrr
+grrrrrrrGGGG
+
+Semaforo 3:
+GgGgGgGGrrrr
+yyyyGGGGrrrr
+rrrrGGGGGGrr
+rrrrGyyyGGrr
+rrrrGrrrGGGG
+rrrrgrrryyyy
+GGGGgrrrrrrr 
+
+Semaforo 4:
+GGGrrrrGGg
+yyyrrrryyy
+rrrGGGGrrr
+rrryyyyrrr

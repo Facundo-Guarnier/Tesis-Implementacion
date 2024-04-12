@@ -10,23 +10,32 @@ class SumoFlask(Flask):
         self.zonas = ZonaList()
         self.app = App()
         
-        #! Definir las rutas de la aplicación
-        self.route('/cantidad', methods=['GET'])(self.cantidades)
-        self.route('/cantidad/<zona_name>', methods=['GET'])(self.cantidad_zona)
+        #! Cantidad vehículos
+        self.route('/cantidad', methods=['GET'])(self.getCantidades)
+        self.route('/cantidad/<zona_name>', methods=['GET'])(self.getCantidadZona)
         
-        self.route('/semaforo/<id>', methods=['PUT'])(self.cambiarEstado)
+        #! Tiempo de espera en zona
+        self.route('/espera', methods=['GET'])(self.getTiemposEspera)
+        self.route('/espera/<zona_id>', methods=['GET'])(self.getTiempoEspera)
+        
+        #! Avanzar simulación
+        self.route('/avanzar', methods=['PUT'])(self.putAvanzar)
+        
+        #! Semáforos
+        self.route('/semaforo', methods=['GET'])(self.getEstados)
         self.route('/semaforo/<id>', methods=['GET'])(self.getEstado)
+        self.route('/semaforo/<id>', methods=['PUT'])(self.putEstado)
 
 
-
-    def cantidades(self) -> tuple[Response, int]:
+    def getCantidades(self) -> tuple[Response, int]:
         """
         Cantidades de vehículos en todas las zonas.
         """
+        self.app.setVehiculo()
         return jsonify(self.zonas.get_cantidades()), 200
 
 
-    def cantidad_zona(self, zona_name:str) -> tuple[Response, int]:
+    def getCantidadZona(self, zona_name:str) -> tuple[Response, int]:
         """
         Cantidad de vehículos en una zona específica.
         """
@@ -36,25 +45,56 @@ class SumoFlask(Flask):
                 "cantidad_detecciones": self.zonas.get_cantidad_zona(zona_name),
             }
         ), 200
-
-
-    def cambiarEstado(self, id:str) -> tuple[Response, int]:
+    
+    
+    def getTiemposEspera(self) -> tuple[Response, int]:
         """
-        Cambiar el estado de un semáforo.
-        - Ej: semaforo/<id>?estado=valor'
+        Obtener el tiempo total de espera de todas las zonas en la simulación.
         """
-        
-        nuevo_estado = request.args.get('estado')
+        return jsonify({"tiempo_espera": self.app.getTiemposEspera()}), 200
 
-        if not nuevo_estado:
-            return jsonify({"message": "No se ha especificado el nuevo estado"}), 400
-        else:
-            self.app.cambiarEstado(id, nuevo_estado)
-            return jsonify({"message": "OK"}), 200
+
+    def getTiempoEspera(self, zona_id:str) -> tuple[Response, int]:
+        """
+        Obtener el tiempo total de espera de una zona en la simulación.
+        """
+        return jsonify({"tiempo_espera": self.app.getTiempoEspera(zona_id=zona_id)}), 200
+    
+    
+    def getEstados(self) -> tuple[Response, int]:
+        """
+        Obtener el estado de un semáforo.
+        - Ej: semaforo'
+        """
+        return jsonify({"estados": self.app.getSemaforosEstados()}), 200
 
 
     def getEstado(self, id:str) -> tuple[Response, int]:
         """
         Obtener el estado de un semáforo.
         """
-        return jsonify({"estado": self.app.getEstado(id)}), 200
+        return jsonify({"estado": self.app.getSemaforoEstado(id)}), 200
+    
+    
+    def putAvanzar(self) -> tuple[Response, int]:
+        """
+        Avanzar la simulación.
+        """
+        steps = request.args.get('steps', type=int, default=10)
+        done = self.app.avanzar(steps=steps)
+        return jsonify({"done": done}), 200
+    
+    
+    def putEstado(self, id:str) -> tuple[Response, int]:
+        """
+        Cambiar el estado de un semáforo.
+        - Ej: semaforo/<id>?estado=valor'
+        """
+        
+        nuevo_estado = request.args.get('estado')
+        
+        if not nuevo_estado:
+            return jsonify({"message": "No se ha especificado el nuevo estado"}), 400
+        else:
+            self.app.cambiarEstado(semaforo=id, estado=nuevo_estado)
+            return jsonify({"message": "OK"}), 200
