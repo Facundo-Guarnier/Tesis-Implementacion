@@ -48,10 +48,10 @@
 #     pass
 
 # # Algoritmo SARSA
-# def sarsa(env, num_episodes, alpha, gamma, epsilon):
+# def sarsa(env, num_epocas, alpha, gamma, epsilon):
 #     Q = {}  # Diccionario para almacenar los valores Q
 
-#     for episode in range(num_episodes):
+#     for epoca in range(num_epocas):
 #         state = env.reset()
 #         done = False
 
@@ -103,11 +103,12 @@
 
 # # Ejemplo de uso
 # env = SumoEnvironment()
-# Q = sarsa(env, num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1)
+# Q = sarsa(env, num_epocas=1000, alpha=0.1, gamma=0.9, epsilon=0.1)
 
 #* Q-learning, SARSA, Deep Q-Network (DQN) y Proximal Policy Optimization (PPO):  35.79 %, 51.63 %, 63.40 % y 63.49 %
 #* SARSA
-import pickle
+import csv, os, pickle
+import time
 import numpy as np
 
 # from Decision.App.Api import ApiClient
@@ -135,17 +136,22 @@ class EntrenamientoSARSA:
         self.__espacio_acciones = [f"{s1}-{s2}-{s3}-{s4}" for s1 in semaforo_1 for s2 in semaforo_2 for s3 in semaforo_3 for s4 in semaforo_4]
 
 
-    def entrenar(self, num_episodes, alpha, gamma, epsilon) -> dict[tuple, float]:
+    def entrenar(self, num_epocas:int, alpha:float, gamma:float, epsilon:float) -> dict[tuple, float]:
         """
         Entrenamiento del algoritmo SARSA de aprendizaje por refuerzo.
         """
         Q: dict[tuple, float] = {}  # Diccionario para almacenar los valores Q
-
-        for episode in range(num_episodes):
-            # state = self.__reiniciar()
-            print(f"Episodio: {episode} de {num_episodes} episodios.")
+        Q_anterior = Q.copy()
+        recompensas_acumuladas:list[float] = []
+        tasas_exploracion_explotacion:list[float] = []
+        metricas_convergencia:list[float] = []
+        
+        for epoca in range(num_epocas):
+            print(f"Entrenando epoca: {epoca} de {num_epocas} epcoas.")
+            start_time = time.time()
             state = self.__estado()
             done = False
+            total_reward = 0.0
 
             #! Selecciona la acción utilizando una política epsilon-greedy
             action = self.__politica(state, Q, epsilon)
@@ -157,6 +163,8 @@ class EntrenamientoSARSA:
                 #! Selecciona la próxima acción utilizando una política epsilon-greedy
                 next_action = self.__politica(next_state, Q, epsilon)
 
+                total_reward += reward
+
                 #! Actualiza el valor Q utilizando la ecuación SARSA
                 if (state, action) not in Q:
                     Q[(state, action)] = 0
@@ -167,17 +175,78 @@ class EntrenamientoSARSA:
                 #! Actualiza el estado y la acción para el próximo paso
                 state = next_state
                 action = next_action
-                
-            #! Guardar los valores Q en un archivo
-            with open('q_values.pkl', 'wb') as f:
-                pickle.dump(Q, f)
+            
+            if epoca > 0:
+                metrica = self.__calcular_metrica_convergencia(Q, Q_anterior)
+                metricas_convergencia.append(metrica)
+            else:
+                metricas_convergencia.append(0.0)
 
+            Q_anterior = Q.copy()
+            
+            recompensas_acumuladas.append(total_reward)
+            tasas_exploracion_explotacion.append(epsilon)
+            
+            epsilon *= 0.98  #TODO Está bien reducir la tasa de exploración con el tiempo?
+            
+            self.__guardar_valores_Q(Q=Q, epoca=epoca)
+            
+            self.__guardar_metricas(
+                epoca=epoca, 
+                duracion=time.time() - start_time,
+                recompensas_acumuladas=recompensas_acumuladas, 
+                tasas_exploracion_explotacion=tasas_exploracion_explotacion, 
+                metricas_convergencia=metricas_convergencia
+            )
+        
         return Q
+
+
+    def __guardar_metricas(self, epoca:int, duracion:float, recompensas_acumuladas:list, tasas_exploracion_explotacion:list, metricas_convergencia:list) -> None:
+        """
+        Guardar las métricas en un archivo CSV.
+        """
+        file_path = 'Decision/App/entrenamiento_data.csv'
+
+        #! Verificar si el archivo ya existe
+        if not os.path.isfile(file_path):
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Epoca', 'Duracion', 'Recompensa Acumulada', 'Tasa de Exploración vs Explotación (Epsilon)', 'Metrica de Convergencia'])
+
+        with open(file_path, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([epoca+1, duracion, recompensas_acumuladas[epoca], tasas_exploracion_explotacion[epoca], metricas_convergencia[epoca]])
+
+
+    def __guardar_valores_Q(self, Q:dict, epoca:int) -> None:
+        """
+        Guardar los valores Q en un archivo.
+        """
+        file_path = f'Decision/App/Valores_Q/epoca_{epoca}.pkl'
+        
+        with open(file_path, 'wb') as f:
+            pickle.dump(Q, f)
+
+
+    def __calcular_metrica_convergencia(self, Q, Q_anterior) -> float:
+        """
+        Calcular la diferencia absoluta promedio entre los valores Q de dos epocas consecutivas.
+        """
+        # diferencias = []
+        # for key in Q:
+        #     if key in Q_anterior and key in Q:
+        #         diferencias.append(abs(Q[key] - Q_anterior[key]))
+                
+        diferencias = [(abs(Q[key] - Q_anterior[key])) if key in Q_anterior and key in Q else 0 for key in Q]
+        return sum(diferencias) / len(diferencias)
 
 
     def __politica(self, state, Q, epsilon) -> list[str]:
         """
         Política epsilon-greedy para seleccionar la acción a realizar.
+        Episilon: Tasa de exploración vs explotación, es decir, probabilidad de explorar nuevas acciones o explotar las mejores acciones.
+        Cuando epsilon es alto, hay más probabilidad de realizar acciones aleatorias, lo que fomenta la exploración del espacio de acciones.
         """
         if np.random.uniform(0, 1) < epsilon:
             return np.random.choice(self.__espacio_acciones)       #! Acción aleatoria
@@ -201,13 +270,13 @@ class EntrenamientoSARSA:
         """
         Calcula la recompensa en función del estado actual. 
         La inversa de:
-        - (50%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
-        - (50%) La cantidad de vehículos en cada calle/zona.
+        - (80%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
+        - (20%) La cantidad de vehículos en cada calle/zona.
         """
         tiempo = self.__api.getTiemposEspera()["tiempo_espera"]
         cantidad = sum(self.__api.getCantidades().values())
         
-        return 1 / ((tiempo*0.5 + cantidad*0.5) + 1)
+        return 1 / ((tiempo*0.8 + cantidad*0.2) + 1)
 
 
     def __reiniciar(self) -> tuple:
@@ -217,13 +286,12 @@ class EntrenamientoSARSA:
         return self.__estado()
 
 
-
     def __avanzar(self, action) -> tuple[tuple, float, bool]:
         """
         Realiza las siguientes tareas:
-        1. Ejecuta la acción en SUMO
-        2. Simula 10 pasos (para tener una recompensa mas realista) 
-        3. Devuelve el nuevo estado, la recompensa y si se ha terminado el episodio.
+        1. Ejecuta la acción en SUMO.
+        2. Simula 10 pasos (para tener una recompensa mas realista).
+        3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
         
         #! Cambiar el estado de los semáforos en SUMO
@@ -241,18 +309,3 @@ class EntrenamientoSARSA:
         
         
         return self.__estado(), self.__recompensa(), done    #! Estado, recompensa, si terminó la simulacion o no 
-
-
-if __name__ == '__main__':
-    # Ejemplo de uso
-    algoritmo = EntrenamientoSARSA()
-    Q = algoritmo.entrenar(num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1)
-
-    # #! Cargar los valores Q desde el archivo
-    # with open('q_values.pkl', 'rb') as f:  # Fix: Open the file in read mode
-    #     Q = pickle.load(f)
-
-
-    # #! Ejemplo de uso
-    # state = __estado()      #! Obtener el estado actual del entorno
-    # action = max(self.__espacio_acciones, key=lambda a: Q.get((state, a), 0))      #! Seleccionar la acción utilizando el modelo entrenado

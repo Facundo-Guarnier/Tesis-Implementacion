@@ -14,7 +14,8 @@ class App:
         if not cls._instance:
             cls._instance = super().__new__(cls)
             #! Iniciar la simulación de SUMO
-            traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+            # traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+            traci.start(["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
         return cls._instance
     
     
@@ -112,7 +113,8 @@ class App:
         print("Cerrando...")
         traci.close()
         print("Reiniciando...")
-        traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+        # traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+        traci.start(["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
         self.iniciar()
     
     
