@@ -80,21 +80,22 @@ class SumoFlask(Flask):
         """
         Avanzar la simulación.
         """
-        steps = request.args.get('steps', type=int, default=10)
-        done = self.app.avanzar(steps=steps)
-        return jsonify({"done": done}), 200
+        steps = request.args.get('steps', type=int)
+        if steps:
+            done = self.app.avanzar(steps=steps)
+            return jsonify({"done": done}), 200
+        else:
+            return jsonify({"error": "Falta el parámetro 'steps'."}), 400
     
     
-    def putEstado(self, id:str) -> tuple[Response, int]:
+    def putEstado(self, id) -> tuple[Response, int]:
         """
         Cambiar el estado de un semáforo.
         - Ej: semaforo/<id>?estado=valor'
         """
-        
-        nuevo_estado = request.args.get('estado')
-        
-        if not nuevo_estado:
-            return jsonify({"message": "No se ha especificado el nuevo estado"}), 400
+        estado = request.args.get('estado', type=str)
+        if estado:
+            self.app.setSemaforoEstado(id, estado)
+            return jsonify({"estado": estado}), 200
         else:
-            self.app.cambiarEstado(semaforo=id, estado=nuevo_estado)
-            return jsonify({"message": "OK"}), 200
+            return jsonify({"error": "Falta el parámetro 'estado'."}), 400

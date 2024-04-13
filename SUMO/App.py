@@ -42,7 +42,7 @@ class App:
             zona.cantidad_detecciones = traci.edge.getLastStepVehicleNumber(zona.id)
     
     
-    def cambiarEstado(self, semaforo: str, estado: str) -> None:
+    def setSemaforoEstado(self, semaforo: str, estado: str) -> None:
         """
         Cambiar el color del semáforo (ejemplo: ponerlo en verde)
         """
@@ -92,7 +92,6 @@ class App:
         """
         Avanzar la cantidad de steps especificada.
         """
-        print(f"Avanzar simulación... {steps} steps")
         for _ in range(steps):
             if self.puedoSeguir():
                 traci.simulationStep()

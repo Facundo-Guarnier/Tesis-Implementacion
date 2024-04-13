@@ -15,6 +15,8 @@
 [ ] Evitar que un semaforo se quede para siempre en verde.
 [ ] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
 
+[x] Ver porque hace 2 peticiones de "GET /cantidad".
+
 
 # SUMO
 netedit
@@ -23,7 +25,7 @@ python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Im
 -e: tiempo
 --period: cantidad que sale por segundo entre esos 2 números (1/periodo)
 --fringe-factor: Solo spawn en los bordes
-
+https://sumo.dlr.de/pydoc/traci._edge.html#EdgeDomain-getLastStepVehicleIDs 
 https://www.youtube.com/watch?v=zQH1n0Fvxes
 [ ]  Se puede medir las emisiones de  CO2 con SUMO (getCO2Emission), consumo combustible, etc.
 
@@ -39,6 +41,7 @@ https://www.youtube.com/watch?v=sy8uRDZw8pk
 https://www.youtube.com/watch?v=oig4o9RW_aM
 [ ] Detectar varios videos a la vez.
 
+[ ] Agregar tiempo de espera?
 [ ] Agregar try/except.
 [ ] Detectar ambulancias y patrulleros.
 
