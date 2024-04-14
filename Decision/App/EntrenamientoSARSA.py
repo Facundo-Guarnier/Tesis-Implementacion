@@ -122,6 +122,16 @@ class EntrenamientoSARSA:
     def __init__(self):
         self.__api = ApiClient("http://127.0.0.1:5000")
         self.__setEspacioAcciones()
+        self.__setPath()
+
+    def __setPath(self) -> None:
+        """
+        Establece la ruta donde se guardarán los archivos.
+        """
+        path = f'Decision/App/Valores_Q_{time.strftime("%Y-%m-%d_%H-%M")}'
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self.__path = path
 
 
     def __setEspacioAcciones(self) -> None:
@@ -146,6 +156,19 @@ class EntrenamientoSARSA:
         tasas_exploracion_explotacion:list[float] = []
         metricas_convergencia:list[float] = []
         
+        #! Ver la recompensa con semaforos con tiempo fijo
+        total_reward = 0.0
+        done = False
+        print("Calculando recompensa con semaforos con tiempo fijo.")
+        while not done:
+            total_reward += self.__recompensa()
+            done = self.__api.putAvanzar(steps=10)['done'] 
+            
+        recompensas_acumuladas.append(total_reward)
+        tasas_exploracion_explotacion.append(0.0)
+        metricas_convergencia.append(0.0)
+        
+        #! Entrenar
         for epoca in range(num_epocas):
             print(f"Entrenando epoca: {epoca} de {num_epocas} epcoas.")
             start_time = time.time()
@@ -155,14 +178,14 @@ class EntrenamientoSARSA:
 
             #! Selecciona la acción utilizando una política epsilon-greedy
             action = self.__politica(state, Q, epsilon)
-
+            
             while not done:
                 #! Ejecuta la acción y observa el nuevo estado y la recompensa
                 next_state, reward, done = self.__avanzar(action)
 
                 #! Selecciona la próxima acción utilizando una política epsilon-greedy
                 next_action = self.__politica(next_state, Q, epsilon)
-
+                
                 total_reward += reward
 
                 #! Actualiza el valor Q utilizando la ecuación SARSA
@@ -187,7 +210,8 @@ class EntrenamientoSARSA:
             recompensas_acumuladas.append(total_reward)
             tasas_exploracion_explotacion.append(epsilon)
             
-            epsilon *= 0.98  #TODO Está bien reducir la tasa de exploración con el tiempo?
+            epsilon *= 0.94  #! Tasa de exploración
+            alpha *= 0.98 #! Tasa de aprendizaje 
             
             self.__guardar_valores_Q(Q=Q, epoca=epoca)
             
@@ -206,26 +230,25 @@ class EntrenamientoSARSA:
         """
         Guardar las métricas en un archivo CSV.
         """
-        file_path = 'Decision/App/entrenamiento_data.csv'
+        path = self.__path + '/entrenamiento_data.csv'
 
         #! Verificar si el archivo ya existe
-        if not os.path.isfile(file_path):
-            with open(file_path, mode='w', newline='') as file:
+        if not os.path.isfile(path):
+            with open(path, mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(['Epoca', 'Duracion', 'Recompensa Acumulada', 'Tasa de Exploración vs Explotación (Epsilon)', 'Metrica de Convergencia'])
 
-        with open(file_path, mode='a', newline='') as file:
+        with open(path, mode='a', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow([epoca+1, duracion, recompensas_acumuladas[epoca], tasas_exploracion_explotacion[epoca], metricas_convergencia[epoca]])
+            writer.writerow([epoca, duracion, recompensas_acumuladas[epoca], tasas_exploracion_explotacion[epoca], metricas_convergencia[epoca]])
 
 
     def __guardar_valores_Q(self, Q:dict, epoca:int) -> None:
         """
         Guardar los valores Q en un archivo.
         """
-        file_path = f'Decision/App/Valores_Q/epoca_{epoca}.pkl'
-        
-        with open(file_path, 'wb') as f:
+        path = self.__path + f'/epoca_{epoca+1}.pkl'
+        with open(path, 'wb') as f:
             pickle.dump(Q, f)
 
 
@@ -242,7 +265,7 @@ class EntrenamientoSARSA:
         return sum(diferencias) / len(diferencias)
 
 
-    def __politica(self, state, Q, epsilon) -> list[str]:
+    def __politica(self, state, Q, epsilon) -> str:
         """
         Política epsilon-greedy para seleccionar la acción a realizar.
         Episilon: Tasa de exploración vs explotación, es decir, probabilidad de explorar nuevas acciones o explotar las mejores acciones.
@@ -252,7 +275,7 @@ class EntrenamientoSARSA:
             return np.random.choice(self.__espacio_acciones)       #! Acción aleatoria
         else:
             return max(self.__espacio_acciones, key=lambda a: Q.get((state, a), 0)) # type: ignore #! Acción óptima según los valores Q 
-
+        
 
     def __estado(self) -> tuple:
         """
@@ -270,13 +293,12 @@ class EntrenamientoSARSA:
         """
         Calcula la recompensa en función del estado actual. 
         La inversa de:
-        - (80%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
-        - (20%) La cantidad de vehículos en cada calle/zona.
+        - (0%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
+        - (0%) La cantidad de vehículos en cada calle/zona.
         """
         tiempo = self.__api.getTiemposEspera()["tiempo_espera"]
         cantidad = sum(self.__api.getCantidades().values())
-        
-        return 1 / ((tiempo*0.8 + cantidad*0.2) + 1)
+        return 100 / ((tiempo*0.15 + cantidad*0.85) + 100)
 
 
     def __reiniciar(self) -> tuple:
@@ -286,7 +308,7 @@ class EntrenamientoSARSA:
         return self.__estado()
 
 
-    def __avanzar(self, action:list) -> tuple[tuple, float, bool]:
+    def __avanzar(self, action:str) -> tuple[tuple, float, bool]:
         """
         Realiza las siguientes tareas:
         1. Ejecuta la acción en SUMO.
@@ -295,8 +317,7 @@ class EntrenamientoSARSA:
         """
         
         #! Cambiar el estado de los semáforos en SUMO
-        action = action.split('-') # type: ignore
-        self.__api.putEstados(accion=action)
+        self.__api.putEstados(accion=action.split('-'))
         
         #! Avanzar en SUMO con la acción seleccionada
         respuesta = self.__api.putAvanzar(steps=10)

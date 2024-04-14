@@ -1,4 +1,5 @@
-from Algoritmo import EntrenamientoSARSA
+from SARSA import SARSA
+from EntrenamientoSARSA import EntrenamientoSARSA
 
 # cliente_api = ApiClient("http://127.0.0.1:5000")
 
@@ -9,15 +10,15 @@ from Algoritmo import EntrenamientoSARSA
 # print(f"Cantidad de vehículos en la zona: {cliente_api.obtener_cantidad_vehiculos_zona('Zona B')}")
 
 if __name__ == '__main__':
-    # Ejemplo de uso
-    algoritmo = EntrenamientoSARSA()
-    Q = algoritmo.entrenar(num_epocas=1000, alpha=0.1, gamma=0.9, epsilon=0.3)
+    
+    entrenar = True
+    
+    if entrenar:
+        #T* Entrenar
+        algoritmo1 = EntrenamientoSARSA()
+        Q = algoritmo1.entrenar(num_epocas=30, alpha=0.15, gamma=0.85, epsilon=0.3)
 
-    # #! Cargar los valores Q desde el archivo
-    # with open('q_values.pkl', 'rb') as f:  # Fix: Open the file in read mode
-    #     Q = pickle.load(f)
-
-
-    # #! Ejemplo de uso
-    # state = __estado()      #! Obtener el estado actual del entorno
-    # action = max(self.__espacio_acciones, key=lambda a: Q.get((state, a), 0))      #! Seleccionar la acción utilizando el modelo entrenado
+    else:
+        #T* Usar SARSA
+        algoritmo2 = SARSA("Decision/App/Valores_Q_2024-04-14_11-31/epoca_61.pkl")
+        algoritmo2.usar()

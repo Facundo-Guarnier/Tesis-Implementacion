@@ -42,15 +42,15 @@ def run_flask_deteccion() -> None:
     api.run(debug=False) 
 
 
-def run_app_sumo() -> None:
+def run_app_sumo(gui: bool) -> None:
     """
     Simulación de tráfico con SUMO.
     """
-    app = AppS()
+    app = AppS(gui=gui)
     app.iniciar()
 
 
-def run_flask_sumo() -> None:
+def run_flask_sumo(gui) -> None:
     """
     API flask de SUMO.
     """
@@ -69,8 +69,11 @@ if __name__ == "__main__":
 
 
     #T* SUMO
-    app_thread = Thread(target=run_app_sumo)
+    
+    gui = False
+    
+    app_thread = Thread(target=run_app_sumo, args=(gui,))
     app_thread.start()
-    run_flask_sumo()
+    run_flask_sumo(gui=gui)
     
     app_thread.join()

@@ -10,16 +10,19 @@
 
 
 # Toma de decisiones
-[ ] Ejecutar sumo sin gui: sumo -c your_configuration_file.sumocfg --no-gui
-[ ] Buscar a ver si hay algun parametro de traci que indique el tipo total de los autos en una calle, no importa si es detenido o no.
-[ ] En vez de tiempo de espera por calle, que sea por carril?
 [ ] REVISAR LA FUNCION DE RECOMPENSA.
+[ ] REVISAR POLITICA
+[ ] Ver epsilon y alpha
+
+[ ] Buscar a ver si hay algún parametro de traci que indique el tipo total de los autos en una calle, no importa si es detenido o no.
+[ ] En vez de tiempo de espera por calle, que sea por carril?
 [ ] Revisar la métrica de convergencia, porque da valores muy cercanos a cero y se redondea a cero.
 
 [ ] Agregar algún tipo de regla para los vehiculos que llevan mucho esperando. 
 [ ] Evitar que un semaforo se quede para siempre en verde.
 [ ] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
 
+[x] Ejecutar sumo sin gui: sumo -c your_configuration_file.sumocfg --no-gui
 [x] Evitar que los semaforos se pongan todos en verdes: nunca porque no está en las opciones que le dí al modelo.
 [x] Ver porque hace 2 peticiones de "GET /cantidad".
 

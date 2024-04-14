@@ -1,0 +1,3 @@
+Tipo,Duracion,Recompensa Acumulada (1000 / ((tiempo*cantidad*0.2) + 1000)),Tasa de Exploraci�n vs Explotaci�n (Epsilon),Metrica de Convergencia
+Semaforos por tiempo,75.82985544204712,583.1135875516999,0.3,0.0
+Epoca 65,131.65490221977234,33.83861144933497,0.011257241763334806,1.319156844944617e-05

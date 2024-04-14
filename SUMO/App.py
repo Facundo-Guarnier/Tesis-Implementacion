@@ -10,21 +10,29 @@ from SUMO.zonas.ZonaList import ZonaList
 class App:
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super().__new__(cls)
             #! Iniciar la simulación de SUMO
-            # traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
-            traci.start(["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+            # if cls._instance.gui:
+            #     traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+            # else:
+            #     traci.start(["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
         return cls._instance
     
     
-    def __init__(self):
+    def __init__(self, gui:bool=False):
         self.zonas = ZonaList()
+        self.gui = gui
     
     
     def iniciar(self) -> None:
         print("Iniciando...")
+        if self.gui:
+            traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+        else:
+            traci.start(["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
+    
         try: 
             #! Para que haya un mínimo de vehículos en la simulación.
             while traci.simulation.getMinExpectedNumber() > 0 and traci.simulation.getTime() < 250:
@@ -112,9 +120,6 @@ class App:
         """
         print("Cerrando...")
         traci.close()
-        print("Reiniciando...")
-        # traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
-        traci.start(["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
         self.iniciar()
     
     
