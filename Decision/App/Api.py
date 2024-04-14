@@ -89,13 +89,22 @@ class ApiClient:
             return None
     
     
-    def putEstado(self, id:int, estado:str) -> dict|None:
+    def putEstados(self, accion:list) -> dict|None:
         """
         Cambiar el estado de un semáforo.
         """
-    
-        endpoint = f'/semaforo/{id}'
-        response = requests.put(self.base_url + endpoint, params={'estado': estado})
+        endpoint = f'/semaforo'
+        
+        data = []
+        for semaforo_id in range(len(accion)):
+            data.append(
+                {
+                    "id": str(semaforo_id+1), 
+                    "estado": accion[semaforo_id]
+                }
+            )
+        
+        response = requests.put(self.base_url + endpoint, json={"data": data})
         
         if response.status_code == 200:
             return response.json()

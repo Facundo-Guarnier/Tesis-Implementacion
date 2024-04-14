@@ -286,7 +286,7 @@ class EntrenamientoSARSA:
         return self.__estado()
 
 
-    def __avanzar(self, action) -> tuple[tuple, float, bool]:
+    def __avanzar(self, action:list) -> tuple[tuple, float, bool]:
         """
         Realiza las siguientes tareas:
         1. Ejecuta la acción en SUMO.
@@ -295,17 +295,12 @@ class EntrenamientoSARSA:
         """
         
         #! Cambiar el estado de los semáforos en SUMO
-        action = action.split('-')
-        for semaforo_id in range(len(action)):
-            self.__api.putEstado(
-                id=str(semaforo_id+1), 
-                estado=action[semaforo_id]
-            )
-            
+        action = action.split('-') # type: ignore
+        self.__api.putEstados(accion=action)
+        
         #! Avanzar en SUMO con la acción seleccionada
         respuesta = self.__api.putAvanzar(steps=10)
         
         done:bool = respuesta['done']    #! Si la simulación ha terminado
-        
         
         return self.__estado(), self.__recompensa(), done    #! Estado, recompensa, si terminó la simulacion o no 

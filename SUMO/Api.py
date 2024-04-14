@@ -23,6 +23,7 @@ class SumoFlask(Flask):
         
         #! Semáforos
         self.route('/semaforo', methods=['GET'])(self.getEstados)
+        self.route('/semaforo', methods=['PUT'])(self.putEstados)
         self.route('/semaforo/<id>', methods=['GET'])(self.getEstado)
         self.route('/semaforo/<id>', methods=['PUT'])(self.putEstado)
 
@@ -96,6 +97,22 @@ class SumoFlask(Flask):
         estado = request.args.get('estado', type=str)
         if estado:
             self.app.setSemaforoEstado(id, estado)
+            return jsonify({"estado": estado}), 200
+        else:
+            return jsonify({"error": "Falta el parámetro 'estado'."}), 400
+    
+    
+    def putEstados(self) -> tuple[Response, int]:
+        """
+        Cambiar los estado de varios semáforos.
+        Ej: {data=[{'id': 1, 'estado': 'ggggggggggg'}, {'id': 2, 'estado': 'gggggggggggg'}, {'id': 3, 'estado': 'rrrrrrrrrrrr'}, {'id': 4, 'estado': 'rrrrrrrrrr'}]}
+        """
+        data = request.json
+        if data:
+            for semaforo in list(data["data"]):
+                semaforo_id = semaforo["id"]
+                estado = semaforo["estado"]
+                self.app.setSemaforoEstado(semaforo_id, estado)
             return jsonify({"estado": estado}), 200
         else:
             return jsonify({"error": "Falta el parámetro 'estado'."}), 400
