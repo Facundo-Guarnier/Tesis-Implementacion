@@ -1,10 +1,8 @@
 import os
-import time
 from typing import Any
 import traci
 
 from SUMO.zonas.ZonaList import ZonaList
-# import traci.step
 
 
 class App:
