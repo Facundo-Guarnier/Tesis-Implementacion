@@ -121,7 +121,7 @@ class App:
                 done = True
                 self.reiniciar()
                 break
-        
+        print(f"\nSteps: {traci.simulation.getTime()}")
         return done
     
     

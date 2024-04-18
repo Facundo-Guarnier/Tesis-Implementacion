@@ -70,7 +70,8 @@ if __name__ == "__main__":
 
     #T* SUMO
     
-    gui = True
+    gui = False
+    
     print("Iniciando SUMO. GUI:", gui)
     app_thread = Thread(target=run_app_sumo, args=(gui,))
     app_thread.start()

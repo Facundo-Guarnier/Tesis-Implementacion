@@ -98,21 +98,72 @@ class EntrenamientoDQN:
         """
         
         minibatch = random.sample(self.memory, batch_size)
-        print(minibatch)
         
-        # minibatch = [m for m in minibatch if m[3] is not None]
-        # minibatch = np.array(minibatch)
-        
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                target = (reward + self.gamma * np.amax(self.model.predict(next_state)[0]))
-            target_f = self.model.predict(state)
-            target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
+        #T* V1
+        # for state, action, reward, next_state, done in minibatch:
+        #     target = reward
+        #     if not done:
+        #         target = (reward + self.gamma * np.amax(self.model.predict(next_state)[0]))
+        #     target_f = self.model.predict(state, verbose=0, use_multiprocessing=True)
+        #     target_f[0][action] = target
+        #     self.model.fit(state, target_f, epochs=1, verbose=0, use_multiprocessing=True)
             
+        # if self.epsilon > self.epsilon_min:
+        #     self.epsilon *= self.epsilon_decay
+        
+        #T* V2
+        # states = []
+        # targets = []
+        # t1 = time.time()
+        
+        # for state, action, reward, next_state, done in minibatch:
+        #     target = reward
+            
+        #     if not done:
+        #         target = (reward + self.gamma * np.amax(self.model.predict(next_state, verbose=0, use_multiprocessing=True)[0]))
+            
+        #     target_f = self.model.predict(state, verbose=0, use_multiprocessing=True)
+        #     target_f[0][action] = target
+        #     states.append(state[0])
+        #     targets.append(target_f[0])
+        
+        # self.model.fit(np.array(states), np.array(targets), epochs=1, verbose=0, batch_size=batch_size, use_multiprocessing=True)
+        
+        # if self.epsilon > self.epsilon_min:
+        #     self.epsilon *= self.epsilon_decay
+        
+        # print(f" - Tiempo de entrenamiento: {(time.time() - t1):.2f}")
+        
+        
+        
+        #T* V3
+        t1 = time.time()
+
+        all_predictions = self.model.predict(np.array([s[0] for s, _, _, _, _ in minibatch]), batch_size=batch_size, verbose=0, use_multiprocessing=True)
+        all_predictions_copy = all_predictions.copy()
+
+        states = []
+        targets = []
+
+        for i, (state, action, reward, next_state, done) in enumerate(minibatch):
+            target = reward
+                    
+            if not done:
+                target = (reward + self.gamma * np.amax(all_predictions_copy[i]))
+
+            target_f = all_predictions_copy[i]
+            target_f[action] = target
+            states.append(state[0])
+            targets.append(target_f)
+
+        self.model.fit(np.array(states), np.array(targets), epochs=1, verbose=0, batch_size=batch_size, use_multiprocessing=True)
+
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+        print(f" - Tiempo de entrenamiento: {(time.time() - t1):.2f}")
+
+        
     
     
     def train(self):
@@ -121,6 +172,8 @@ class EntrenamientoDQN:
             state = self.__estado()
             done = False
             total_reward = 0
+            
+            r = 0
             
             while not done:
                 action = self.__poilitica(state)
@@ -131,9 +184,11 @@ class EntrenamientoDQN:
                 
                 state = next_state
                 if len(self.memory) > self.batch_size:
+                    print(f"\nRepeticion: {r+1}, Epoca: {e+1}")
                     self.replay(self.batch_size)
+                    r += 1
                 
-            self.save_model(self.__path + f"/epoca_{e+1}.h5")
+            self.model.save(self.__path + f"/epoca_{e+1}.h5")
 
 
     def __estado(self) -> NDArray:
