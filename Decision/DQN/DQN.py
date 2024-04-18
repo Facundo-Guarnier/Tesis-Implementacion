@@ -16,11 +16,6 @@ class DQN:
         Devuelve el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos. 
         - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), ...]
         """
-        # semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG', 'rrGGGGGrGrr']
-        # semaforo_2 = ['GgGGrrrrGgGg', 'GGGGGGrrrrrr', 'GrrrGGGGrrrr', 'grrrrrrrGGGG']
-        # semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGGGGGGrr', 'rrrrGrrrGGGG', 'GGGGgrrrrrrr']
-        # semaforo_4 = ['GGGrrrrGGg', 'rrrGGGGrrr']
-        
         semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG']
         semaforo_2 = ['GgGGrrrrGgGg', 'GrrrGGGGrrrr']
         semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGrrrGGGG']
@@ -39,6 +34,7 @@ class DQN:
         while not done:
             state = self.__estado()
             action = self.model.predict(state)
+            print("++++++++++++Action:", max(action).index())
             done = self.__avanzar(action)
     
     
@@ -68,11 +64,11 @@ class DQN:
         2. Simula 15 pasos (para tener una recompensa mas realista).
         3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
-        
-        action2 = self.__espacio_acciones[action]
+        # print("Action:", type(action))
+        # action2 = self.__espacio_acciones[action]
         
         #! Cambiar el estado de los semáforos en SUMO
-        self.__api.putEstados(accion=action2.split('-'))
+        self.__api.putEstados(accion=action.split('-'))
         
         #! Avanzar en SUMO con la acción seleccionada
         respuesta = self.__api.putAvanzar(steps=15)

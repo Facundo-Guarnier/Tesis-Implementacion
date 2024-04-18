@@ -1,8 +1,9 @@
+from DQN import DQN
 from EntrenamientoDQN import EntrenamientoDQN
 
 if __name__ == "__main__":
     
-    entrenar = True
+    entrenar = False
     
     if entrenar:
         #T* Entrenar
@@ -19,6 +20,6 @@ if __name__ == "__main__":
     else:
         #T* Usar SARSA
         print("Usar DQN")
-        # algoritmo2 = SARSA(path_Q="Decision/Valores_Q_2024-04-17_09-03/epoca_30.pkl")
-        # algoritmo2.usar()
+        algoritmo2 = DQN(path_modelo="Decision/Resultados_entrenamiento/epoca_12.h5")
+        algoritmo2.usar()
         
