@@ -50,9 +50,12 @@ class SumoFlask(Flask):
     
     def getTiemposEspera(self) -> tuple[Response, int]:
         """
-        Obtener el tiempo total de espera de todas las zonas en la simulación.
+        Obtener el tiempo de espera de todas las zonas en la simulación.
         """
-        return jsonify({"tiempo_espera": self.app.getTiemposEspera()}), 200
+        return jsonify({
+            "tiempo_espera_total": self.app.getTiemposEsperaTotal(),
+            "tiempos_espera": self.app.getTiemposEspera()
+        }), 200
 
 
     def getTiempoEspera(self, zona_id:str) -> tuple[Response, int]:

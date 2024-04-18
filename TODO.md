@@ -10,6 +10,7 @@
 
 
 # Toma de decisiones
+[ ] Cambiar estado de cantidad por tiempo de espera
 [ ] REVISAR LA FUNCION DE RECOMPENSA.
 [ ] REVISAR POLITICA
 [ ] Ver epsilon y alpha

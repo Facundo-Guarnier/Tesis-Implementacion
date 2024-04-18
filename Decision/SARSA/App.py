@@ -15,10 +15,12 @@ if __name__ == '__main__':
     
     if entrenar:
         #T* Entrenar
+        print("Entrenar SARSA")
         algoritmo1 = EntrenamientoSARSA()
-        Q = algoritmo1.entrenar(num_epocas=30, alpha=0.15, gamma=0.85, epsilon=0.3)
+        Q = algoritmo1.main(num_epocas=55, alpha=0.1, gamma=0.99, epsilon=1)
 
     else:
         #T* Usar SARSA
-        algoritmo2 = SARSA("Decision/App/Valores_Q_2024-04-14_11-31/epoca_61.pkl")
+        print("Usar SARSA")
+        algoritmo2 = SARSA(path_Q="Decision/Valores_Q_2024-04-17_09-03/epoca_30.pkl")
         algoritmo2.usar()

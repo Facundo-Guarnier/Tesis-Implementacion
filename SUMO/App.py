@@ -86,9 +86,20 @@ class App:
         return  traci.edge.getWaitingTime(zona_id)
     
     
-    def getTiemposEspera(self) -> tuple|Any:
+    def getTiemposEspera(self) -> list:
         """
         Obtener el tiempo de espera en todas las zonas.
+        """
+        
+        while traci.simulation.getTime() < 250:
+            traci.simulationStep()
+        
+        return [traci.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
+    
+    
+    def getTiemposEsperaTotal(self) -> tuple|Any:
+        """
+        Obtener el tiempo total de espera en todas las zonas.
         """
         
         while traci.simulation.getTime() < 250:

@@ -25,86 +25,7 @@
 # print(f"Tiempo de verde para carril 3: {tiempo_verde_carril3:.2f} segundos")
 
 
-#T* Version 2: Red neuronal
-# https://www.youtube.com/watch?v=CQu4wFLC79U
-#* Una vez que la red neuronal decidió el color, deberían pasar 5 segundo (cantidad de tics de la simulacion) en los 
-#* cuales existe la transición de verde a rojo (5 segundo de amarillo).
-
-#* Red neuronal que tenga como entrada la densidad de vehículos en cada carril (12 neuronas) y devuelva el color de cada semaforo.
-
-#* La recompensa o la forma de saber si está haciendo bien su trabajo será la cantidad de vehículos que pasan por el 
-#* semáforo en un tiempo determinado (en el video es la inversa del valor de furia/espera: 1/furia=score). 
-
-#* En el video tiene 18 entradas, 2 capas ocultas de 10 y la salida que es de 10 (10 posibles estado del semaforo) con funcion de activación tanh.  
-
-
-#T* Version 3: Aprendizaje por refuerzo
-# import traci  # Para interactuar con SUMO
-# import numpy as np
-
-# # Función de recompensa
-# def reward_function(state):
-#     # Implementa tu función de recompensa aquí
-#     pass
-
-# # Algoritmo SARSA
-# def sarsa(env, num_epocas, alpha, gamma, epsilon):
-#     Q = {}  # Diccionario para almacenar los valores Q
-
-#     for epoca in range(num_epocas):
-#         state = env.reset()
-#         done = False
-
-#         # Selecciona la acción utilizando una política epsilon-greedy
-#         action = epsilon_greedy_policy(state, Q, epsilon)
-
-#         while not done:
-#             # Ejecuta la acción y observa el nuevo estado y la recompensa
-#             next_state, reward, done = env.step(action)
-
-#             # Selecciona la próxima acción utilizando una política epsilon-greedy
-#             next_action = epsilon_greedy_policy(next_state, Q, epsilon)
-
-#             # Actualiza el valor Q utilizando la ecuación SARSA
-#             if (state, action) not in Q:
-#                 Q[(state, action)] = 0
-#             if (next_state, next_action) not in Q:
-#                 Q[(next_state, next_action)] = 0
-#             Q[(state, action)] += alpha * (reward + gamma * Q[(next_state, next_action)] - Q[(state, action)])
-
-#             # Actualiza el estado y la acción para el próximo paso
-#             state = next_state
-#             action = next_action
-
-#     return Q
-
-# # Política epsilon-greedy
-# def epsilon_greedy_policy(state, Q, epsilon):
-#     if np.random.uniform(0, 1) < epsilon:
-#         # Acción aleatoria
-#         return np.random.choice(env.action_space)
-#     else:
-#         # Acción óptima según los valores Q
-#         return max(env.action_space, key=lambda a: Q.get((state, a), 0))
-
-# # Clase para el entorno SUMO
-# class SumoEnvironment:
-#     def __init__(self):
-#         # Inicializa SUMO y configura tu escenario aquí
-#         pass
-    
-#     def reset(self):
-#         # Reinicia el entorno a un estado inicial y devuelve el estado
-#         pass
-    
-#     def step(self, action):
-#         # Ejecuta la acción en SUMO, simula un paso y devuelve el nuevo estado, la recompensa y si se ha terminado el episodio
-#         pass
-
-# # Ejemplo de uso
-# env = SumoEnvironment()
-# Q = sarsa(env, num_epocas=1000, alpha=0.1, gamma=0.9, epsilon=0.1)
-
+#T* Version 2: Aprendizaje por refuerzo
 #* Q-learning, SARSA, Deep Q-Network (DQN) y Proximal Policy Optimization (PPO):  35.79 %, 51.63 %, 63.40 % y 63.49 %
 #* SARSA
 import csv, os, pickle
@@ -115,20 +36,17 @@ import numpy as np
 from Api import ApiClient
 
 class EntrenamientoSARSA:
-    """
-    Clase para el entorno SUMO
-    """
-    
     def __init__(self):
         self.__api = ApiClient("http://127.0.0.1:5000")
         self.__setEspacioAcciones()
         self.__setPath()
 
+
     def __setPath(self) -> None:
         """
         Establece la ruta donde se guardarán los archivos.
         """
-        path = f'Decision/App/Valores_Q_{time.strftime("%Y-%m-%d_%H-%M")}'
+        path = f'Decision/Resultados_entrenamiento/SARSA_{time.strftime("%Y-%m-%d_%H-%M")}'
         if not os.path.exists(path):
             os.makedirs(path)
         self.__path = path
@@ -139,38 +57,32 @@ class EntrenamientoSARSA:
         Devuelve el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos. 
         - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), ...]
         """
-        semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG', 'rrGGGGGrGrr']
-        semaforo_2 = ['GgGGrrrrGgGg', 'GGGGGGrrrrrr', 'GrrrGGGGrrrr', 'grrrrrrrGGGG']
-        semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGGGGGGrr', 'rrrrGrrrGGGG', 'GGGGgrrrrrrr']
+        # semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG', 'rrGGGGGrGrr']
+        # semaforo_2 = ['GgGGrrrrGgGg', 'GGGGGGrrrrrr', 'GrrrGGGGrrrr', 'grrrrrrrGGGG']
+        # semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGGGGGGrr', 'rrrrGrrrGGGG', 'GGGGgrrrrrrr']
+        # semaforo_4 = ['GGGrrrrGGg', 'rrrGGGGrrr']
+        
+        semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG']
+        semaforo_2 = ['GgGGrrrrGgGg', 'GrrrGGGGrrrr']
+        semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGrrrGGGG']
         semaforo_4 = ['GGGrrrrGGg', 'rrrGGGGrrr']
+        
         self.__espacio_acciones = [f"{s1}-{s2}-{s3}-{s4}" for s1 in semaforo_1 for s2 in semaforo_2 for s3 in semaforo_3 for s4 in semaforo_4]
 
 
-    def entrenar(self, num_epocas:int, alpha:float, gamma:float, epsilon:float) -> dict[tuple, float]:
+    def entrenar(self, num_epocas:int, alpha:float, gamma:float, epsilon:float) -> None:
         """
         Entrenamiento del algoritmo SARSA de aprendizaje por refuerzo.
+        - num_epocas: Número de épocas de entrenamiento.
+        - alpha: Tasa de aprendizaje.
+        - gamma: Factor de descuento.
+        - epsilon: Tasa de exploración vs explotación.
         """
-        Q: dict[tuple, float] = {}  # Diccionario para almacenar los valores Q
+        Q: dict[tuple, float] = {}
         Q_anterior = Q.copy()
-        recompensas_acumuladas:list[float] = []
-        tasas_exploracion_explotacion:list[float] = []
-        metricas_convergencia:list[float] = []
-        
-        #! Ver la recompensa con semaforos con tiempo fijo
-        total_reward = 0.0
-        done = False
-        print("Calculando recompensa con semaforos con tiempo fijo.")
-        while not done:
-            total_reward += self.__recompensa()
-            done = self.__api.putAvanzar(steps=10)['done'] 
-            
-        recompensas_acumuladas.append(total_reward)
-        tasas_exploracion_explotacion.append(0.0)
-        metricas_convergencia.append(0.0)
-        
-        #! Entrenar
+
         for epoca in range(num_epocas):
-            print(f"Entrenando epoca: {epoca} de {num_epocas} epcoas.")
+            print(f"Entrenando epoca: {epoca+1} de {num_epocas} epcoas.")
             start_time = time.time()
             state = self.__estado()
             done = False
@@ -182,7 +94,7 @@ class EntrenamientoSARSA:
             while not done:
                 #! Ejecuta la acción y observa el nuevo estado y la recompensa
                 next_state, reward, done = self.__avanzar(action)
-
+                
                 #! Selecciona la próxima acción utilizando una política epsilon-greedy
                 next_action = self.__politica(next_state, Q, epsilon)
                 
@@ -200,18 +112,18 @@ class EntrenamientoSARSA:
                 action = next_action
             
             if epoca > 0:
-                metrica = self.__calcular_metrica_convergencia(Q, Q_anterior)
-                metricas_convergencia.append(metrica)
+                metricas_convergencia = self.__calcular_metrica_convergencia(Q, Q_anterior)
             else:
-                metricas_convergencia.append(0.0)
+                metricas_convergencia = 0.0
 
             Q_anterior = Q.copy()
             
-            recompensas_acumuladas.append(total_reward)
-            tasas_exploracion_explotacion.append(epsilon)
+            recompensas_acumuladas = total_reward
+            tasas_exploracion_explotacion = epsilon
             
-            epsilon *= 0.94  #! Tasa de exploración
-            alpha *= 0.98 #! Tasa de aprendizaje 
+            if epsilon > 0.1:
+                epsilon *= 0.97  #! Tasa de exploración
+            alpha *= 0.99 #! Tasa de aprendizaje 
             
             self.__guardar_valores_Q(Q=Q, epoca=epoca)
             
@@ -222,25 +134,15 @@ class EntrenamientoSARSA:
                 tasas_exploracion_explotacion=tasas_exploracion_explotacion, 
                 metricas_convergencia=metricas_convergencia
             )
-        
-        return Q
 
 
-    def __guardar_metricas(self, epoca:int, duracion:float, recompensas_acumuladas:list, tasas_exploracion_explotacion:list, metricas_convergencia:list) -> None:
+    def __guardar_metricas(self, epoca:int, duracion:float, recompensas_acumuladas:float, tasas_exploracion_explotacion:float, metricas_convergencia:float) -> None:
         """
         Guardar las métricas en un archivo CSV.
         """
-        path = self.__path + '/entrenamiento_data.csv'
-
-        #! Verificar si el archivo ya existe
-        if not os.path.isfile(path):
-            with open(path, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(['Epoca', 'Duracion', 'Recompensa Acumulada', 'Tasa de Exploración vs Explotación (Epsilon)', 'Metrica de Convergencia'])
-
-        with open(path, mode='a', newline='') as file:
+        with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow([epoca, duracion, recompensas_acumuladas[epoca], tasas_exploracion_explotacion[epoca], metricas_convergencia[epoca]])
+            writer.writerow([epoca+1, duracion, recompensas_acumuladas, tasas_exploracion_explotacion, metricas_convergencia])
 
 
     def __guardar_valores_Q(self, Q:dict, epoca:int) -> None:
@@ -256,11 +158,6 @@ class EntrenamientoSARSA:
         """
         Calcular la diferencia absoluta promedio entre los valores Q de dos epocas consecutivas.
         """
-        # diferencias = []
-        # for key in Q:
-        #     if key in Q_anterior and key in Q:
-        #         diferencias.append(abs(Q[key] - Q_anterior[key]))
-                
         diferencias = [(abs(Q[key] - Q_anterior[key])) if key in Q_anterior and key in Q else 0 for key in Q]
         return sum(diferencias) / len(diferencias)
 
@@ -275,18 +172,26 @@ class EntrenamientoSARSA:
             return np.random.choice(self.__espacio_acciones)       #! Acción aleatoria
         else:
             return max(self.__espacio_acciones, key=lambda a: Q.get((state, a), 0)) # type: ignore #! Acción óptima según los valores Q 
-        
+
 
     def __estado(self) -> tuple:
         """
         Define el estado: 
-        - La cantidad de vehículos en cada calle/zona.
+        - ❎ La cantidad de vehículos en cada calle/zona.
+        - El tiempo de espera de los vehículos en las intersecciones.
         - No incluye el color de los semáforos porque estaría duplicando datos con respecto a la accion.
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
-        vehiculos = tuple([cantidad for cantidad in self.__api.getCantidades().values()])
+        #! Cantidad
+        # estado = tuple([cantidad for cantidad in self.__api.getCantidades().values()])
         
-        return vehiculos
+        #! Tiempo
+        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])
+        tiempo_maximo_espera = max(estado)
+
+        #! Normalizar los tiempos de espera
+        estado = tuple([round(tiempo_espera / tiempo_maximo_espera , 2) for tiempo_espera in estado])
+        return estado
 
 
     def __recompensa(self) -> float:
@@ -296,23 +201,22 @@ class EntrenamientoSARSA:
         - (0%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
         - (0%) La cantidad de vehículos en cada calle/zona.
         """
-        tiempo = self.__api.getTiemposEspera()["tiempo_espera"]
-        cantidad = sum(self.__api.getCantidades().values())
-        return 100 / ((tiempo*0.15 + cantidad*0.85) + 100)
+        tiempo = self.__api.getTiemposEspera()["tiempo_espera_total"]
+        return 100 / ((tiempo) + 100)
 
 
-    def __reiniciar(self) -> tuple:
-        """
-        Reinicia el entorno a un estado inicial donde ya hay autos (ej: step 250 de SUMO) y devuelve el estado
-        """
-        return self.__estado()
+    # def __reiniciar(self) -> tuple:
+    #     """
+    #     Reinicia el entorno a un estado inicial donde ya hay autos (ej: step 250 de SUMO) y devuelve el estado
+    #     """
+    #     return self.__estado()
 
 
     def __avanzar(self, action:str) -> tuple[tuple, float, bool]:
         """
         Realiza las siguientes tareas:
         1. Ejecuta la acción en SUMO.
-        2. Simula 10 pasos (para tener una recompensa mas realista).
+        2. Simula 15 pasos (para tener una recompensa mas realista).
         3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
         
@@ -320,8 +224,40 @@ class EntrenamientoSARSA:
         self.__api.putEstados(accion=action.split('-'))
         
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=10)
+        respuesta = self.__api.putAvanzar(steps=15)
         
         done:bool = respuesta['done']    #! Si la simulación ha terminado
         
         return self.__estado(), self.__recompensa(), done    #! Estado, recompensa, si terminó la simulacion o no 
+
+
+    def main(self, num_epocas:int, alpha:float, gamma:float, epsilon:float):
+        """
+        Método principal.
+        """
+    
+        #! Verificar si el archivo ya existe
+        if not os.path.isfile(self.__path + '/entrenamiento_data.csv'):
+            with open(self.__path + '/entrenamiento_data.csv', mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Epoca', 'Duracion', 'Recompensa Acumulada', 'Tasa de Exploración vs Explotación (Epsilon)', 'Metrica de Convergencia'])
+        
+        
+        #! Ver la recompensa con semaforos con tiempo fijo
+        total_reward = 0.0
+        done = False
+        print("Calculando recompensa con semaforos con tiempo fijo.")
+        while not done:
+            total_reward += self.__recompensa()
+            done = self.__api.putAvanzar(steps=10)['done'] 
+            
+        self.__guardar_metricas(
+            epoca=-1, 
+            duracion=-1.0,
+            recompensas_acumuladas=total_reward, 
+            tasas_exploracion_explotacion=-1.0, 
+            metricas_convergencia=-1.0
+        )
+        
+        #! Entrenar
+        self.entrenar(num_epocas, alpha, gamma, epsilon)

@@ -1,5 +1,3 @@
-
-
 import pickle
 from Api import ApiClient
 
@@ -53,7 +51,7 @@ class SARSA:
         - No incluye el color de los semáforos porque estaría duplicando datos con respecto a la accion.
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
-        vehiculos = tuple([cantidad for cantidad in self.__api.getCantidades().values()])
+        vehiculos = tuple([cantidad for cantidad in self.__api.getCantidades().values()]) # type: ignore
         
         return vehiculos
 
@@ -71,6 +69,6 @@ class SARSA:
         
         #! Avanzar en SUMO con la acción seleccionada
         respuesta = self.__api.putAvanzar(steps=10)
-        done:bool = respuesta['done']
+        done:bool = respuesta['done'] # type: ignore
         
         return done
