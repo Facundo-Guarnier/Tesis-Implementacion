@@ -20,6 +20,6 @@ if __name__ == "__main__":
     else:
         #T* Usar SARSA
         print("Usar DQN")
-        algoritmo2 = DQN(path_modelo="Decision/Resultados_entrenamiento/epoca_12.h5")
+        algoritmo2 = DQN(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-18_17-22/epoca_15.h5")
         algoritmo2.usar()
         

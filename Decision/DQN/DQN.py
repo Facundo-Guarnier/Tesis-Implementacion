@@ -34,8 +34,7 @@ class DQN:
         while not done:
             state = self.__estado()
             action = self.model.predict(state)
-            print("++++++++++++Action:", max(action).index())
-            done = self.__avanzar(action)
+            done = self.__avanzar(int(np.argmax(action)))
     
     
     def __estado(self) -> NDArray:
@@ -46,7 +45,7 @@ class DQN:
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
         #! Tiempo
-        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])
+        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"]) # type: ignore
         tiempo_maximo_espera = max(estado)
         
         if tiempo_maximo_espera == 0:
@@ -64,15 +63,14 @@ class DQN:
         2. Simula 15 pasos (para tener una recompensa mas realista).
         3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
-        # print("Action:", type(action))
-        # action2 = self.__espacio_acciones[action]
+        action2 = self.__espacio_acciones[action]
         
         #! Cambiar el estado de los semáforos en SUMO
-        self.__api.putEstados(accion=action.split('-'))
+        self.__api.putEstados(accion=action2.split('-'))
         
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=15)
+        respuesta = self.__api.putAvanzar(steps=10)
         
-        done:bool = respuesta['done']    #! Si la simulación ha terminado
+        done:bool = respuesta['done']    # type: ignore #! Si la simulación ha terminado 
         
         return done 
