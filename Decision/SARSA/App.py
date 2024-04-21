@@ -1,5 +1,5 @@
-from SARSA import SARSA
-from EntrenamientoSARSA import EntrenamientoSARSA
+from Decision.SARSA.SARSA import SARSA
+from Decision.SARSA.EntrenamientoSARSA import EntrenamientoSARSA
 
 # cliente_api = ApiClient("http://127.0.0.1:5000")
 

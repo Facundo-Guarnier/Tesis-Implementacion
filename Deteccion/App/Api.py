@@ -2,7 +2,7 @@ from flask import Flask, jsonify, Response
 
 from Deteccion.App.zonas.ZonaList import ZonaList 
 
-class DetectorFlask(Flask):
+class ApiDeteccion(Flask):
     """
     La "lógica o toma de decisiones" consultará a la API para saber la cantidad de 
     vehículos que hay en cada zona.

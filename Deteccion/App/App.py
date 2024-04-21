@@ -5,7 +5,7 @@ from Deteccion.App.Detector import Detector
 from Deteccion.App.Video import Video
 
 
-class App:
+class AppDetection:
 
     def __init__(self):
         
@@ -60,8 +60,7 @@ class App:
             print(f"\nVideos procesados con éxito.")
         
         except Exception as e:
-            print(f"Error: {e}")
-            print(f"Error al procesar la carpeta: {origen}")
+            print(f"[ERROR Deteccion.App.App]: Error al procesar la carpeta: {origen} \n{e}")
 
 
     def analizar_un_video(self, path_video:str, guardar:bool=False) -> None:

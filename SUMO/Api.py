@@ -1,14 +1,19 @@
+import logging
 from flask import Flask, Response, jsonify, request
 
 from SUMO.zonas.ZonaList import ZonaList
-from SUMO.App import App
+from SUMO.App import AppSUMO
 
-class SumoFlask(Flask):
+class ApiSUMO(Flask):
     def __init__(self, name:str):
         super().__init__(name)
         
         self.zonas = ZonaList()
-        self.app = App()
+        self.app = AppSUMO()
+        
+        # Configurar el logger de Flask para evitar imprimir registros de acceso
+        log = logging.getLogger('werkzeug')
+        log.setLevel(logging.ERROR)
         
         #! Cantidad vehículos
         self.route('/cantidad', methods=['GET'])(self.getCantidades)
@@ -26,6 +31,9 @@ class SumoFlask(Flask):
         self.route('/semaforo', methods=['PUT'])(self.putEstados)
         self.route('/semaforo/<id>', methods=['GET'])(self.getEstado)
         self.route('/semaforo/<id>', methods=['PUT'])(self.putEstado)
+        
+        #! Simulación ok
+        self.route('/simulacion', methods=['GET'])(self.getSimulacionOK)
 
 
     def getCantidades(self) -> tuple[Response, int]:
@@ -119,3 +127,10 @@ class SumoFlask(Flask):
             return jsonify({"estado": estado}), 200
         else:
             return jsonify({"error": "Falta el parámetro 'estado'."}), 400
+    
+    
+    def getSimulacionOK(self) -> tuple[Response, int]:
+        """
+        Verificar si la simulación está en ejecución.
+        """
+        return jsonify({"simulacion": self.app.getSimulacionOK()}), 200

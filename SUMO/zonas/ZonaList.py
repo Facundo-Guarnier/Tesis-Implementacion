@@ -1,6 +1,4 @@
 from typing import List
-import numpy as np
-import yaml
 
 from SUMO.zonas.Zona import Zona
 

@@ -1,11 +1,10 @@
-import os
+import os, traci
 from typing import Any
-import traci
 
 from SUMO.zonas.ZonaList import ZonaList
 
 
-class App:
+class AppSUMO:
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -37,7 +36,7 @@ class App:
                 traci.simulationStep()
             
         except traci.exceptions.FatalTraCIError as e:
-            print(f"Error en la simulación de SUMO: '{e}'")
+            print(f"[ERROR SUMO.App] Error en la simulación de SUMO: '{e}'")
             os._exit(0)
     
     
@@ -119,7 +118,6 @@ class App:
                 done = True
                 self.reiniciar()
                 break
-        print(f"\nSteps: {traci.simulation.getTime()}")
         return done
     
     
@@ -146,3 +144,17 @@ class App:
         Finalizar la simulación.
         """
         traci.close()
+    
+    
+    def getSimulacionOK(self) -> bool:
+        """
+        Verificar si la simulación está OK.
+        """
+        
+        try:
+            estado = traci.simulation.getMinExpectedNumber() > 0 and traci.simulation.getTime() >= 0
+            return estado
+        
+        except Exception as e:
+            print(f"[ERROR SUMO.App] Error en la simulación de SUMO: '{e}'")
+            return False

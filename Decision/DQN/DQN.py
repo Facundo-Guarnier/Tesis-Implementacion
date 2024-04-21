@@ -1,11 +1,13 @@
-import tensorflow as tf
+import time
 import numpy as np
+import tensorflow as tf
 from numpy import ndarray as NDArray
-from Api import ApiClient
+
+from Decision.DQN.Api import ApiDecision
 
 class DQN:
     def __init__(self, path_modelo:str):
-        self.__api = ApiClient("http://127.0.0.1:5000")
+        self.__api = ApiDecision("http://127.0.0.1:5000")
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
         self.__setEspacioAcciones()
@@ -29,8 +31,14 @@ class DQN:
         """
         Utilizar el modelo entrenado.
         """
+        
+        #! Esperar a que la simulación esté lista
+        while not self.__api.getSimulacionOK():
+            print("Esperando a que la simulación esté lista...")
+            time.sleep(1)
+        print("La simulación está lista.")
+        
         done = False
-    
         while not done:
             state = self.__estado()
             action = self.model.predict(state)

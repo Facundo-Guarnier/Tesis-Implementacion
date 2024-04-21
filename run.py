@@ -1,22 +1,28 @@
 import os, signal
-
-from Deteccion.App.Api import DetectorFlask
-from Deteccion.App.App import App as AppD
-from SUMO.App import App as AppS
-from SUMO.Api import SumoFlask
 from threading import Thread
+from traci.exceptions import FatalTraCIError
+
+from Decision.DQN.App import AppDecision
+
+from Deteccion.App.App import AppDetection
+from Deteccion.App.Api import ApiDeteccion
+
+from SUMO.App import AppSUMO
+from SUMO.Api import ApiSUMO
 
 
-def señal(nro_senial:int, marco) -> None:
+
+def cerrar(nro_senial:int, marco) -> None:
     print("Finalizando el proceso ID:", os.getpid())
     os._exit(0)
 
 
+#T* Deteccion
 def run_app_deteccion() -> None:
     """
     Detección de vehículos.
     """
-    app = AppD()
+    app = AppDetection()
     
     #! Procesar todo el dataset
     # app.analizar_carpeta_videos(
@@ -34,47 +40,68 @@ def run_app_deteccion() -> None:
     )
 
 
-def run_flask_deteccion() -> None:
+def run_api_deteccion() -> None:
     """
     API flask de detección.
     """
-    api = DetectorFlask(name="API Deteccion")
+    api = ApiDeteccion(name="API Deteccion")
     api.run(debug=False) 
 
 
+#T* SUMO
 def run_app_sumo(gui: bool) -> None:
     """
     Simulación de tráfico con SUMO.
     """
-    app = AppS(gui=gui)
-    app.iniciar()
+    try:
+        app = AppSUMO(gui=gui)
+        app.iniciar()
+    except FatalTraCIError as e:
+        print("[ERROR run] Error en la simulación de tráfico:", e)
+        cerrar(0, 0)
+        exit(1)
 
 
-def run_flask_sumo(gui) -> None:
+def run_api_sumo(gui) -> None:
     """
     API flask de SUMO.
     """
-    api = SumoFlask(name="API SUMO")
+    api = ApiSUMO(name="API SUMO")
     api.run(debug=False) 
+
+
+#T* Decision
+def run_app_decision(base_path:str) -> None:
+    """
+    Toma de decisiones.
+    """
+    app = AppDecision()
+    app.entrenar(base_path=base_path)
+    # app.usar()
 
 
 if __name__ == "__main__":
     
-    signal.signal(signal.SIGINT, señal)
+    signal.signal(signal.SIGINT, cerrar)
     
     #T* Deteccion 
-    # app_thread = Thread(target=run_app_deteccion)
-    # app_thread.start()
-    # run_flask_deteccion()
+    # app = Thread(target=run_app_deteccion)
+    # app.start()
+    # run_api_deteccion()
 
 
     #T* SUMO
+    gui = False
+    app = Thread(target=run_app_sumo, args=(gui,))
+    app.start()
     
-    gui = True
     
-    print("Iniciando SUMO. GUI:", gui)
-    app_thread = Thread(target=run_app_sumo, args=(gui,))
-    app_thread.start()
-    run_flask_sumo(gui=gui)
+    #T* Decision
+    base_path = ""
+    app2 = Thread(target=run_app_decision, args=(base_path,))
+    app2.start()
     
-    app_thread.join()
+    run_api_sumo(gui=gui)
+    
+    app.join()
+    app2.join()

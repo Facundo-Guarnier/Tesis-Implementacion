@@ -28,12 +28,10 @@
 #T* Version 2: Aprendizaje por refuerzo
 #* Q-learning, SARSA, Deep Q-Network (DQN) y Proximal Policy Optimization (PPO):  35.79 %, 51.63 %, 63.40 % y 63.49 %
 #* SARSA
-import csv, os, pickle
-import time
+import csv, os, pickle, time
 import numpy as np
 
-# from Decision.App.Api import ApiClient
-from Api import ApiClient
+from Decision.SARSA.Api import ApiClient
 
 class EntrenamientoSARSA:
     def __init__(self):

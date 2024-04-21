@@ -20,14 +20,14 @@ import tensorflow as tf
 from collections import deque
 from numpy import ndarray as NDArray
 
-from Api import ApiClient
+from Decision.DQN.Api import ApiDecision
 
 class EntrenamientoDQN:
-    def __init__(self):
+    def __init__(self, base_path:str=""):
         self.__setEspacioAcciones()
-        self.memory = deque(maxlen=2000)
-        self.__api = ApiClient("http://127.0.0.1:5000")
-        self.__setPath()
+        self.memory:deque = deque(maxlen=2000)
+        self.__api = ApiDecision("http://127.0.0.1:5000")
+        self.__setPath(base_path)
 
 
     def __setEspacioAcciones(self) -> None:
@@ -48,14 +48,13 @@ class EntrenamientoDQN:
         self.__espacio_acciones = [f"{s1}-{s2}-{s3}-{s4}" for s1 in semaforo_1 for s2 in semaforo_2 for s3 in semaforo_3 for s4 in semaforo_4]
 
 
-    def __setPath(self) -> None:
+    def __setPath(self, base_path: str) -> None:
         """
         Establece la ruta donde se guardarán los archivos.
         """
-        path = f'Decision/Resultados_entrenamiento/DQN_{time.strftime("%Y-%m-%d_%H-%M")}'
-        if not os.path.exists(path):
-            os.makedirs(path)
-        self.__path = path
+        self.__path = os.path.join(base_path, f'Decision/Resultados_entrenamiento/DQN_{time.strftime("%Y-%m-%d_%H-%M")}')
+        if not os.path.exists(self.__path):
+            os.makedirs(self.__path)
 
 
     def __build_model(self):
@@ -211,15 +210,20 @@ class EntrenamientoDQN:
         """
         Método principal.
         """
-    
+        
+        #! Esperar a que la simulación esté lista
+        while not self.__api.getSimulacionOK():
+            print("Esperando a que la simulación esté lista...")
+            time.sleep(1)
+        print("La simulación está lista.")
+        
         #! Verificar si el archivo ya existe
         if not os.path.isfile(self.__path + '/entrenamiento_data.csv'):
             with open(self.__path + '/entrenamiento_data.csv', mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(['Epoca', 'Duracion', 'Recompensa Acumulada', 'Tasa de Exploración vs Explotación (Epsilon)'])
         
-        
-        #! Ver la recompensa con semaforos con tiempo fijo
+        #! Calcular la recompensa con semaforos con tiempo fijo
         total_reward = 0.0
         done = False
         print("Calculando recompensa con semaforos con tiempo fijo.")
@@ -227,11 +231,12 @@ class EntrenamientoDQN:
             total_reward += self.__recompensa()
             done = self.__api.putAvanzar(steps=10)['done'] 
         
+        #! Guardar los datos de los semaforos con tiempo fijo
         with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(["-", "-" , total_reward, f"Epsilon oliginal - {epsilon}"])
         
-        
+        #! Entrenar el modelo
         self.num_epocas = num_epocas
         self.gamma = gamma              #! Factor de descuento, que determina la importancia de las recompensas futuras.
         

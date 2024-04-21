@@ -1,43 +1,28 @@
-# General
-
-[ ] Agregar una detección que sea en vivo con cámara.
-[ ] Tomar mediciones de tiempo en los semáforos reales.
-
+# TODO
+## General
 [~] No puedo usar flask en debug porque duplica al hilo detector.
-
 [x] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
     Creo que conviene que la lógica solicite la cantidad al detector.
 
 
-# Toma de decisiones
-[ ] Cambiar estado de cantidad por tiempo de espera
-[ ] REVISAR LA FUNCION DE RECOMPENSA.
-[ ] REVISAR POLITICA
-[ ] Ver epsilon y alpha
+## Toma de decisiones
+[ ] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
 
 [ ] Buscar a ver si hay algún parametro de traci que indique el tipo total de los autos en una calle, no importa si es detenido o no.
 [ ] En vez de tiempo de espera por calle, que sea por carril?
-[ ] Revisar la métrica de convergencia, porque da valores muy cercanos a cero y se redondea a cero.
-
 [ ] Agregar algún tipo de regla para los vehiculos que llevan mucho esperando. 
 [ ] Evitar que un semaforo se quede para siempre en verde.
-[ ] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
 
+[x] REVISAR POLITICA
+[x] REVISAR LA FUNCION DE RECOMPENSA.
+[x] Cambiar estado de cantidad por tiempo de espera
 [x] Ejecutar sumo sin gui: sumo -c your_configuration_file.sumocfg --no-gui
 [x] Evitar que los semaforos se pongan todos en verdes: nunca porque no está en las opciones que le dí al modelo.
 [x] Ver porque hace 2 peticiones de "GET /cantidad".
 
 
-# SUMO
-netedit
-python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\Mapa\osm.net.xml.gz --fringe-factor 50 --random --binomial 4
-python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\MapaDe0\red.net.xml -r routes.rou.xml -e 20000 --period 2.2,1.9 --fringe-factor max --seed 7 --random
--e: tiempo
---period: cantidad que sale por segundo entre esos 2 números (1/periodo)
---fringe-factor: Solo spawn en los bordes
-https://sumo.dlr.de/pydoc/traci._edge.html#EdgeDomain-getLastStepVehicleIDs 
-https://www.youtube.com/watch?v=zQH1n0Fvxes
-[ ]  Se puede medir las emisiones de  CO2 con SUMO (getCO2Emission), consumo combustible, etc.
+## SUMO
+[ ] Se puede medir las emisiones de  CO2 con SUMO (getCO2Emission), consumo combustible, etc.
 
 [x] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 2 carriles)
 [x] Reducir la longitud de las calles que son "zonas" para que no tome toda la calle. Ej: todo el lateral del acceso al lado del carrefour.
@@ -45,13 +30,11 @@ https://www.youtube.com/watch?v=zQH1n0Fvxes
 [x] Aprender sobre SUMO, a ver si puedo obtener info de la cantidad de vehículos y si puedo modificar los semáforos.
 
 
-# Detector
-
-https://www.youtube.com/watch?v=sy8uRDZw8pk
-https://www.youtube.com/watch?v=oig4o9RW_aM
+## Detector
+[ ] Detectar tiempo de espera
 [ ] Detectar varios videos a la vez.
+[ ] Agregar una detección que sea en vivo con cámara.
 
-[ ] Agregar tiempo de espera?
 [ ] Agregar try/except.
 [ ] Detectar ambulancias y patrulleros.
 
@@ -72,8 +55,23 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 [x] Borrar la linea de in/out
 
 
-# Instalaciones
+# INFO
+## Detector:
+https://www.youtube.com/watch?v=sy8uRDZw8pk
+https://www.youtube.com/watch?v=oig4o9RW_aM
 
+## Sumo:
+netedit
+python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\Mapa\osm.net.xml.gz --fringe-factor 50 --random --binomial 4
+python C:/Programas/SUMO/tools/randomTrips.py -n D:\Repositorios_GitHub\Tesis-Implementacion\SUMO\MapaDe0\red.net.xml -r routes.rou.xml -e 20000 --period 2.2,1.9 --fringe-factor max --seed 7 --random
+-e: tiempo
+--period: cantidad que sale por segundo entre esos 2 números (1/periodo)
+--fringe-factor: Solo spawn en los bordes
+https://sumo.dlr.de/pydoc/traci._edge.html#EdgeDomain-getLastStepVehicleIDs 
+https://www.youtube.com/watch?v=zQH1n0Fvxes
+
+
+# Instalaciones
 - pip install Flask
 - pip install mypy      #Para ver los tipos de datos de las variables.
 - pip install types-PyYAML
@@ -81,6 +79,7 @@ https://www.youtube.com/watch?v=oig4o9RW_aM
 - pip install --upgrade opencv-python
 - pip install ultralytics
 - pip install traci
+
 
 # Estructura
 Main/
@@ -104,6 +103,7 @@ Main/
 └── ...
 
 
+# Semafors:
 Semaforo 1: 
 GGGGGGrrrrr
 yyyyyyrrrrr
