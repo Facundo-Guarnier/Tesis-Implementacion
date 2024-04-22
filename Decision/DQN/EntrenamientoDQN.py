@@ -23,31 +23,61 @@ from numpy import ndarray as NDArray
 from Decision.DQN.Api import ApiDecision
 
 class EntrenamientoDQN:
-    def __init__(self, base_path:str=""):
-        self.__setEspacioAcciones()
-        self.memory:deque = deque(maxlen=2000)
+    def __init__(self, base_path:str, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float) -> None:
+        """
+        Inicializa el agente de aprendizaje por refuerzo utilizando el algoritmo DQN.
+        
+        Args:
+            base_path (str): Ruta donde se guardarán los archivos.
+            steps (int): Pasos que se avanzará en la simulación por cada acción.
+            learning_rate (float): Tasa de aprendizaje.
+            learning_rate_decay (float): Decaimiento de la tasa de aprendizaje.
+            learning_rate_min (float): Minima tasa de aprendizaje.
+            epsilon (float): Exploración/explotación inicial.
+            epsilon_decay (float): Decaimiento de la exploración/explotación.
+            epsilon_min (float): Exploración/explotación mínima.
+            num_epocas (int): Cantidad de épocas.
+            batch_size (int): Tamaño del lote de datos que se utilizará en cada paso de entrenamiento.
+            gamma (float): Factor de descuento, que determina la importancia de las recompensas futuras.
+        """
+        self.memory:deque = deque(maxlen=4000)
         self.__api = ApiDecision("http://127.0.0.1:5000")
+        
+        self.__setEspacioAcciones()
         self.__setPath(base_path)
-
-
+        
+        #! Hiperparámetros
+        self.num_epocas = num_epocas
+        self.batch_size = batch_size
+        self.steps = steps
+        
+        self.learning_rate = learning_rate
+        self.learning_rate_decay = learning_rate_decay,
+        self.learning_rate_min = learning_rate_min,
+        
+        self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
+        
+        self.gamma = gamma
+        
+        self.state_size = 12
+    
+    
     def __setEspacioAcciones(self) -> None:
         """
-        Devuelve el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos. 
-        - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), ...]
+        Establece el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos. 
+        - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), (...), ...]
         """
-        # semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG', 'rrGGGGGrGrr']
-        # semaforo_2 = ['GgGGrrrrGgGg', 'GGGGGGrrrrrr', 'GrrrGGGGrrrr', 'grrrrrrrGGGG']
-        # semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGGGGGGrr', 'rrrrGrrrGGGG', 'GGGGgrrrrrrr']
-        # semaforo_4 = ['GGGrrrrGGg', 'rrrGGGGrrr']
         
         semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG']
-        semaforo_2 = ['GgGGrrrrGgGg', 'GrrrGGGGrrrr']
-        semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGrrrGGGG']
+        semaforo_2 = ['GGGrrrrrGGg', 'rrrGGGGGrrr']
+        semaforo_3 = ['GGgGGGrrrrr', 'rrrrrrGGGGG']
         semaforo_4 = ['GGGrrrrGGg', 'rrrGGGGrrr']
         
         self.__espacio_acciones = [f"{s1}-{s2}-{s3}-{s4}" for s1 in semaforo_1 for s2 in semaforo_2 for s3 in semaforo_3 for s4 in semaforo_4]
-
-
+    
+    
     def __setPath(self, base_path: str) -> None:
         """
         Establece la ruta donde se guardarán los archivos.
@@ -55,9 +85,9 @@ class EntrenamientoDQN:
         self.__path = os.path.join(base_path, f'Decision/Resultados_entrenamiento/DQN_{time.strftime("%Y-%m-%d_%H-%M")}')
         if not os.path.exists(self.__path):
             os.makedirs(self.__path)
-
-
-    def __build_model(self):
+    
+    
+    def __build_model(self) -> tf.keras.Model:
         """
         Define la arquitectura de la red neuronal utilizando TensorFlow.
         """
@@ -68,16 +98,16 @@ class EntrenamientoDQN:
         ])
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(lr=self.learning_rate))
         return model
-
-
-    def remember(self, state:NDArray, action:int, reward:float, next_state:NDArray, dode:bool):
+    
+    
+    def __remember(self, state:NDArray, action:int, reward:float, next_state:NDArray, done:bool) -> None:
         """
         Almacena la experiencia del agente en la memoria de reproducción.
         """
-        self.memory.append((state, action, reward, next_state, dode))
-
-
-    def __poilitica(self, state:NDArray) -> int: 
+        self.memory.append((state, action, reward, next_state, done))
+    
+    
+    def __politica(self, state:NDArray) -> int: 
         """
         Elige una acción basada en el estado actual del agente, utilizando una política ε-greedy para el control de la exploración.
         """
@@ -86,9 +116,9 @@ class EntrenamientoDQN:
         else:
             act_values = self.model.predict(state)
             return int(np.argmax(act_values[0]))
-
-
-    def replay(self) -> None:
+    
+    
+    def __replay(self) -> None:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
         """
@@ -118,7 +148,7 @@ class EntrenamientoDQN:
             self.epsilon *= self.epsilon_decay
     
     
-    def train(self) -> None:
+    def __train(self) -> None:
         """
         Entrena el agente utilizando el algoritmo DQN.
         Por cada epoca, el agente realiza una serie de acciones en el entorno, almacenando la 
@@ -128,32 +158,32 @@ class EntrenamientoDQN:
         """
         
         for e in range(self.num_epocas):
-            print(f"Entrenando epoca: {e+1} de {self.num_epocas} epcoas.")
+            print(f"Entrenando epoca: {e+1} de {self.num_epocas} épocas.")
             state = self.__estado()
             done = False
             total_reward = 0.0
             
             t1 = time.time()
             while not done:
-                action = self.__poilitica(state)
+                action = self.__politica(state)
                 next_state, reward, done = self.__avanzar(action)
                 
                 total_reward += reward
-                self.remember(state, action, reward, next_state, done)
+                self.__remember(state, action, reward, next_state, done)
                 
                 state = next_state
                 if len(self.memory) > self.batch_size:
-                    self.replay()
+                    self.__replay()
             
             #! Guardar los datos de entrenamiento por epoca
             self.model.save(self.__path + f"/epoca_{e+1}.h5")
             
-            #! Guardar metricas de entrenamiento en un archivo CSV
+            #! Guardar métricas de entrenamiento en un archivo CSV
             with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow([e+1, time.time()-t1 , total_reward, self.epsilon])
-
-
+    
+    
     def __estado(self) -> NDArray:
         """
         Define el estado: 
@@ -162,7 +192,7 @@ class EntrenamientoDQN:
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
         #! Tiempo
-        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])
+        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"]) # type: ignore
         tiempo_maximo_espera = max(estado)
         
         if tiempo_maximo_espera == 0:
@@ -187,13 +217,13 @@ class EntrenamientoDQN:
         self.__api.putEstados(accion=action2.split('-'))
         
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=15)
+        respuesta = self.__api.putAvanzar(steps=self.steps)
         
-        done:bool = respuesta['done']    #! Si la simulación ha terminado
+        done:bool = respuesta['done'] # type: ignore #! Si la simulación ha terminado
         
         return self.__estado(), self.__recompensa(), done 
-
-
+    
+    
     def __recompensa(self) -> float:
         """
         Calcula la recompensa en función del estado actual. 
@@ -201,12 +231,12 @@ class EntrenamientoDQN:
         - (0%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
         - (0%) La cantidad de vehículos en cada calle/zona.
         """
-        tiempo = self.__api.getTiemposEspera()["tiempo_espera_total"]
+        tiempo = self.__api.getTiemposEspera()["tiempo_espera_total"] # type: ignore
         # cantidad = sum(self.__api.getCantidades().values())
         return 100 / ((tiempo) + 100)
     
     
-    def main(self, batch_size:int, num_epocas:int, gamma:float, epsilon:float, epsilon_decay:float):
+    def main(self):
         """
         Método principal.
         """
@@ -221,7 +251,14 @@ class EntrenamientoDQN:
         if not os.path.isfile(self.__path + '/entrenamiento_data.csv'):
             with open(self.__path + '/entrenamiento_data.csv', mode='w', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(['Epoca', 'Duracion', 'Recompensa Acumulada', 'Tasa de Exploración vs Explotación (Epsilon)'])
+                writer.writerow(['Epoca', 'Duración', 'Recompensa Acumulada', 'Epsilon'])
+        
+        #! Guardar hiperparámetros
+        with open(self.__path + '/hiperparametros.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['Hiperparámetros'])
+            writer.writerow(['num_epocas', 'batch_size', 'steps', 'learning_rate', 'learning_rate_decay', 'learning_rate_min', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma'])
+            writer.writerow([self.num_epocas, self.batch_size, self.steps, self.learning_rate, self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma])
         
         #! Calcular la recompensa con semaforos con tiempo fijo
         total_reward = 0.0
@@ -229,25 +266,13 @@ class EntrenamientoDQN:
         print("Calculando recompensa con semaforos con tiempo fijo.")
         while not done:
             total_reward += self.__recompensa()
-            done = self.__api.putAvanzar(steps=10)['done'] 
+            done = self.__api.putAvanzar(steps=10)['done']  # type: ignore
         
         #! Guardar los datos de los semaforos con tiempo fijo
         with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(["-", "-" , total_reward, f"Epsilon oliginal - {epsilon}"])
-        
-        #! Entrenar el modelo
-        self.num_epocas = num_epocas
-        self.gamma = gamma              #! Factor de descuento, que determina la importancia de las recompensas futuras.
-        
-        self.epsilon = epsilon          #! Probabilidad de exploración
-        self.epsilon_decay = epsilon_decay
-        self.epsilon_min = 0.01
-        
-        self.state_size = 12            #! Cantidad de estados
-        self.batch_size = batch_size    #! Tamaño del lote de datos que se utilizará en cada paso de entrenamiento
-        self.learning_rate = 0.001      #! Tasa de aprendizaje
+                writer.writerow(["-", "-" , total_reward, "-"])
         
         self.model = self.__build_model()
         
-        self.train()
+        self.__train()

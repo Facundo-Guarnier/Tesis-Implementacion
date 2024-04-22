@@ -79,6 +79,12 @@ https://www.youtube.com/watch?v=zQH1n0Fvxes
 - pip install --upgrade opencv-python
 - pip install ultralytics
 - pip install traci
+- pip install supervision
+
+- sudo add-apt-repository ppa:sumo/stable -y
+- sudo apt-get update
+- sudo apt-get install sumo sumo-tools sumo-doc
+
 
 
 # Estructura

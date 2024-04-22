@@ -71,17 +71,37 @@ def run_api_sumo(gui) -> None:
 
 
 #T* Decision
-def run_app_decision(base_path:str) -> None:
+def run_app_decision() -> None:
     """
     Toma de decisiones.
     """
     app = AppDecision()
-    app.entrenar(base_path=base_path)
-    # app.usar()
+    app.entrenar(
+        base_path="",
+        num_epocas=50,
+        batch_size=128,
+        steps=15,
+
+        #! Tasa de aprendizaje
+        learning_rate=0.01,
+        learning_rate_decay=0.01,
+        learning_rate_min=0.0001,
+        
+        #! Exploración
+        epsilon=1,
+        epsilon_decay=0.9995,
+        epsilon_min=0.01,
+        
+        #! Importancia futuras
+        gamma=0.75,
+    )
+    # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")
+    # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")
 
 
 if __name__ == "__main__":
     
+    os.environ["SUMO_HOME"] = "/usr/share/sumo"
     signal.signal(signal.SIGINT, cerrar)
     
     #T* Deteccion 
@@ -91,14 +111,13 @@ if __name__ == "__main__":
 
 
     #T* SUMO
-    gui = False
+    gui = True
     app = Thread(target=run_app_sumo, args=(gui,))
     app.start()
     
     
     #T* Decision
-    base_path = ""
-    app2 = Thread(target=run_app_decision, args=(base_path,))
+    app2 = Thread(target=run_app_decision)
     app2.start()
     
     run_api_sumo(gui=gui)

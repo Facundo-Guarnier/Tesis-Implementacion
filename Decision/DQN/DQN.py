@@ -19,8 +19,8 @@ class DQN:
         - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), ...]
         """
         semaforo_1 = ['GGGGGGrrrrr', 'rrrrrrGGgGG']
-        semaforo_2 = ['GgGGrrrrGgGg', 'GrrrGGGGrrrr']
-        semaforo_3 = ['GgGgGgGGrrrr', 'rrrrGrrrGGGG']
+        semaforo_2 = ['GGGrrrrrGGg', 'rrrGGGGGrrr']
+        semaforo_3 = ['GGgGGGrrrrr', 'rrrrrrGGGGG']
         semaforo_4 = ['GGGrrrrGGg', 'rrrGGGGrrr']
         
         self.__espacio_acciones = [f"{s1}-{s2}-{s3}-{s4}" for s1 in semaforo_1 for s2 in semaforo_2 for s3 in semaforo_3 for s4 in semaforo_4]
