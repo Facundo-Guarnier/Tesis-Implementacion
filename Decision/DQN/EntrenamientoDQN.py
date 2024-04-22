@@ -14,7 +14,7 @@
 
 #* Q-learning, SARSA, Deep Q-Network (DQN) y Proximal Policy Optimization (PPO):  35.79 %, 51.63 %, 63.40 % y 63.49 %
 #* Deep Q-network
-import csv, os, random, time
+import csv, os, random, time, logging, inspect
 import numpy as np
 import tensorflow as tf
 from collections import deque
@@ -23,7 +23,7 @@ from numpy import ndarray as NDArray
 from Decision.DQN.Api import ApiDecision
 
 class EntrenamientoDQN:
-    def __init__(self, base_path:str, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float) -> None:
+    def __init__(self, base_path:str, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float, hidden_layers: list[int]) -> None:
         """
         Inicializa el agente de aprendizaje por refuerzo utilizando el algoritmo DQN.
         
@@ -40,11 +40,13 @@ class EntrenamientoDQN:
             batch_size (int): Tamaño del lote de datos que se utilizará en cada paso de entrenamiento.
             gamma (float): Factor de descuento, que determina la importancia de las recompensas futuras.
         """
+        logging.basicConfig(level=logging.DEBUG)
         self.memory:deque = deque(maxlen=4000)
         self.__api = ApiDecision("http://127.0.0.1:5000")
         
         self.__setEspacioAcciones()
         self.__setPath(base_path)
+        self.state_size = 12
         
         #! Hiperparámetros
         self.num_epocas = num_epocas
@@ -52,16 +54,16 @@ class EntrenamientoDQN:
         self.steps = steps
         
         self.learning_rate = learning_rate
-        self.learning_rate_decay = learning_rate_decay,
-        self.learning_rate_min = learning_rate_min,
+        self.learning_rate_decay = learning_rate_decay
+        self.learning_rate_min = learning_rate_min
         
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
         
         self.gamma = gamma
+        self.hidden_layers = hidden_layers
         
-        self.state_size = 12
     
     
     def __setEspacioAcciones(self) -> None:
@@ -91,12 +93,24 @@ class EntrenamientoDQN:
         """
         Define la arquitectura de la red neuronal utilizando TensorFlow.
         """
-        model = tf.keras.Sequential([
-            tf.keras.layers.Dense(10, input_dim=self.state_size, activation='relu'),
-            tf.keras.layers.Dense(10, activation='relu'),
-            tf.keras.layers.Dense(len(self.__espacio_acciones), activation='linear')
-        ])
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
+
+        #! Construir el modelo en base a self.hidden_layers
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.Dense(self.hidden_layers[0], input_dim=self.state_size, activation='relu'))
+        
+        for i in range(1, len(self.hidden_layers)):
+            model.add(tf.keras.layers.Dense(self.hidden_layers[i], activation='relu'))
+        
+        model.add(tf.keras.layers.Dense(len(self.__espacio_acciones), activation='linear'))
+        
+        # model = tf.keras.Sequential([
+        #     tf.keras.layers.Dense(10, input_dim=self.state_size, activation='relu'),
+        #     tf.keras.layers.Dense(10, activation='relu'),
+        #     tf.keras.layers.Dense(len(self.__espacio_acciones), activation='linear')
+        # ])
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(lr=self.learning_rate))
+        logger.info(f"{model.summary()}")
         return model
     
     
@@ -146,6 +160,9 @@ class EntrenamientoDQN:
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+        
+        if self.learning_rate > self.learning_rate_min:
+            self.learning_rate *= self.learning_rate_decay
     
     
     def __train(self) -> None:
@@ -156,9 +173,10 @@ class EntrenamientoDQN:
         Cuando el tamaño de la memoria de reproducción alcanza el tamaño del lote, el agente 
         realiza el proceso de repetición (19500/15 = 1300 repeticiones).
         """
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         for e in range(self.num_epocas):
-            print(f"Entrenando epoca: {e+1} de {self.num_epocas} épocas.")
+            logger.info(f"Entrenando epoca: {e+1} de {self.num_epocas} épocas.")
             state = self.__estado()
             done = False
             total_reward = 0.0
@@ -181,7 +199,7 @@ class EntrenamientoDQN:
             #! Guardar métricas de entrenamiento en un archivo CSV
             with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow([e+1, time.time()-t1 , total_reward, self.epsilon])
+                writer.writerow([e+1, f"{(time.time()-t1):.2f}" , f"{total_reward:.2f}", f"{self.epsilon:.5f}", f"{self.learning_rate:.5f}"])
     
     
     def __estado(self) -> NDArray:
@@ -240,38 +258,42 @@ class EntrenamientoDQN:
         """
         Método principal.
         """
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         #! Esperar a que la simulación esté lista
         while not self.__api.getSimulacionOK():
-            print("Esperando a que la simulación esté lista...")
+            logger.info("Esperando a que la simulación esté lista...")
             time.sleep(1)
-        print("La simulación está lista.")
+        logger.info("La simulación está lista")
         
         #! Verificar si el archivo ya existe
         if not os.path.isfile(self.__path + '/entrenamiento_data.csv'):
             with open(self.__path + '/entrenamiento_data.csv', mode='w', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(['Epoca', 'Duración', 'Recompensa Acumulada', 'Epsilon'])
+                writer.writerow(['Epoca', 'Duración', 'Recompensa Acumulada', 'Epsilon', 'Tasa de Aprendizaje'])
         
         #! Guardar hiperparámetros
         with open(self.__path + '/hiperparametros.csv', mode='w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow(['Hiperparámetros'])
-            writer.writerow(['num_epocas', 'batch_size', 'steps', 'learning_rate', 'learning_rate_decay', 'learning_rate_min', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma'])
-            writer.writerow([self.num_epocas, self.batch_size, self.steps, self.learning_rate, self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma])
+            writer.writerow(['Num Epocas', 'Batch size', 'Steps', 'Learning rate', 'Learning rate decay', 'Learning rate min', 'Epsilon', 'Epsilon decay', 'Epsilon min', 'Gamma', "Red neuronal"])
+            layers = f"{self.state_size} | "
+            for i in range(len(self.hidden_layers)):
+                layers += f"{self.hidden_layers[i]} | "
+            layers += f"{len(self.__espacio_acciones)}"
+            writer.writerow([self.num_epocas, self.batch_size, self.steps, str(self.learning_rate), self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma, layers])
         
         #! Calcular la recompensa con semaforos con tiempo fijo
         total_reward = 0.0
         done = False
-        print("Calculando recompensa con semaforos con tiempo fijo.")
+        logger.info("Calculando recompensa con semaforos con tiempo fijo.")
         while not done:
             total_reward += self.__recompensa()
-            done = self.__api.putAvanzar(steps=10)['done']  # type: ignore
+            done = self.__api.putAvanzar(steps=self.steps)['done']  # type: ignore
         
         #! Guardar los datos de los semaforos con tiempo fijo
         with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(["-", "-" , total_reward, "-"])
+                writer.writerow(["-", "-" , total_reward, "-", "-"])
         
         self.model = self.__build_model()
         

@@ -1,4 +1,4 @@
-import time
+import time, logging, inspect
 import numpy as np
 import tensorflow as tf
 from numpy import ndarray as NDArray
@@ -7,6 +7,7 @@ from Decision.DQN.Api import ApiDecision
 
 class DQN:
     def __init__(self, path_modelo:str):
+        logging.basicConfig(level=logging.DEBUG)
         self.__api = ApiDecision("http://127.0.0.1:5000")
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
@@ -31,12 +32,13 @@ class DQN:
         """
         Utilizar el modelo entrenado.
         """
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         #! Esperar a que la simulación esté lista
         while not self.__api.getSimulacionOK():
-            print("Esperando a que la simulación esté lista...")
+            logger.info("Esperando a que la simulación esté lista...")
             time.sleep(1)
-        print("La simulación está lista.")
+        logger.info("La simulación está lista.")
         
         done = False
         while not done:

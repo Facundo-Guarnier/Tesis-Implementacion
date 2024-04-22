@@ -1,4 +1,4 @@
-import os, traci
+import os, traci, logging, inspect
 from typing import Any
 
 from SUMO.zonas.ZonaList import ZonaList
@@ -19,12 +19,16 @@ class AppSUMO:
     
     
     def __init__(self, gui:bool=False):
+        logging.basicConfig(level=logging.DEBUG)
+        
         self.zonas = ZonaList()
         self.gui = gui
     
     
     def iniciar(self) -> None:
-        print("Iniciando...")
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
+        
+        logger.info("Iniciando...")
         if self.gui:
             traci.start(["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"])
         else:
@@ -36,7 +40,7 @@ class AppSUMO:
                 traci.simulationStep()
             
         except traci.exceptions.FatalTraCIError as e:
-            print(f"[ERROR SUMO.App] Error en la simulación de SUMO: '{e}'")
+            logger.error(f" Error en la simulación de SUMO: '{e}'")
             os._exit(0)
     
     
@@ -114,7 +118,6 @@ class AppSUMO:
                 traci.simulationStep()
                 done = False
             else:
-                print("Done TRUE")
                 done = True
                 self.reiniciar()
                 break
@@ -125,7 +128,6 @@ class AppSUMO:
         """
         Reiniciar la simulación.
         """
-        print("Cerrando...")
         traci.close()
         self.iniciar()
     
@@ -150,11 +152,12 @@ class AppSUMO:
         """
         Verificar si la simulación está OK.
         """
-        
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
+
         try:
             estado = traci.simulation.getMinExpectedNumber() > 0 and traci.simulation.getTime() >= 0
             return estado
         
         except Exception as e:
-            print(f"[ERROR SUMO.App] Error en la simulación de SUMO: '{e}'")
+            logger.error(f" Error en la simulación de SUMO: '{e}'")
             return False

@@ -1,4 +1,4 @@
-import os, signal
+import os, signal, logging, inspect
 from threading import Thread
 from traci.exceptions import FatalTraCIError
 
@@ -13,7 +13,8 @@ from SUMO.Api import ApiSUMO
 
 
 def cerrar(nro_senial:int, marco) -> None:
-    print("Finalizando el proceso ID:", os.getpid())
+    logger = logging.getLogger(f' {__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
+    logger.info("Finalizando el proceso ID:", os.getpid())
     os._exit(0)
 
 
@@ -53,11 +54,13 @@ def run_app_sumo(gui: bool) -> None:
     """
     Simulación de tráfico con SUMO.
     """
+    logger = logging.getLogger(f' {__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
+    
     try:
         app = AppSUMO(gui=gui)
         app.iniciar()
     except FatalTraCIError as e:
-        print("[ERROR run] Error en la simulación de tráfico:", e)
+        logger.error(" Error en la simulación de tráfico:", e)
         cerrar(0, 0)
         exit(1)
 
@@ -78,29 +81,32 @@ def run_app_decision() -> None:
     app = AppDecision()
     app.entrenar(
         base_path="",
-        num_epocas=50,
-        batch_size=128,
+        num_epocas=10,
+        batch_size=512,
         steps=15,
 
         #! Tasa de aprendizaje
-        learning_rate=0.01,
-        learning_rate_decay=0.01,
-        learning_rate_min=0.0001,
+        learning_rate=0.1,
+        learning_rate_decay=0.9995,
+        learning_rate_min=0.001,
         
         #! Exploración
         epsilon=1,
         epsilon_decay=0.9995,
-        epsilon_min=0.01,
+        epsilon_min=0.005,
         
         #! Importancia futuras
-        gamma=0.75,
+        gamma=0.5,
+        
+        #! Red
+        hidden_layers=[12, 10, 12],
     )
     # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")
     # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")
 
 
 if __name__ == "__main__":
-    
+    logging.basicConfig(level=logging.DEBUG)
     os.environ["SUMO_HOME"] = "/usr/share/sumo"
     signal.signal(signal.SIGINT, cerrar)
     
@@ -111,7 +117,7 @@ if __name__ == "__main__":
 
 
     #T* SUMO
-    gui = True
+    gui = False
     app = Thread(target=run_app_sumo, args=(gui,))
     app.start()
     
