@@ -74,35 +74,38 @@ def run_api_sumo(gui) -> None:
 
 
 #T* Decision
-def run_app_decision() -> None:
+def run_app_decision(entrenar=False) -> None:
     """
     Toma de decisiones.
     """
     app = AppDecision()
-    app.entrenar(
-        base_path="",
-        num_epocas=10,
-        batch_size=512,
-        steps=15,
+    if entrenar:
+        app.entrenar(
+            base_path="",
+            num_epocas=10,
+            batch_size=1024,
+            steps=15,
 
-        #! Tasa de aprendizaje
-        learning_rate=0.1,
-        learning_rate_decay=0.9995,
-        learning_rate_min=0.001,
-        
-        #! Exploración
-        epsilon=1,
-        epsilon_decay=0.9995,
-        epsilon_min=0.005,
-        
-        #! Importancia futuras
-        gamma=0.5,
-        
-        #! Red
-        hidden_layers=[12, 10, 12],
-    )
-    # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")
-    # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")
+            #! Tasa de aprendizaje
+            learning_rate=0.1,
+            learning_rate_decay=0.9995,
+            learning_rate_min=0.001,
+            
+            #! Exploración
+            epsilon=1,
+            epsilon_decay=0.9995,
+            epsilon_min=0.001,
+            
+            #! Importancia futuras
+            gamma=0.99,
+            
+            #! Red
+            hidden_layers=[12, 10, 12],
+        )
+    else:
+        # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")    #! Si funciona: 665
+        # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")    #! No funciona: 1235
+        app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
 
 
 if __name__ == "__main__":
@@ -123,7 +126,8 @@ if __name__ == "__main__":
     
     
     #T* Decision
-    app2 = Thread(target=run_app_decision)
+    entrenar = True
+    app2 = Thread(target=run_app_decision, args=(entrenar,))
     app2.start()
     
     run_api_sumo(gui=gui)

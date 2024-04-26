@@ -21,6 +21,7 @@ class ApiSUMO(Flask):
         
         #! Tiempo de espera en zona
         self.route('/espera', methods=['GET'])(self.getTiemposEspera)
+        self.route('/espera2', methods=['GET'])(self.getTiemposEspera2)
         self.route('/espera/<zona_id>', methods=['GET'])(self.getTiempoEspera)
         
         #! Avanzar simulación
@@ -63,6 +64,15 @@ class ApiSUMO(Flask):
         return jsonify({
             "tiempo_espera_total": self.app.getTiemposEsperaTotal(),
             "tiempos_espera": self.app.getTiemposEspera()
+        }), 200
+    
+    def getTiemposEspera2(self) -> tuple[Response, int]:
+        """
+        Obtener el tiempo de espera de todas las zonas en la simulación.
+        """
+        return jsonify({
+            "tiempo_espera_total": self.app.getTiemposEsperaTotal(True),
+            "tiempos_espera": self.app.getTiemposEspera(True)
         }), 200
 
 

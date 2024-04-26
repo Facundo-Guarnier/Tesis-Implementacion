@@ -22,7 +22,7 @@
 
 
 ## SUMO
-[ ] Se puede medir las emisiones de  CO2 con SUMO (getCO2Emission), consumo combustible, etc.
+[ ] Se puede medir las emisiones de CO2 con SUMO (getCO2Emission), consumo combustible, etc.
 
 [x] Arreglar que los autos se quedan frenado en las subidas al acceso (cuando pasa de 3 a 2 carriles)
 [x] Reducir la longitud de las calles que son "zonas" para que no tome toda la calle. Ej: todo el lateral del acceso al lado del carrefour.
