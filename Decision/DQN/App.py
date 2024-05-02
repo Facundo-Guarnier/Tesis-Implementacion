@@ -8,7 +8,7 @@ class AppDecision:
     def __init__(self):
         logging.basicConfig(level=logging.DEBUG)
 
-    def entrenar(self, base_path:str, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float, hidden_layers:list[int]) -> None:
+    def entrenar(self, memory:int, base_path:str, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float, hidden_layers:list[int]) -> None:
         """
         Entrenar el modelo.
         """
@@ -25,6 +25,7 @@ class AppDecision:
                     num_epocas=num_epocas,
                     batch_size=batch_size,
                     steps=steps,
+                    memory=memory,
 
                     #! Tasa de aprendizaje
                     learning_rate=learning_rate,

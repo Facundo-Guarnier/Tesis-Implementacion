@@ -19,8 +19,8 @@ class AppSUMO:
         
         self.zonas = ZonaList()
         self.gui = gui
-        self.traci_s1:traci.connection.Connection
-        self.traci_s2:traci.connection.Connection
+        self.traci_s2:traci.connection.Connection|Any = None
+
     
     
     def iniciar(self) -> None:
@@ -28,19 +28,19 @@ class AppSUMO:
         
         logger.info(" Iniciando...")
         if self.gui:
-            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"], label="s1")
+            os.environ["SUMO_LOG"] = "error"
+            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
-            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg"], label="s2")
+            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s2")
             self.traci_s2 = traci.getConnection("s2") 
         else:
-            traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"], label="s1")
+            traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
-            # traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg"], label="s2")
-            # self.traci_s2 = traci.getConnection("s2") 
     
         try: 
             #! Crear una tarea en paralelo con concurrencia para la simulación s2
-            Thread(target=self.s2).start()
+            if self.traci_s2:
+                Thread(target=self.s2).start()
             
             #! Para que haya un mínimo de vehículos en la simulación.
             while self.traci_s1.simulation.getMinExpectedNumber() > 0 and self.traci_s1.simulation.getTime() < 250:
@@ -57,9 +57,15 @@ class AppSUMO:
         """
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
+        
         try:
             while self.traci_s2.simulation.getMinExpectedNumber() > 0 and self.traci_s2.simulation.getTime() < 19500:
                 self.traci_s2.simulationStep()
+                
+                #! Cada 15 segundos muestra el tiempo total
+                if self.traci_s2.simulation.getTime() > 250 and self.traci_s1.simulation.getTime() > 250 and self.traci_s2.simulation.getTime() % 15 == 0:
+                    logger.info(f" (s1: {self.getTiemposEsperaTotal(s2=False)} | s2: {self.getTiemposEsperaTotal(s2=True)})")
+                
         except traci.exceptions.FatalTraCIError as e:
             logger.error(f" Error en la simulación 2 de SUMO: '{e}'")
             os._exit(0)
@@ -117,10 +123,12 @@ class AppSUMO:
         Obtener todos los tiempos de espera por en todas las zonas.
         """
         if s2:
-            while self.traci_s2.simulation.getTime() < 250:
-                self.traci_s2.simulationStep()
-            
-            return [self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
+            if self.traci_s2:
+                while self.traci_s2.simulation.getTime() < 250:
+                    self.traci_s2.simulationStep() 
+                
+                return [self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
+            return []
         
         else:
             while self.traci_s1.simulation.getTime() < 250:
@@ -135,10 +143,12 @@ class AppSUMO:
         """
         
         if s2:
-            while self.traci_s2.simulation.getTime() < 250:
-                self.traci_s2.simulationStep()
-            return (sum(self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
-            
+            if self.traci_s2:
+                while self.traci_s2.simulation.getTime() < 250:
+                    self.traci_s2.simulationStep()
+                return (sum(self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
+            return tuple()
+        
         else:
             while self.traci_s1.simulation.getTime() < 250:
                 self.traci_s1.simulationStep()

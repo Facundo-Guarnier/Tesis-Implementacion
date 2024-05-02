@@ -23,7 +23,7 @@ from numpy import ndarray as NDArray
 from Decision.DQN.Api import ApiDecision
 
 class EntrenamientoDQN:
-    def __init__(self, base_path:str, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float, hidden_layers: list[int]) -> None:
+    def __init__(self, base_path:str, memory:int, num_epocas:int, batch_size:int, steps:int, learning_rate:float, learning_rate_decay:float, learning_rate_min:float, epsilon:float, epsilon_decay:float, epsilon_min:float, gamma:float, hidden_layers: list[int]) -> None:
         """
         Inicializa el agente de aprendizaje por refuerzo utilizando el algoritmo DQN.
         
@@ -41,7 +41,7 @@ class EntrenamientoDQN:
             gamma (float): Factor de descuento, que determina la importancia de las recompensas futuras.
         """
         logging.basicConfig(level=logging.DEBUG)
-        self.memory:deque = deque(maxlen=4000)
+        self.memory:deque = deque(maxlen=memory)    #! Memoria de reproducción
         self.__api = ApiDecision("http://127.0.0.1:5000")
         
         self.__setEspacioAcciones()
@@ -63,7 +63,6 @@ class EntrenamientoDQN:
         
         self.gamma = gamma
         self.hidden_layers = hidden_layers
-        
     
     
     def __setEspacioAcciones(self) -> None:
@@ -110,7 +109,7 @@ class EntrenamientoDQN:
         #     tf.keras.layers.Dense(len(self.__espacio_acciones), activation='linear')
         # ])
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(lr=self.learning_rate))
-        logger.info(f"{model.summary()}")
+        logger.info(f" {model.summary()}")
         return model
     
     
@@ -128,7 +127,7 @@ class EntrenamientoDQN:
         if np.random.rand() <= self.epsilon:
             return np.random.choice(len(self.__espacio_acciones))
         else:
-            act_values = self.model.predict(state)
+            act_values = self.model.predict(state, verbose=0)
             return int(np.argmax(act_values[0]))
     
     
@@ -176,7 +175,7 @@ class EntrenamientoDQN:
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         for e in range(self.num_epocas):
-            logger.info(f"Entrenando epoca: {e+1} de {self.num_epocas} épocas.")
+            logger.info(f" Entrenando epoca: {e+1} de {self.num_epocas} épocas.")
             state = self.__estado()
             done = False
             total_reward = 0.0
@@ -262,9 +261,9 @@ class EntrenamientoDQN:
         
         #! Esperar a que la simulación esté lista
         while not self.__api.getSimulacionOK():
-            logger.info("Esperando a que la simulación esté lista...")
+            logger.info(" Esperando a que la simulación esté lista...")
             time.sleep(1)
-        logger.info("La simulación está lista")
+        logger.info(" La simulación está lista")
         
         #! Verificar si el archivo ya existe
         if not os.path.isfile(self.__path + '/entrenamiento_data.csv'):
@@ -275,17 +274,17 @@ class EntrenamientoDQN:
         #! Guardar hiperparámetros
         with open(self.__path + '/hiperparametros.csv', mode='w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow(['Num Epocas', 'Batch size', 'Steps', 'Learning rate', 'Learning rate decay', 'Learning rate min', 'Epsilon', 'Epsilon decay', 'Epsilon min', 'Gamma', "Red neuronal"])
+            writer.writerow(['Num Epocas', 'Batch size', 'Steps', 'Learning rate', 'Learning rate decay', 'Learning rate min', 'Epsilon', 'Epsilon decay', 'Epsilon min', 'Gamma', "Memoria de reproducción" ,"Red neuronal"])
             layers = f"{self.state_size} | "
             for i in range(len(self.hidden_layers)):
                 layers += f"{self.hidden_layers[i]} | "
             layers += f"{len(self.__espacio_acciones)}"
-            writer.writerow([self.num_epocas, self.batch_size, self.steps, str(self.learning_rate), self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma, layers])
+            writer.writerow([self.num_epocas, self.batch_size, self.steps, str(self.learning_rate), self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma, self.memory.maxlen, layers])
         
         #! Calcular la recompensa con semaforos con tiempo fijo
         total_reward = 0.0
         done = False
-        logger.info("Calculando recompensa con semaforos con tiempo fijo.")
+        logger.info(" Calculando recompensa con semaforos con tiempo fijo.")
         while not done:
             total_reward += self.__recompensa()
             done = self.__api.putAvanzar(steps=self.steps)['done']  # type: ignore

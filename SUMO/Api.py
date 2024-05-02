@@ -11,7 +11,7 @@ class ApiSUMO(Flask):
         self.zonas = ZonaList()
         self.app = AppSUMO()
         
-        # Configurar el logger de Flask para evitar imprimir registros de acceso
+        #! Configurar el logger de Flask para evitar imprimir registros de acceso
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
         

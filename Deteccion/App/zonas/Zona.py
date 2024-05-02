@@ -15,6 +15,7 @@ class Zona:
         self.puntos_originales = puntos_originales
         self.puntos_reescalados = puntos_originales
         self.cantidad_detecciones:int = 0
+        self.tiempo_espera:int = 0
 
 
     def escalar_puntos(self, resolucion_objetivo: tuple) -> None:

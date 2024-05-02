@@ -82,9 +82,10 @@ def run_app_decision(entrenar=False) -> None:
     if entrenar:
         app.entrenar(
             base_path="",
-            num_epocas=10,
-            batch_size=1024,
-            steps=15,
+            num_epocas=15,
+            batch_size=32,
+            steps=10,
+            memory=3000,
 
             #! Tasa de aprendizaje
             learning_rate=0.1,
@@ -94,7 +95,7 @@ def run_app_decision(entrenar=False) -> None:
             #! Exploración
             epsilon=1,
             epsilon_decay=0.9995,
-            epsilon_min=0.001,
+            epsilon_min=0.01,
             
             #! Importancia futuras
             gamma=0.99,

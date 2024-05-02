@@ -36,14 +36,14 @@ class DQN:
         
         #! Esperar a que la simulación esté lista
         while not self.__api.getSimulacionOK():
-            logger.info("Esperando a que la simulación esté lista...")
+            logger.info(" Esperando a que la simulación esté lista...")
             time.sleep(1)
-        logger.info("La simulación está lista.")
+        logger.info(" La simulación está lista.")
         
         done = False
         while not done:
             state = self.__estado()
-            action = self.model.predict(state)
+            action = self.model.predict(state, verbose=0)
             done = self.__avanzar(int(np.argmax(action)))
     
     
