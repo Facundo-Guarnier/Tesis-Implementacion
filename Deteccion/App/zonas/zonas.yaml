@@ -4,6 +4,10 @@ Zonas:
   - Nombre: "Default"
     Resolucion: [576, 1024]
     Puntos: [[85, 420], [500, 420], [500, 700], [85, 700]]
+  
+  - Nombre: "Camara"
+    Resolucion: [820, 460]
+    Puntos: [[50, 20], [520, 20], [520, 450], [50, 450]]
 
   - Nombre: "4K"
     Resolucion: [2160, 3840]

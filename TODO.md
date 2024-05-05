@@ -33,13 +33,13 @@
 ## Detector
     [ ] Detectar tiempo de espera
     [ ] Detectar varios videos a la vez.
-    [ ] Agregar una detección que sea en vivo con cámara.
 
     [ ] Agregar try/except.
     [ ] Detectar ambulancias y patrulleros.
 
     [~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 
+    [x] Agregar una detección que sea en vivo con cámara.
     [x] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
         - [x] Ver principalmente clase App, Api y Detector.
         - [-] Video no deberia manejar zona.

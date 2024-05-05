@@ -32,14 +32,16 @@ def run_app_deteccion() -> None:
     # )
     
     #! Procesar un video específico del dataset
-    app.analizar_un_video(
-        guardar=True,
-        # path_video="Deteccion/Dataset/Dataset_original/Zona J/20240102_133419.mp4"
-        path_video="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-        # path_video="Deteccion/Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-        # path_video="Deteccion/Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
-    )
-
+    # app.analizar_un_video(
+    #     guardar=True,
+    #     # path_video="Deteccion/Dataset/Dataset_original/Zona J/20240102_133419.mp4"
+    #     path_video="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+    #     # path_video="Deteccion/Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+    #     # path_video="Deteccion/Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
+    # )
+    
+    #! Deteccion con cámara
+    app.analizar_camara()
 
 def run_api_deteccion() -> None:
     """
@@ -116,23 +118,23 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, cerrar)
     
     #T* Deteccion 
-    # app = Thread(target=run_app_deteccion)
-    # app.start()
-    # run_api_deteccion()
+    app = Thread(target=run_app_deteccion)
+    app.start()
+    run_api_deteccion()
 
 
     #T* SUMO
-    gui = True
-    app = Thread(target=run_app_sumo, args=(gui,))
-    app.start()
+    # gui = True
+    # app = Thread(target=run_app_sumo, args=(gui,))
+    # app.start()
     
     
     #T* Decision
-    entrenar = False
-    app2 = Thread(target=run_app_decision, args=(entrenar,))
-    app2.start()
+    # entrenar = False
+    # app2 = Thread(target=run_app_decision, args=(entrenar,))
+    # app2.start()
     
-    run_api_sumo(gui=gui)
+    # run_api_sumo(gui=gui)
     
     app.join()
-    app2.join()
+    # app2.join()

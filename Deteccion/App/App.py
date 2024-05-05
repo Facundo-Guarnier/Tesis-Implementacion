@@ -1,5 +1,8 @@
 import os
 
+import numpy as np
+
+from Deteccion.App.zonas.Zona import Zona
 from Deteccion.App.zonas.ZonaList import ZonaList
 from Deteccion.App.Detector import Detector
 from Deteccion.App.Video import Video
@@ -79,3 +82,19 @@ class AppDetection:
             video=video
         )
         print("Video procesado.")
+    
+    
+    def analizar_camara(self) -> None:
+        """
+        Ejecuta el modelo y realiza la detección de objetos en tiempo real.
+        """
+        
+        video = Video(
+            path_origen="",
+            factor_escala=0.2,
+            zona=next((zona for zona in self.zonas.get() if zona.nombre == "Camara"), self.zonas.get()[0]),
+        )
+        
+        print("Procesando cámara...")
+        self.detector.procesar_camara(video=video)
+        print("Cámara procesada.")

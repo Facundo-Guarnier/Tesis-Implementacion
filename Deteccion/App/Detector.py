@@ -6,6 +6,7 @@ import time, cv2
 
 from Deteccion.App.config import configuracion
 from Deteccion.App.Video import Video
+from Deteccion.App.zonas.Zona import Zona
 
 
 class Detector:
@@ -242,12 +243,14 @@ class Detector:
             print("Guardado en: ", self.video.path_resultado)   
 
 
-    def procesar_camara(self) -> None:
+    def procesar_camara(self, video:Video) -> None:
         """
         Procesa la cámara en vivo y muestra el resultado en tiempo real.
         """
         
         cap = cv2.VideoCapture(0)
+
+        self.video = video
         
         self.__definir_parametros_supervision()
         
@@ -256,8 +259,8 @@ class Detector:
         start_time = time.time()
         total_frames = 0
         
-        cv2.namedWindow('Detectando con cámara', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('Detectando con cámara', 820, 460) 
+        cv2.namedWindow('Detectando con camara', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Detectando con camara', 820, 460) 
         
         while True:
             frame_count += 1
@@ -268,7 +271,7 @@ class Detector:
                 break
             
             #! Reescalar el frame
-            frame = cv2.resize(frame, (1024, 576))
+            frame = cv2.resize(frame, (820, 460))
             
             #! Procesar el frame
             frame = self.__callback(frame, total_frames)
@@ -282,7 +285,7 @@ class Detector:
             cv2.putText(frame, f'FPS: {fps}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
             #! Mostrar el frame en la ventana
-            cv2.imshow('Detectando con cámara', frame)  
+            cv2.imshow('Detectando con camara', frame)  
 
             #! Salir del bucle con la tecla 'q'.
             if cv2.waitKey(1) & 0xFF == ord('q'):

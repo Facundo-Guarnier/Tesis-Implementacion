@@ -4,26 +4,34 @@ from Deteccion.App.zonas.Zona import Zona
 
 
 class Video:
-    def __init__(self, path_origen:str, zona:Zona, path_resultado:str=""):
+    def __init__(self, path_origen:str, zona:Zona, path_resultado:str="", fps:float=0.0, resolucion:tuple[int, int]=(0, 0), factor_escala:float=1.0):
         
         self.zona = zona
         self.path_origen = path_origen
+        
         if path_resultado == "":
             destino = os.path.join(os.getcwd(), "Resultados")
             #! Crear la carpeta de resultados si no existe
             if not os.path.exists(destino):
                 os.makedirs(destino)
             self.path_resultado = os.path.join(destino, f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
-
         else:
             self.path_resultado = path_resultado
         
-        # self.nombre = path_origen.split("/")[-1]
-        # self.carpeta = path_origen.split("/")[-2]
+        if fps == 0.0:
+            self.fps = self.__fps()
+        else:
+            self.fps = fps
         
-        self.fps = self.__fps()
-        self.resolucion = self.__obtener_resolucion()
-        self.factor_escala = self.__calcular_factor_escala()
+        if resolucion == (0, 0):
+            self.resolucion = self.__obtener_resolucion()
+        else:
+            self.resolucion = resolucion
+        
+        if factor_escala == 1.0:
+            self.factor_escala = self.__calcular_factor_escala()
+        else:
+            self.factor_escala = factor_escala
 
 
     def __obtener_resolucion(self) -> tuple[int, int]:
