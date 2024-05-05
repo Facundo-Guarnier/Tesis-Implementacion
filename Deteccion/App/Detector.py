@@ -18,8 +18,8 @@ class Detector:
         self.modelo = ul.YOLO(f"Deteccion/Modelos/{configuracion['modelo']}")
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
-
-
+    
+    
     def __definir_parametros_supervision(self) -> None:
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
@@ -54,14 +54,14 @@ class Detector:
         #     text_scale=max(1, int(2 * self.video.factor_escala)),
         #     text_thickness=max(1, int(4 * self.video.factor_escala)),
         # )
-
-
+    
+    
     def __poligono_cv2(self, frame, detections:sv.Detections) -> np.ndarray:
         """
         - Dibuja el centro de los objetos y el polígono de detección. 
         - Cuenta los objetos que están dentro del polígono.
         """
-
+        
         #! Dibujar el polígono de detección
         cv2.polylines(
             img=frame, 
@@ -70,7 +70,7 @@ class Detector:
             color=(0,0,255),  
             thickness=max(1, int(10 * self.video.factor_escala)),
         )
-
+        
         detecciones_poligono = 0
         for box in detections.xyxy:
             #! Centros
@@ -78,16 +78,16 @@ class Detector:
             #   0     1     2     3
             x = int((box[0] + box[2])//2)
             y = int((box[1] + box[3])//2)
-
+            
             #! Validar el punto dentro del poligono
             color:list[int]  # BGR
             if mplPath.Path(self.video.zona.puntos_reescalados).contains_point((x,y)):
                 detecciones_poligono += 1
                 color = [255,80,0]
-
+            
             else:
                 color = [0,0,255]
-
+            
             cv2.circle(
                 img=frame, 
                 center=(x,y), 
@@ -131,8 +131,8 @@ class Detector:
             detections=detections,
             labels=etiquetas,
         )
-
-
+    
+    
     def __callback(self, frame:np.ndarray, n_frame:int) -> np.ndarray:
         """
         - Procesamiento de video.
@@ -266,6 +266,9 @@ class Detector:
             ret, frame = cap.read()
             if not ret:
                 break
+            
+            #! Reescalar el frame
+            frame = cv2.resize(frame, (1024, 576))
             
             #! Procesar el frame
             frame = self.__callback(frame, total_frames)

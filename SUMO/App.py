@@ -7,7 +7,7 @@ from SUMO.zonas.ZonaList import ZonaList
 
 class AppSUMO:
     _instance = None
-
+    
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super().__new__(cls)
@@ -20,7 +20,6 @@ class AppSUMO:
         self.zonas = ZonaList()
         self.gui = gui
         self.traci_s2:traci.connection.Connection|Any = None
-
     
     
     def iniciar(self) -> None:
@@ -63,7 +62,7 @@ class AppSUMO:
                 self.traci_s2.simulationStep()
                 
                 #! Cada 15 segundos muestra el tiempo total
-                if self.traci_s2.simulation.getTime() > 250 and self.traci_s1.simulation.getTime() > 250 and self.traci_s2.simulation.getTime() % 15 == 0:
+                if self.traci_s2.simulation.getTime() % 15 == 0:
                     logger.info(f" (s1: {self.getTiemposEsperaTotal(s2=False)} | s2: {self.getTiemposEsperaTotal(s2=True)})")
                 
         except traci.exceptions.FatalTraCIError as e:

@@ -89,24 +89,25 @@ def run_app_decision(entrenar=False) -> None:
 
             #! Tasa de aprendizaje
             learning_rate=0.1,
-            learning_rate_decay=0.9995,
-            learning_rate_min=0.001,
+            learning_rate_decay=0.9999,
+            learning_rate_min=0.0001,
             
             #! Exploración
             epsilon=1,
             epsilon_decay=0.9995,
-            epsilon_min=0.01,
+            epsilon_min=0.005,
             
             #! Importancia futuras
             gamma=0.99,
             
             #! Red
-            hidden_layers=[12, 10, 12],
+            hidden_layers=[8, 8],
         )
     else:
         # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")    #! Si funciona: 665
         # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")    #! No funciona: 1235
-        app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
+        # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
+        app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-05-02_15-33/epoca_14.h5")    #! Si funciona: 1322
 
 
 if __name__ == "__main__":
@@ -121,13 +122,13 @@ if __name__ == "__main__":
 
 
     #T* SUMO
-    gui = False
+    gui = True
     app = Thread(target=run_app_sumo, args=(gui,))
     app.start()
     
     
     #T* Decision
-    entrenar = True
+    entrenar = False
     app2 = Thread(target=run_app_decision, args=(entrenar,))
     app2.start()
     
