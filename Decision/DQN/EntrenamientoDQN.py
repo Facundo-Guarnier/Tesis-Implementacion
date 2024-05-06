@@ -83,7 +83,7 @@ class EntrenamientoDQN:
         """
         Establece la ruta donde se guardarán los archivos.
         """
-        self.__path = os.path.join(base_path, f'Decision/Resultados_entrenamiento/DQN_{time.strftime("%Y-%m-%d_%H-%M")}')
+        self.__path = os.path.join(base_path, f'Resultados_entrenamiento/DQN_{time.strftime("%Y-%m-%d_%H-%M")}')
         if not os.path.exists(self.__path):
             os.makedirs(self.__path)
     
@@ -175,7 +175,6 @@ class EntrenamientoDQN:
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         for e in range(self.num_epocas):
-            logger.info(f" Entrenando epoca: {e+1} de {self.num_epocas} épocas.")
             state = self.__estado()
             done = False
             total_reward = 0.0
@@ -199,6 +198,8 @@ class EntrenamientoDQN:
             with open(self.__path + '/entrenamiento_data.csv', mode='a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow([e+1, f"{(time.time()-t1):.2f}" , f"{total_reward:.2f}", f"{self.epsilon:.5f}", f"{self.learning_rate:.5f}"])
+            
+            logger.info(f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada.")
     
     
     def __estado(self) -> NDArray:
@@ -279,7 +280,7 @@ class EntrenamientoDQN:
             for i in range(len(self.hidden_layers)):
                 layers += f"{self.hidden_layers[i]} | "
             layers += f"{len(self.__espacio_acciones)}"
-            writer.writerow([self.num_epocas, self.batch_size, self.steps, str(self.learning_rate), self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma, self.memory.maxlen, layers])
+            writer.writerow([self.num_epocas, self.batch_size, str(self.steps)+"+3", str(self.learning_rate), self.learning_rate_decay, self.learning_rate_min, self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma, self.memory.maxlen, layers])
         
         #! Calcular la recompensa con semaforos con tiempo fijo
         total_reward = 0.0

@@ -66,6 +66,7 @@ class ApiSUMO(Flask):
             "tiempos_espera": self.app.getTiemposEspera()
         }), 200
     
+    
     def getTiemposEspera2(self) -> tuple[Response, int]:
         """
         Obtener el tiempo de espera de todas las zonas en la simulación.
@@ -130,11 +131,8 @@ class ApiSUMO(Flask):
         """
         data = request.json
         if data:
-            for semaforo in list(data["data"]):
-                semaforo_id = semaforo["id"]
-                estado = semaforo["estado"]
-                self.app.setSemaforoEstado(semaforo_id, estado)
-            return jsonify({"estado": estado}), 200
+            self.app.setSemaforosEstados(estados_nuevos=data["data"])
+            return jsonify({"estado": "OK"}), 200
         else:
             return jsonify({"error": "Falta el parámetro 'estado'."}), 400
     

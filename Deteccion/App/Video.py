@@ -10,7 +10,7 @@ class Video:
         self.path_origen = path_origen
         
         if path_resultado == "":
-            destino = os.path.join(os.getcwd(), "Resultados")
+            destino = os.path.join(os.getcwd(), "Resultados_deteccion")
             #! Crear la carpeta de resultados si no existe
             if not os.path.exists(destino):
                 os.makedirs(destino)

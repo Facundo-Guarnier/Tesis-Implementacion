@@ -14,12 +14,15 @@ class AppSUMO:
         return cls._instance
     
     
-    def __init__(self, gui:bool=False):
+    def __init__(self):
         logging.basicConfig(level=logging.DEBUG)
         
         self.zonas = ZonaList()
-        self.gui = gui
         self.traci_s2:traci.connection.Connection|Any = None
+    
+    
+    def setGUI(self, gui:bool) -> None:
+        self.gui = gui
     
     
     def iniciar(self) -> None:
@@ -30,8 +33,8 @@ class AppSUMO:
             os.environ["SUMO_LOG"] = "error"
             traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
-            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s2")
-            self.traci_s2 = traci.getConnection("s2") 
+            # traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s2")
+            # self.traci_s2 = traci.getConnection("s2") 
         else:
             traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
@@ -82,11 +85,57 @@ class AppSUMO:
             zona.cantidad_detecciones = self.traci_s1.edge.getLastStepVehicleNumber(zona.id)
     
     
-    def setSemaforoEstado(self, semaforo: str, estado: str) -> None:
+    def setSemaforoEstado(self, semaforo: str, estado_nuevo: str) -> None:
         """
         Cambiar el color del semáforo (ejemplo: ponerlo en verde)
         """
-        self.traci_s1.trafficlight.setRedYellowGreenState(semaforo, estado)
+        estado_actual = self.getSemaforoEstado(semaforo)
+        if estado_nuevo != estado_actual:
+            estado_amarillo = estado_actual.replace('g', 'y')
+            estado_amarillo = estado_amarillo.replace('G', 'y')
+            
+            self.traci_s1.trafficlight.setRedYellowGreenState(semaforo, estado_amarillo)
+            self.avanzar(3)
+        
+            self.traci_s1.trafficlight.setRedYellowGreenState(semaforo, estado_nuevo)
+    
+    
+    def setSemaforosEstados(self, estados_nuevos: list) -> None:
+        """
+        Cambiar el color de todos los semáforos.
+        
+        Args:
+            estados: Lista de estados de los semáforos. [{'id': 1, 'estado': 'ggggggggggg'}, {'id': 2, 'estado': 'gggggggggggg'}, {'id': 3, 'estado': 'rrrrrrrrrrrr'}, {'id': 4, 'estado': 'rrrrrrrrrr'}]
+        """
+        
+        estados_amarillos:list[dict] = []
+        
+        #! Calcular estados amarillos
+        for estado in estados_nuevos:
+            semaforo_id = estado["id"]
+            estado_nuevo = estado["estado"]
+            
+            estado_actual = self.getSemaforoEstado(semaforo_id)
+        
+            if estado_nuevo != estado_actual:
+                estado_amarillo = estado_actual.replace('g', 'y')
+                estado_amarillo = estado_amarillo.replace('G', 'y')
+                estados_amarillos.append({"id": semaforo_id, "estado": estado_amarillo})
+        
+        #! Cambiar a amarillo 
+        for estado in estados_amarillos:
+            semaforo_id = estado["id"]
+            estado_amarillo = estado["estado"]
+            self.traci_s1.trafficlight.setRedYellowGreenState(semaforo_id, estado_amarillo)
+        
+        #! Avanzar 3 segundos para que se vea el amarillo
+        self.avanzar(3)
+        
+        #! Cambiar a verde
+        for estado in estados_nuevos:
+            semaforo_id = estado["id"]
+            estado_nuevo = estado["estado"]
+            self.traci_s1.trafficlight.setRedYellowGreenState(semaforo_id, estado_nuevo)
     
     
     def getSemaforoEstado(self, semaforo: str) -> str:

@@ -79,7 +79,7 @@ class DQN:
         self.__api.putEstados(accion=action2.split('-'))
         
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=10)
+        respuesta = self.__api.putAvanzar(steps=15)
         
         done:bool = respuesta['done']    # type: ignore #! Si la simulación ha terminado 
         

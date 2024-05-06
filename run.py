@@ -32,16 +32,16 @@ def run_app_deteccion() -> None:
     # )
     
     #! Procesar un video específico del dataset
-    # app.analizar_un_video(
-    #     guardar=True,
-    #     # path_video="Deteccion/Dataset/Dataset_original/Zona J/20240102_133419.mp4"
-    #     path_video="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-    #     # path_video="Deteccion/Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-    #     # path_video="Deteccion/Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
-    # )
+    app.analizar_un_video(
+        guardar=True,
+        # path_video="Deteccion/Dataset/Dataset_original/Zona J/20240102_133419.mp4"
+        path_video="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+        # path_video="Deteccion/Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+        # path_video="Deteccion/Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
+    )
     
     #! Deteccion con cámara
-    app.analizar_camara()
+    # app.analizar_camara()
 
 def run_api_deteccion() -> None:
     """
@@ -59,7 +59,8 @@ def run_app_sumo(gui: bool) -> None:
     logger = logging.getLogger(f' {__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
     
     try:
-        app = AppSUMO(gui=gui)
+        app = AppSUMO()
+        app.setGUI(gui)
         app.iniciar()
     except FatalTraCIError as e:
         logger.error(" Error en la simulación de tráfico:", e)
@@ -85,31 +86,31 @@ def run_app_decision(entrenar=False) -> None:
         app.entrenar(
             base_path="",
             num_epocas=15,
-            batch_size=32,
+            batch_size=128,
             steps=10,
-            memory=3000,
+            memory=6000,
 
             #! Tasa de aprendizaje
             learning_rate=0.1,
-            learning_rate_decay=0.9999,
-            learning_rate_min=0.0001,
+            learning_rate_decay=0.9995,
+            learning_rate_min=0.001,
             
             #! Exploración
             epsilon=1,
             epsilon_decay=0.9995,
-            epsilon_min=0.005,
+            epsilon_min=0.01,
             
             #! Importancia futuras
             gamma=0.99,
             
             #! Red
-            hidden_layers=[8, 8],
+            hidden_layers=[32, 32, 32],
         )
     else:
-        # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")    #! Si funciona: 665
-        # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")    #! No funciona: 1235
-        # app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
-        app.usar(path_modelo="Decision/Resultados_entrenamiento/DQN_2024-05-02_15-33/epoca_14.h5")    #! Si funciona: 1322
+        # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")    #! Si funciona: 665
+        # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")    #! No funciona: 1235
+        # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
+        app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-05-02_15-33/epoca_14.h5")    #! Si funciona: 1322
 
 
 if __name__ == "__main__":
@@ -118,23 +119,23 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, cerrar)
     
     #T* Deteccion 
-    app = Thread(target=run_app_deteccion)
-    app.start()
-    run_api_deteccion()
+    # app = Thread(target=run_app_deteccion)
+    # app.start()
+    # run_api_deteccion()
 
 
     #T* SUMO
-    # gui = True
-    # app = Thread(target=run_app_sumo, args=(gui,))
-    # app.start()
+    gui = False
+    app = Thread(target=run_app_sumo, args=(gui,))
+    app.start()
     
     
-    #T* Decision
-    # entrenar = False
-    # app2 = Thread(target=run_app_decision, args=(entrenar,))
-    # app2.start()
+    # T* Decision
+    entrenar = True
+    app2 = Thread(target=run_app_decision, args=(entrenar,))
+    app2.start()
     
-    # run_api_sumo(gui=gui)
+    run_api_sumo(gui=gui)
     
     app.join()
-    # app2.join()
+    app2.join()

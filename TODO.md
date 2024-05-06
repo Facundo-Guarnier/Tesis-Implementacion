@@ -6,19 +6,19 @@
 
 
 ## Toma de decisiones
-    [ ] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
-
     [ ] Buscar a ver si hay algún parametro de traci que indique el tipo total de los autos en una calle, no importa si es detenido o no.
     [ ] En vez de tiempo de espera por calle, que sea por carril?
-    [ ] Agregar algún tipo de regla para los vehiculos que llevan mucho esperando. 
-    [ ] Evitar que un semaforo se quede para siempre en verde.
 
+    [x] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
     [x] REVISAR POLITICA
     [x] REVISAR LA FUNCION DE RECOMPENSA.
     [x] Cambiar estado de cantidad por tiempo de espera
     [x] Ejecutar sumo sin gui: sumo -c your_configuration_file.sumocfg --no-gui
     [x] Evitar que los semaforos se pongan todos en verdes: nunca porque no está en las opciones que le dí al modelo.
     [x] Ver porque hace 2 peticiones de "GET /cantidad".
+
+    [-] Agregar algún tipo de regla para los vehiculos que llevan mucho esperando. 
+    [-] Evitar que un semaforo se quede para siempre en verde.
 
 
 ## SUMO
