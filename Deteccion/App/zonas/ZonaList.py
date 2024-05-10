@@ -11,13 +11,13 @@ class ZonaList:
     - Representa una lista de zonas (List[Zona]).
     """
     _instance = None
-
+    
     def __new__(cls):
         if not cls._instance:
             cls._instance = super().__new__(cls)
         return cls._instance
-
-
+    
+    
     def __init__(self):
         self.zonas = self.__cargar_zonas()
     
@@ -26,8 +26,8 @@ class ZonaList:
         with open('Deteccion/App/zonas/zonas.yaml', 'r') as archivo:
             datos_yaml = yaml.safe_load(archivo)
             return [Zona(nombre=zona['Nombre'], resolucion=tuple(zona['Resolucion']), puntos_originales=np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
-
-
+    
+    
     def get_cantidades(self) -> dict:
         """
         Cantidades de vehículos en todas las zonas.
@@ -37,8 +37,8 @@ class ZonaList:
             cantidad_detecciones[zona.nombre] = zona.cantidad_detecciones
         
         return cantidad_detecciones
-
-
+    
+    
     def get_cantidad_zona(self, zona_nombre:str) -> int:
         """
         Cantidad de vehículos en una zona específica.
@@ -48,6 +48,25 @@ class ZonaList:
                 return zona.cantidad_detecciones
         
         return -1  #! Retornar -1 si la zona no se encuentra
+    
+    
+    def get_tiempos(self) -> dict:
+        """
+        Tiempos de detección en todas las zonas.
+        """
+        tiempos = {}
+        for zona in self.zonas:
+            tiempos[zona.nombre] = zona.tiempo_espera
+        
+        return tiempos
+    
+    
+    def get_tiempos_total(self) -> int:
+        """
+        Tiempos de detección en todas las zonas.
+        """
+        
+        return sum(zona.tiempo_espera for zona in self.zonas)
     
     
     def get(self) -> List[Zona]:

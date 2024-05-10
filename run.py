@@ -27,17 +27,17 @@ def run_app_deteccion() -> None:
     
     #! Procesar todo el dataset
     # app.analizar_carpeta_videos(
-    #     origen="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/", 
-    #     destino="Resultados/",
+    #     origen="Dataset/Dataset_reescalado-576x1024-5fps/", 
+    #     destino="Resultados_deteccion/",
     # )
     
     #! Procesar un video específico del dataset
     app.analizar_un_video(
         guardar=True,
-        # path_video="Deteccion/Dataset/Dataset_original/Zona J/20240102_133419.mp4"
-        path_video="Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-        # path_video="Deteccion/Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-        # path_video="Deteccion/Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
+        # path_video="Dataset/Dataset_original/Zona J/20240102_133419.mp4"
+        path_video="Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+        # path_video="Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
+        # path_video="Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
     )
     
     #! Deteccion con cámara
@@ -110,7 +110,8 @@ def run_app_decision(entrenar=False) -> None:
         # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")    #! Si funciona: 665
         # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")    #! No funciona: 1235
         # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
-        app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-05-02_15-33/epoca_14.h5")    #! Si funciona: 1322
+        # app.usar(path_modelo="Resultados_entrenamiento-2/DQN_2024-05-02_15-33/epoca_14.h5")    #! Si funciona: 1322
+        app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-05-06_12-21/epoca_13.h5")    #! Si funciona: 1322
 
 
 if __name__ == "__main__":
@@ -119,23 +120,23 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, cerrar)
     
     #T* Deteccion 
-    # app = Thread(target=run_app_deteccion)
-    # app.start()
-    # run_api_deteccion()
-
-
-    #T* SUMO
-    gui = False
-    app = Thread(target=run_app_sumo, args=(gui,))
+    app = Thread(target=run_app_deteccion)
     app.start()
+    run_api_deteccion()
     
     
-    # T* Decision
-    entrenar = True
-    app2 = Thread(target=run_app_decision, args=(entrenar,))
-    app2.start()
+    # #T* SUMO
+    # gui = True
+    # app = Thread(target=run_app_sumo, args=(gui,))
+    # app.start()
     
-    run_api_sumo(gui=gui)
+    
+    # # T* Decision
+    # entrenar = False
+    # app2 = Thread(target=run_app_decision, args=(entrenar,))
+    # app2.start()
+    
+    # run_api_sumo(gui=gui)
     
     app.join()
-    app2.join()
+    # app2.join()

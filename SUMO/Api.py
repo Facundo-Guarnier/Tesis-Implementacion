@@ -69,7 +69,7 @@ class ApiSUMO(Flask):
     
     def getTiemposEspera2(self) -> tuple[Response, int]:
         """
-        Obtener el tiempo de espera de todas las zonas en la simulación.
+        Obtener el tiempo de espera de todas las zonas en la simulación sin DQN.
         """
         return jsonify({
             "tiempo_espera_total": self.app.getTiemposEsperaTotal(True),

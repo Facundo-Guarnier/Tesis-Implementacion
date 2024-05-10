@@ -31,7 +31,6 @@
 
 
 ## Detector
-    [ ] Detectar tiempo de espera
     [ ] Detectar varios videos a la vez.
 
     [ ] Agregar try/except.
@@ -39,6 +38,7 @@
 
     [~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 
+    [x] Detectar tiempo de espera
     [x] Agregar una detección que sea en vivo con cámara.
     [x] DIVIDIR EN CLASES MAS PEQUEÑAS, mucho lío de funcionalidades.
         - [x] Ver principalmente clase App, Api y Detector.

@@ -13,9 +13,12 @@ class ApiDeteccion(Flask):
         
         self.zonas = ZonaList()
         
-        #! Definir las rutas de la aplicación
+        #! Cantidades
         self.route('/cantidad', methods=['GET'])(self.cantidades)
         self.route('/cantidad/<zona_name>', methods=['GET'])(self.cantidad_zona)
+        
+        #! Tiempos
+        self.route('/espera', methods=['GET'])(self.tiempos)
 
 
     def cantidades(self) -> tuple[Response, int]:
@@ -35,3 +38,13 @@ class ApiDeteccion(Flask):
                 "cantidad_detecciones": self.zonas.get_cantidad_zona(zona_name),
             }
         ), 200
+    
+    
+    def tiempos(self) -> tuple[Response, int]:
+        """
+        Devuelve los tiempos de espera en cada zona.
+        """
+        return jsonify({
+            "tiempo_espera_total": self.zonas.get_tiempos_total(),
+            "tiempos_espera": self.zonas.get_tiempos(),
+        }), 200

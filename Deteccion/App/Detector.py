@@ -19,6 +19,7 @@ class Detector:
         self.modelo = ul.YOLO(f"Deteccion/Modelos/{configuracion['modelo']}")
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
+        self.tiempos_deteccion = {}  # Diccionario para almacenar tiempos de detección
     
     
     def __definir_parametros_supervision(self) -> None:
@@ -36,9 +37,9 @@ class Detector:
 
         #! Dibujar box en los objetos
         self.box_annotator = sv.BoxAnnotator(
-            thickness=max(1, int(4 * self.video.factor_escala)), 
-            text_thickness=max(1, int(3 * self.video.factor_escala)), 
-            text_scale=max(1, int(2 * self.video.factor_escala)),
+            thickness=max(1, int(3 * self.video.factor_escala)), 
+            text_thickness=max(1, int(2 * self.video.factor_escala)), 
+            text_scale=max(1, int(1 * self.video.factor_escala)),
         )
 
         # #! Polígono (sv) de detección
@@ -72,8 +73,15 @@ class Detector:
             thickness=max(1, int(10 * self.video.factor_escala)),
         )
         
+        
+        #! Lista de IDs de objetos que ya no están en la imagen
+        ids_fuera_imagen = [id for id in self.tiempos_deteccion if id not in detections.tracker_id]
+        for id in ids_fuera_imagen:
+            del self.tiempos_deteccion[id]
+        
+        
         detecciones_poligono = 0
-        for box in detections.xyxy:
+        for box, mask, confianza, class_id, tracker_id in detections:
             #! Centros
             #  xmin, ymin, xmax, ymax
             #   0     1     2     3
@@ -85,9 +93,18 @@ class Detector:
             if mplPath.Path(self.video.zona.puntos_reescalados).contains_point((x,y)):
                 detecciones_poligono += 1
                 color = [255,80,0]
-            
+                
+                #! Contar el tiempo de detección
+                if tracker_id in self.tiempos_deteccion:
+                    self.tiempos_deteccion[tracker_id] += 1
+                else:
+                    self.tiempos_deteccion[tracker_id] = 1
+                
+                
             else:
                 color = [0,0,255]
+                #! Reiniciar el tiempo de detección
+                self.tiempos_deteccion[tracker_id] = 0
             
             cv2.circle(
                 img=frame, 
@@ -97,10 +114,14 @@ class Detector:
                 thickness=max(1, int(10 * self.video.factor_escala))
             )
         
+        
+        frame_total = sum(self.tiempos_deteccion.values())
+        tiempo_total = frame_total // self.video.fps
+        
         #! Escribir la cantidad de detecciones en el frame
         cv2.putText(
             img=frame, 
-            text=f"Vehiculos {detecciones_poligono}", 
+            text=f"Vehiculos {detecciones_poligono} {tiempo_total}", 
             org=(
                 max(1, int(250 * self.video.factor_escala)), 
                 max(1, int(1800 * self.video.factor_escala))
@@ -113,6 +134,7 @@ class Detector:
         
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
         self.video.zona.cantidad_detecciones = detecciones_poligono
+        self.video.zona.tiempo_espera = tiempo_total
         
         return frame
 
@@ -124,7 +146,9 @@ class Detector:
         """
         etiquetas = []
         for xyxy, mask, confianza, class_id, tracker_id in detections:
-            etiqueta = f"{self.CLASES[class_id]} {confianza:0.2f}"
+            tiempo_deteccion = self.tiempos_deteccion.get(tracker_id, 0)
+            # etiqueta = f"{self.CLASES[class_id]} {confianza:0.2f}"
+            etiqueta = f"{tiempo_deteccion} frames"
             etiquetas.append(etiqueta)
             
         return self.box_annotator.annotate(
