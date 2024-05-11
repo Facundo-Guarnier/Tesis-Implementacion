@@ -4,6 +4,7 @@ import tensorflow as tf
 from numpy import ndarray as NDArray
 
 from Decision.DQN.Api import ApiDecision
+from config import configuracion
 
 class DQN:
     def __init__(self, path_modelo:str):
@@ -12,6 +13,7 @@ class DQN:
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
         self.__setEspacioAcciones()
+        self.ponderaciones_zonas:list[float] = configuracion['decision']['ponderaciones_zonas']     #!Ej: [1.0, 1.5, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     
     
     def __setEspacioAcciones(self) -> None:
@@ -53,17 +55,24 @@ class DQN:
         - El tiempo de espera de los vehículos en las intersecciones.
         - No incluye el color de los semáforos porque estaría duplicando datos con respecto a la accion.
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
+        
+        Returns:
+            NDArray: Estado actual normalizado. Ej: [0.1, 0.3, 0.5, 0, 0.1, 0.2, 0.4, 0.2, 0.6, 0.3, 0.9, 1]
         """
         #! Tiempo
         estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"]) # type: ignore
-        tiempo_maximo_espera = max(estado)
         
+        #! Ponderar mas un semáforo que otro
+        estado_ponderado = tuple([round(estado[i] * self.ponderaciones_zonas[i], 2) for i in range(len(estado))])
+        
+        tiempo_maximo_espera = max(estado_ponderado)
         if tiempo_maximo_espera == 0:
-            return np.reshape(estado, [1, self.state_size])
+            return np.reshape(estado_ponderado, [1, self.state_size])
+        
         else:
             #! Normalizar los tiempos de espera
-            estado = tuple([round(tiempo_espera / tiempo_maximo_espera , 2) for tiempo_espera in estado])
-            return np.reshape(estado, [1, self.state_size])
+            estado_normalizado = tuple([round(tiempo_espera / tiempo_maximo_espera , 2) for tiempo_espera in estado_ponderado])
+            return np.reshape(estado_normalizado, [1, self.state_size])
 
 
     def __avanzar(self, action:int) -> bool:

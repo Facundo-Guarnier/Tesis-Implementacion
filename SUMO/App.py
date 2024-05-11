@@ -3,6 +3,7 @@ from threading import Thread
 from typing import Any
 
 from SUMO.zonas.ZonaList import ZonaList
+from config import configuracion
 
 
 class AppSUMO:
@@ -19,29 +20,28 @@ class AppSUMO:
         
         self.zonas = ZonaList()
         self.traci_s2:traci.connection.Connection|Any = None
-    
-    
-    def setGUI(self, gui:bool) -> None:
-        self.gui = gui
+        self.__gui = configuracion["sumo"]["gui"]
+        self.__comparar = configuracion["sumo"]["comparar"]
     
     
     def iniciar(self) -> None:
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         logger.info(" Iniciando...")
-        if self.gui:
+        if self.__gui:
             os.environ["SUMO_LOG"] = "error"
             traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
-            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s2")
-            self.traci_s2 = traci.getConnection("s2") 
+            if self.__comparar:
+                traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s2")
+                self.traci_s2 = traci.getConnection("s2") 
         else:
             traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
     
         try: 
             #! Crear una tarea en paralelo con concurrencia para la simulación s2
-            if self.traci_s2:
+            if self.__comparar:
                 Thread(target=self.s2).start()
             
             #! Para que haya un mínimo de vehículos en la simulación.

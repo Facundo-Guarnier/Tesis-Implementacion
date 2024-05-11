@@ -4,7 +4,7 @@ import supervision as sv
 import numpy as np
 import time, cv2
 
-from Deteccion.App.config import configuracion
+from config import configuracion
 from Deteccion.App.Video import Video
 from Deteccion.App.zonas.Zona import Zona
 
@@ -16,7 +16,7 @@ class Detector:
     """
     
     def __init__(self):
-        self.modelo = ul.YOLO(f"Deteccion/Modelos/{configuracion['modelo']}")
+        self.modelo = ul.YOLO(f"Deteccion/Modelos/{configuracion['deteccion']['modelo']}")
         self.CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.CLASES  = self.modelo.model.names
         self.tiempos_deteccion = {}  # Diccionario para almacenar tiempos de detección
@@ -199,14 +199,13 @@ class Detector:
         )
 
 
-    def procesar_vivo(self, video:Video, guardar:bool=False) -> None:
+    def procesar_un_video(self, video:Video) -> None:
         """
-        - Procesa un video y muestra el resultado en vivo.
-        - Si guardar=True, guarda el resultado.
+        Procesa un video y muestra el resultado en vivo.
         """
         
         self.video = video
-        
+        guardar = configuracion["deteccion"]["un_video"]["guardar"]
         cap = cv2.VideoCapture(self.video.path_origen)
         self.video.zona.escalar_puntos(self.video.resolucion)
         self.__definir_parametros_supervision()
@@ -221,7 +220,7 @@ class Detector:
                     int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),    #! height
                     )
             )
-
+        
         fps = 0
         frame_count = 0
         start_time = time.time()
@@ -233,7 +232,7 @@ class Detector:
         while True:
             frame_count += 1
             total_frames += 1
-
+            
             #! Salir si no hay más frames
             ret, frame = cap.read()
             if not ret:
@@ -256,11 +255,11 @@ class Detector:
             
             #! Mostrar el frame en la ventana
             cv2.imshow('Detectando en un video', frame)
-
+            
             #! Salir del bucle con la tecla 'q'.
             if cv2.waitKey(1) & 0xFF == ord('q'):  
                 break
-
+        
         cap.release()
         cv2.destroyAllWindows()
         if guardar:
@@ -317,33 +316,3 @@ class Detector:
 
         cap.release()
         cv2.destroyAllWindows()
-
-
-
-# #! Círculos en el centro de las boxes (descomentar CircleAnnotator)
-# frame = circle_annotator.annotate(
-#     scene=frame,
-#     detections=detections,
-# )
-
-# def __trace(self, frame, detections):
-#     """
-#     - Dibuja el recorrido de un objeto.
-#     """
-#     return self.trace_annotator.annotate(
-#         scene=frame,
-#         detections=detections
-#     )
-
-
-# def __poligono_sv(self, frame, detections):
-#     """
-#     - Dibuja el centro de los objetos y el poligono de detección. 
-#     - Tiene el problema de que no cuenta bien los objetos dentro del poligono, no
-#     se si es porque cuenta cuando la box está completa dentro del poligono o si
-#     es por otro motivo.
-#     """
-#     detecciones = self.poligono_zona.trigger(detections)
-#     return self.poligono_dibujador.annotate(
-#         scene=frame,
-#     )

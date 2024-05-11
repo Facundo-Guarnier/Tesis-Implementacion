@@ -10,6 +10,7 @@ from Deteccion.App.Api import ApiDeteccion
 from SUMO.App import AppSUMO
 from SUMO.Api import ApiSUMO
 
+from config import configuracion
 
 
 def cerrar(nro_senial:int, marco) -> None:
@@ -21,38 +22,38 @@ def cerrar(nro_senial:int, marco) -> None:
 #T* Deteccion
 def run_app_deteccion() -> None:
     """
-    Detección de vehículos.
+    Inicia la detección de vehículos con YOLO.
     """
-    app = AppDetection()
+    try: 
+        app = AppDetection()
+        
+        #! Procesar toda la carpetas del dataset.
+        if configuracion["deteccion"]["carpeta_dataset"]["procesar"]:
+            app.analizar_carpeta_videos()
+        
+        #! Procesar un video específico del dataset.
+        if configuracion["deteccion"]["un_video"]["procesar"]:
+            app.analizar_un_video()
+        
+        #! Deteccion con cámara en vivo.
+        if configuracion["deteccion"]["procesar_camara"]:
+            app.analizar_camara()
     
-    #! Procesar todo el dataset
-    # app.analizar_carpeta_videos(
-    #     origen="Dataset/Dataset_reescalado-576x1024-5fps/", 
-    #     destino="Resultados_deteccion/",
-    # )
-    
-    #! Procesar un video específico del dataset
-    app.analizar_un_video(
-        guardar=True,
-        # path_video="Dataset/Dataset_original/Zona J/20240102_133419.mp4"
-        path_video="Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
-        # path_video="Dataset/Dataset_reescalado-720x1280-15fps/Zona J/20240102_133419.mp4"
-        # path_video="Dataset/Pruebas/video-reescalado-576x1024-5fps.mp4",
-    )
-    
-    #! Deteccion con cámara
-    # app.analizar_camara()
+    except Exception as e:
+        print("Error:", e)
+        cerrar(0, 0)
+
 
 def run_api_deteccion() -> None:
     """
-    API flask de detección.
+    Inicia la API de detección de vehículos.
     """
     api = ApiDeteccion(name="API Deteccion")
     api.run(debug=False) 
 
 
 #T* SUMO
-def run_app_sumo(gui: bool) -> None:
+def run_app_sumo() -> None:
     """
     Simulación de tráfico con SUMO.
     """
@@ -60,7 +61,6 @@ def run_app_sumo(gui: bool) -> None:
     
     try:
         app = AppSUMO()
-        app.setGUI(gui)
         app.iniciar()
     except FatalTraCIError as e:
         logger.error(" Error en la simulación de tráfico:", e)
@@ -68,75 +68,55 @@ def run_app_sumo(gui: bool) -> None:
         exit(1)
 
 
-def run_api_sumo(gui) -> None:
+def run_api_sumo() -> None:
     """
-    API flask de SUMO.
+    Inicia la API de SUMO.
     """
     api = ApiSUMO(name="API SUMO")
     api.run(debug=False) 
 
 
 #T* Decision
-def run_app_decision(entrenar=False) -> None:
+def run_app_decision() -> None:
     """
-    Toma de decisiones.
+    Inicial el modelo de toma de decisiones.
+    Puede: 
+    - Entrenar el modelo.
+    - Utilizar un modelo ya entrenado.
     """
     app = AppDecision()
-    if entrenar:
-        app.entrenar(
-            base_path="",
-            num_epocas=15,
-            batch_size=128,
-            steps=10,
-            memory=6000,
-
-            #! Tasa de aprendizaje
-            learning_rate=0.1,
-            learning_rate_decay=0.9995,
-            learning_rate_min=0.001,
-            
-            #! Exploración
-            epsilon=1,
-            epsilon_decay=0.9995,
-            epsilon_min=0.01,
-            
-            #! Importancia futuras
-            gamma=0.99,
-            
-            #! Red
-            hidden_layers=[32, 32, 32],
-        )
+    if configuracion["decision"]["entrenamiento"]["entrenar"]:
+        app.entrenar()
+    
     else:
-        # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5")    #! Si funciona: 665
-        # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5")    #! No funciona: 1235
-        # app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5")    #! Si funciona: 772
-        # app.usar(path_modelo="Resultados_entrenamiento-2/DQN_2024-05-02_15-33/epoca_14.h5")    #! Si funciona: 1322
-        app.usar(path_modelo="Resultados_entrenamiento/DQN_2024-05-06_12-21/epoca_13.h5")    #! Si funciona: 1322
+        app.usar()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    os.environ["SUMO_HOME"] = "/usr/share/sumo"
+    os.environ["SUMO_HOME"] = configuracion["sumo"]["path_sumo"]
     signal.signal(signal.SIGINT, cerrar)
     
-    #T* Deteccion 
-    app = Thread(target=run_app_deteccion)
-    app.start()
-    run_api_deteccion()
+    
+    if configuracion["deteccion"]["detectar"]:
+        app = Thread(target=run_app_deteccion)
+        app.start()
+        run_api_deteccion()
     
     
-    # #T* SUMO
-    # gui = True
-    # app = Thread(target=run_app_sumo, args=(gui,))
-    # app.start()
+    if configuracion["sumo"]["simular"]:
+        app = Thread(target=run_app_sumo)
+        app.start()
     
     
-    # # T* Decision
-    # entrenar = False
-    # app2 = Thread(target=run_app_decision, args=(entrenar,))
-    # app2.start()
+    if configuracion["decision"]["decision"]:
+        app2 = Thread(target=run_app_decision)
+        app2.start()
     
-    # run_api_sumo(gui=gui)
+    
+    if configuracion["sumo"]["simular"]:
+        run_api_sumo()
     
     app.join()
-    # app2.join()
+    if configuracion["decision"]["decision"]:
+        app2.join()

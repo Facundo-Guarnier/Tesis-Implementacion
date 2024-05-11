@@ -1,0 +1,49 @@
+deteccion:
+  detectar: True        #* Iniciar la detección de objetos
+  modelo: "yolov8n.pt"  #! Modelo de detección de objetos
+
+  carpeta_dataset: 
+    procesar: False   #* Procesar todos los videos de la carpeta del dataset
+    path_origen: "Dataset/Dataset_reescalado-576x1024-5fps/"    #! Carpeta con los videos a procesar
+    path_destino: "Resultados_deteccion/"   #! Carpeta donde se guardarán los resultados
+
+  un_video: 
+    procesar: True    #* Procesar un video en específico
+    guardar: True     #* Guardar el video con los resultados
+    path_origen: "Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"    #! Path del video a procesar
+    path_destino: "Resultados_deteccion/"     #! Carpeta donde se guardará el video con los resultados
+
+  procesar_camara: False  #* Procesar la cámara en tiempo real
+
+decision:
+  decision: False    #* Iniciar la toma de decisiones 
+  ponderaciones_zonas: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]     #! Ponderaciones de las zonas
+  # ponderaciones_zonas: [1.0, 2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.9, 1.0, 2.9, 2.9]     #! Ponderaciones de las zonas
+  
+  # path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-04-21_16-21/epoca_30.h5"    #! Si funciona: 665
+  # path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5"    #! No funciona: 1235
+  # path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-04-22_11-26/epoca_29.h5"    #! Si funciona: 772
+  # path_modelo_entrenado: "Resultados_entrenamiento-2/DQN_2024-05-02_15-33/epoca_14.h5"  #! Si funciona: 1322
+  path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-05-06_12-21/epoca_13.h5"    #! Si funciona: 786
+  
+  entrenamiento:
+    entrenar: False     #* Entrenar el modelo
+    path_resultado: "Resultados_entrenamiento/"  #! Carpeta donde se guardarán los resultados del entrenamiento
+    num_epocas: 15
+    batch_size: 128
+    steps: 10
+    memory: 6000
+    learning_rate: 0.1
+    learning_rate_decay: 0.9995
+    learning_rate_min: 0.001
+    epsilon: 1
+    epsilon_decay: 0.9995
+    epsilon_min: 0.01
+    gamma: 0.99
+    hidden_layers: [32, 32, 32]
+
+sumo:
+  simular: False    #* Iniciar la simulación en SUMO
+  gui: True         #* Mostrar la interfaz gráfica de SUMO
+  comparar: False   #* Comparar la simulación con la detección de objetos
+  path_sumo: "/usr/share/sumo"  #! Path de la instalación de SUMO
