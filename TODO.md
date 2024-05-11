@@ -1,5 +1,9 @@
 # TODO
 ## General
+    [ ] Dockerizar o implementar otra forma de despliegue.
+    [ ] Limpiar los endpoints que no se usan.
+    [ ] Mejorar la descripcion de los metodos: args, returns...
+    
     [~] No puedo usar flask en debug porque duplica al hilo detector.
     [x] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
         Creo que conviene que la lógica solicite la cantidad al detector.

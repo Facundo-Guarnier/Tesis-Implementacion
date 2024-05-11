@@ -8,7 +8,7 @@ from Deteccion.App.App import AppDetection
 from Deteccion.App.Api import ApiDeteccion
 
 from SUMO.App import AppSUMO
-from SUMO.Api import ApiSUMO
+from SUMO.ApiSUMO import ApiSUMO
 
 from config import configuracion
 
@@ -92,6 +92,15 @@ def run_app_decision() -> None:
         app.usar()
 
 
+#T* Reporte
+def run_app_reporte() -> None:
+    """
+    Genera el reporte de la simulación.
+    """
+    from Reporte.App import AppReporte
+    app = AppReporte()
+    app.generar_reporte()
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     os.environ["SUMO_HOME"] = configuracion["sumo"]["path_sumo"]
@@ -114,9 +123,18 @@ if __name__ == "__main__":
         app2.start()
     
     
+    if configuracion["reporte"]["generar"]:
+        reporte = Thread(target=run_app_reporte)
+        reporte.start()
+    
+    
+    #? Estos va siempre al final
     if configuracion["sumo"]["simular"]:
         run_api_sumo()
     
     app.join()
     if configuracion["decision"]["decision"]:
         app2.join()
+    
+    if configuracion["reporte"]["generar"]:
+        reporte.join()

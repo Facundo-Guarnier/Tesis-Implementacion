@@ -38,29 +38,6 @@ class ZonaList:
             Zona(nombre="Zona L", id="L"),
         ]
 
-
-    def get_cantidades(self) -> dict:
-        """
-        Cantidades de vehículos en todas las zonas.
-        """
-        cantidad_detecciones = {}
-        for zona in self.zonas:
-            cantidad_detecciones[zona.nombre] = zona.cantidad_detecciones
-        
-        return cantidad_detecciones
-
-
-    def get_cantidad_zona(self, zona_nombre:str) -> int:
-        """
-        Cantidad de vehículos en una zona específica.
-        """
-        for zona in self.zonas:
-            if zona.nombre == zona_nombre:
-                return zona.cantidad_detecciones
-        
-        return -1  #! Retornar -1 si la zona no se encuentra
-    
-    
     def get(self) -> List[Zona]:
         """
         Devuelve la lista de todas las zonas.

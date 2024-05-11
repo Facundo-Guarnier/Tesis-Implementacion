@@ -24,7 +24,7 @@ class AppDecision:
         while not conextion:
             try:
                 algoritmo1 = EntrenamientoDQN()
-                Q = algoritmo1.main()
+                algoritmo1.main()
                 conextion = True
             
             except requests.exceptions.ConnectionError as e:

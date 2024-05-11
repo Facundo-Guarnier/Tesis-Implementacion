@@ -15,10 +15,6 @@ class ApiSUMO(Flask):
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
         
-        #! Cantidad vehículos
-        self.route('/cantidad', methods=['GET'])(self.getCantidades)
-        self.route('/cantidad/<zona_name>', methods=['GET'])(self.getCantidadZona)
-        
         #! Tiempo de espera en zona
         self.route('/espera', methods=['GET'])(self.getTiemposEspera)
         self.route('/espera2', methods=['GET'])(self.getTiemposEspera2)
@@ -35,31 +31,19 @@ class ApiSUMO(Flask):
         
         #! Simulación ok
         self.route('/simulacion', methods=['GET'])(self.getSimulacionOK)
-
-
-    def getCantidades(self) -> tuple[Response, int]:
-        """
-        Cantidades de vehículos en todas las zonas.
-        """
-        self.app.setVehiculo()
-        return jsonify(self.zonas.get_cantidades()), 200
-
-
-    def getCantidadZona(self, zona_name:str) -> tuple[Response, int]:
-        """
-        Cantidad de vehículos en una zona específica.
-        """
-        return jsonify(
-            {
-                "zona": zona_name,
-                "cantidad_detecciones": self.zonas.get_cantidad_zona(zona_name),
-            }
-        ), 200
+        
+        #! Reporte de flujo vehicular
+        self.route('/reporte', methods=['GET'])(self.getReporte)
     
     
     def getTiemposEspera(self) -> tuple[Response, int]:
         """
         Obtener el tiempo de espera de todas las zonas en la simulación.
+        
+        Returns:
+            tuple[Response, int]: (dict, status_code)
+                dict: {"tiempo_espera_total": int, "tiempos_espera": list[float]}
+                status_code: int
         """
         return jsonify({
             "tiempo_espera_total": self.app.getTiemposEsperaTotal(),
@@ -75,8 +59,8 @@ class ApiSUMO(Flask):
             "tiempo_espera_total": self.app.getTiemposEsperaTotal(True),
             "tiempos_espera": self.app.getTiemposEspera(True)
         }), 200
-
-
+    
+    
     def getTiempoEspera(self, zona_id:str) -> tuple[Response, int]:
         """
         Obtener el tiempo total de espera de una zona en la simulación.
@@ -86,12 +70,17 @@ class ApiSUMO(Flask):
     
     def getEstados(self) -> tuple[Response, int]:
         """
-        Obtener el estado de un semáforo.
-        - Ej: semaforo'
+        Obtener el estado de todos los semáforos.
+        
+        Returns:
+            tuple[Response, int]: (dict, status_code)
+                dict: {"estados": list[str]}
+                    list[str]: [estado_semaforo_1, estado_semaforo_2, ...]
+                status_code: int
         """
         return jsonify({"estados": self.app.getSemaforosEstados()}), 200
-
-
+    
+    
     def getEstado(self, id:str) -> tuple[Response, int]:
         """
         Obtener el estado de un semáforo.
@@ -142,3 +131,35 @@ class ApiSUMO(Flask):
         Verificar si la simulación está en ejecución.
         """
         return jsonify({"simulacion": self.app.getSimulacionOK()}), 200
+    
+    
+    def getReporte(self) -> tuple[Response, int]:
+        """
+        Reporte de flujo vehicular. Incluye:
+        - Tiempos de espera de cada zona.
+        - Estados de los semáforos.
+        
+        Returns:
+            tuple[Response, int]: (dict, status_code)
+                dict: {
+                    "steps": int,
+                    "tiempos_espera": list[float],
+                    "estados_semaforos": list[str]
+                }
+                status_code: int
+        """
+        print("++++++++\nSteps")
+        steps = self.app.getStepsReporte()
+        print("Tiempos espera")
+        tiempos_espera= self.app.getTiemposEspera()
+        print("Estados semaforos")
+        estados_semaforos= self.app.getSemaforosEstados()
+        
+        return jsonify(
+            {
+                "steps": steps,
+                "tiempos_espera": tiempos_espera,
+                "estados_semaforos": estados_semaforos
+                
+            }
+        ), 200

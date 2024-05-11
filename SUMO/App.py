@@ -38,7 +38,7 @@ class AppSUMO:
         else:
             traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
             self.traci_s1 = traci.getConnection("s1")
-    
+        
         try: 
             #! Crear una tarea en paralelo con concurrencia para la simulación s2
             if self.__comparar:
@@ -145,9 +145,12 @@ class AppSUMO:
         return self.traci_s1.trafficlight.getRedYellowGreenState(semaforo)    
     
     
-    def getSemaforosEstados(self) -> list:
+    def getSemaforosEstados(self) -> list[str]:
         """
         Obtener el estado actual de todos los semáforos.
+        
+        Returns:
+            list: ['GGGGGGGGGGg', 'GGGGGGGGGGg', 'GGGGGGGGGGg', 'GGGGGGGGGGg']
         """
         return [self.traci_s1.trafficlight.getRedYellowGreenState(semaforo) for semaforo in ["1", "2", "3", "4"]]
     
@@ -166,38 +169,49 @@ class AppSUMO:
         return  self.traci_s1.edge.getWaitingTime(zona_id)
     
     
-    def getTiemposEspera(self, s2=False) -> list:
+    def getTiemposEspera(self, s2=False) -> list[float]:
         """
         Obtener todos los tiempos de espera por en todas las zonas.
+        
+        Returns:
+            list[float]: [1.0, 0.0, 8.0, 0.0, 0.0, 12.0, 2.0, 0.0, 5.0, 0.0, 27.0, 0.0]
         """
+        
         if s2:
+            #! Tiempo de espera en la simulación 2 
             if self.traci_s2:
                 while self.traci_s2.simulation.getTime() < 250:
                     self.traci_s2.simulationStep() 
                 
                 return [self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
-            return []
+            return [0.0]
         
         else:
+            #! Tiempo de espera en la simulación 1 (la principal)
             while self.traci_s1.simulation.getTime() < 250:
                 self.traci_s1.simulationStep()
             
             return [self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
     
     
-    def getTiemposEsperaTotal(self, s2=False) -> tuple|Any:
+    def getTiemposEsperaTotal(self, s2=False) -> tuple[float]|Any:
         """
-        Obtener el tiempo total de espera en todas las zonas.
+        Obtener el tiempo total de espera de todas las zonas juntas.
+        
+        Return: 
+            tuple[float]: (55.0)
         """
         
         if s2:
+            #! Tiempo de espera en la simulación 2
             if self.traci_s2:
                 while self.traci_s2.simulation.getTime() < 250:
                     self.traci_s2.simulationStep()
                 return (sum(self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
-            return tuple()
+            return tuple([-1.0])
         
         else:
+            #! Tiempo de espera en la simulación 1 (la principal)
             while self.traci_s1.simulation.getTime() < 250:
                 self.traci_s1.simulationStep()
             return (sum(self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
@@ -240,7 +254,7 @@ class AppSUMO:
         Verificar si la simulación está OK.
         """
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
-
+        
         try:
             estado = self.traci_s1.simulation.getMinExpectedNumber() > 0 and self.traci_s1.simulation.getTime() >= 0
             return estado
@@ -248,3 +262,18 @@ class AppSUMO:
         except Exception as e:
             logger.error(f" Error en la simulación de SUMO: '{e}'")
             return False
+    
+    
+    def getStepsReporte(self) -> int:
+        """
+        Obtener la cantidad de steps que lleva la simulación, para el reporte.
+        Esto es cada x segundos (configurado en el archivo de configuración).
+        
+        Returns:
+            int: 480
+        """
+        
+        while self.traci_s1.simulation.getTime() % configuracion["reporte"]["steps"] != 0:
+            pass
+        
+        return self.traci_s1.simulation.getTime()
