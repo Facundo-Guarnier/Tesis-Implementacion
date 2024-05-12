@@ -256,11 +256,11 @@ class AppSUMO:
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
         
         try:
-            estado = self.traci_s1.simulation.getMinExpectedNumber() > 0 and self.traci_s1.simulation.getTime() >= 0
+            estado = self.traci_s1.simulation.getMinExpectedNumber() > 0 and self.traci_s1.simulation.getTime() >= 250 
             return estado
         
         except Exception as e:
-            logger.error(f" Error en la simulación de SUMO: '{e}'")
+            logger.error(f" La simulacion no está disponible: '{e}'")
             return False
     
     
