@@ -25,6 +25,4 @@ class AppReporte:
         logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}')  # type: ignore
         logger.info("Generar reporte")
         
-        time.sleep(10)
-        print("-----------------------------------------------------------------------------------Generando reporte...")
-        self.reporte.generarReporte()
+        self.reporte.main()

@@ -1,4 +1,4 @@
-import csv, os
+import csv, os, time
 
 from Reporte.Api import ApiReporte
 
@@ -7,15 +7,46 @@ from config import configuracion
 class Reporte:
     def __init__(self) -> None:
         self.__api = ApiReporte()
+        self.__path_reporte = os.path.join(configuracion["reporte"]["path_reporte"], f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}")
     
     
-    def generarReporte(self) -> None:
+    def main(self) -> None:
+        """
+        Método principal para generar el reporte de la simulación.
+        - Crea la carpeta para el reporte.
+        - Verifica si la simulación está en curso.
+        - Genera el reporte de la simulación.
+        """
+        
+        #! Crear carpeta
+        if not os.path.exists(os.path.dirname(self.__path_reporte)):
+            os.makedirs(os.path.dirname(self.__path_reporte))
+        
+        #! Verificar si la simulación fue exitosa
+        while not self.__api.getSimulacionOK():
+            time.sleep(5)
+        
+        #! Generar reporte
+        e = 0
+        while True and e < 5:
+            if not self.generarReporte():
+                print("Error al generar el reporte.")
+                e += 1
+                time.sleep(configuracion["reporte"]["tiempo_entre_reportes"])
+            else:
+                e = 0
+    
+    
+    def generarReporte(self) -> bool:
         """
         Generar reporte de la simulación.
+        
+        Returns:
+            bool: True si el reporte fue generado exitosamente, False en caso contrario.
         """
         
         if not self.__api.getSimulacionOK():
-            return
+            return False
         
         #! Obtener los datos de la simulación
         datos = self.__api.getReporte()
@@ -28,25 +59,50 @@ class Reporte:
             self.alertar()
         
         #! Crear carpeta
-        path_reporte = configuracion["reporte"]["path_reporte"]
-        if not os.path.exists(os.path.dirname(path_reporte)):
-            os.makedirs(os.path.dirname(path_reporte))
+        if not os.path.exists(self.__path_reporte):
+            os.makedirs(self.__path_reporte)
         
         #! Escribir los datos en un archivo CSV
-        with open(path_reporte, 'w', newline='') as archivo_csv:
-            campos = ["steps" "tiempo_espera_total", "tiempos_espera", "estados_semaforos"]
-            escritor_csv = csv.DictWriter(archivo_csv, fieldnames=campos)
-            
-            escritor_csv.writeheader()  # Escribir encabezados
-            
-            for fila in datos:  # type: ignore
-                fila_para_csv = {
-                    "steps": fila["steps"],  # "steps" es el número de iteración, es decir, el "tiempo
-                    "tiempo_espera_total": fila["tiempo_espera_total"],
-                    "tiempos_espera": ','.join(map(str, fila["tiempos_espera"])),  # Convertir la lista de flotantes a una cadena separada por comas
-                    "estados_semaforos": ','.join(fila["estados_semaforos"])  # Convertir la lista de strings a una cadena separada por comas
-                }
-                escritor_csv.writerow(fila_para_csv)  # Escribir filas
+        path_csv = self.__path_reporte + "/reporte.csv"
+        
+        #! Verificar si el archivo ya existe
+        if not os.path.isfile(path_csv):
+            with open(path_csv, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([
+                    "Steps", 
+                    "Semaforo 1", 
+                    "Semaforo 2", 
+                    "Semaforo 3", 
+                    "Semaforo 4", 
+                    "Tiempo de espera total", 
+                    "Zona A", "Zona B", "Zona C", "Zona D", "Zona E", "Zona F", "Zona G", "Zona H", "Zona I", "Zona J", "Zona K", "Zona L"
+                ])
+        
+        #! Escribir los datos en el archivo
+        with open(path_csv, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([
+                    datos["steps"], 
+                    datos["estados_semaforos"][0], 
+                    datos["estados_semaforos"][1], 
+                    datos["estados_semaforos"][2], 
+                    datos["estados_semaforos"][3], 
+                    datos["tiempo_espera_total"], 
+                    datos["tiempos_espera"][0], 
+                    datos["tiempos_espera"][1], 
+                    datos["tiempos_espera"][2], 
+                    datos["tiempos_espera"][3], 
+                    datos["tiempos_espera"][4], 
+                    datos["tiempos_espera"][5], 
+                    datos["tiempos_espera"][6], 
+                    datos["tiempos_espera"][7], 
+                    datos["tiempos_espera"][8], 
+                    datos["tiempos_espera"][9], 
+                    datos["tiempos_espera"][10], 
+                    datos["tiempos_espera"][11], 
+                ])
+        return True
     
     
     def alertar(self) -> None:
@@ -55,6 +111,3 @@ class Reporte:
         """
         
         print("\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nAlerta: El tiempo de espera total es mayor al tiempo de espera máximo permitido.\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        
-        
-        

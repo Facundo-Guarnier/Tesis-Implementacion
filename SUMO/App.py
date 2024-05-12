@@ -276,4 +276,4 @@ class AppSUMO:
         while self.traci_s1.simulation.getTime() % configuracion["reporte"]["steps"] != 0:
             pass
         
-        return self.traci_s1.simulation.getTime()
+        return int(self.traci_s1.simulation.getTime())
