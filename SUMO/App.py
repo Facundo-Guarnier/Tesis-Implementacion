@@ -105,7 +105,7 @@ class AppSUMO:
         Cambiar el color de todos los semáforos.
         
         Args:
-            estados: Lista de estados de los semáforos. [{'id': 1, 'estado': 'ggggggggggg'}, {'id': 2, 'estado': 'gggggggggggg'}, {'id': 3, 'estado': 'rrrrrrrrrrrr'}, {'id': 4, 'estado': 'rrrrrrrrrr'}]
+            estados_nuevos: Lista de estados de los semáforos. [{'id': '1', 'estado': 'GGGGGGrrrrr'}, {'id': '2', 'estado': 'GGGrrrrrGGg'}, {'id': '3', 'estado': 'GGgGGGrrrrr'}, {'id': '4', 'estado': 'GGGrrrrGGg'}]
         """
         
         estados_amarillos:list[dict] = []

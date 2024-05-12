@@ -8,7 +8,7 @@ from Deteccion.App.App import AppDetection
 from Deteccion.App.Api import ApiDeteccion
 
 from SUMO.App import AppSUMO
-from SUMO.ApiSUMO import ApiSUMO
+from SUMO.Api import ApiSUMO
 
 from config import configuracion
 
