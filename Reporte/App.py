@@ -8,7 +8,6 @@
 # para el segundo caso de usuario.
 
 import inspect, logging
-import time
 from Reporte.Reporte import Reporte
 
 

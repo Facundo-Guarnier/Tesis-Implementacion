@@ -55,6 +55,6 @@ reporte:
   generar: True    #* Generar el reporte de la simulación
   path_reporte: "Resultados_reportes/"   #! Carpeta donde se guardará el reporte
   steps: 60      #! Número de pasos a considerar entre cada reporte
-  tiempo_total_espera_maximo: 700    #! Tiempo de espera máximo en segundos en total
-  tiempo_zona_espera_maximo: 190     #! Tiempo de espera máximo en segundos por zona
+  tiempo_total_espera_maximo: 1250    #! Tiempo de espera máximo en segundos en total
+  tiempo_zona_espera_maximo: 350     #! Tiempo de espera máximo en segundos por zona
   tiempo_entre_reportes: 5    #! Tiempo entre cada intento fallado de reporte en segundos

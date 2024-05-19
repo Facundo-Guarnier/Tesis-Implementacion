@@ -1,13 +1,21 @@
-import csv, os, time
+import os, time, sqlite3, logging, inspect
 
 from Reporte.Api import ApiReporte
 
 from config import configuracion
 
+
 class Reporte:
     def __init__(self) -> None:
+        logging.basicConfig(level=logging.DEBUG)
         self.__api = ApiReporte()
-        self.__path_reporte = os.path.join(configuracion["reporte"]["path_reporte"], f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}")
+        self.__path_reporte = os.path.join(
+            configuracion["reporte"]["path_reporte"],
+            f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+        )
+        self.__db_conn:sqlite3.Connection|None = None   #! Conexión a la base de datos
+        self.__cursor:sqlite3.Cursor|None = None    #! Cursor de la base de datos
+        self.__crear_logger()
     
     
     def main(self) -> None:
@@ -17,31 +25,81 @@ class Reporte:
         - Verifica si la simulación está en curso.
         - Genera el reporte de la simulación.
         """
+        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}')  # type: ignore
         
         #! Verificar si la simulación fue exitosa
         while not self.__api.getSimulacionOK():
             time.sleep(1)
         
-        self.crearCSV()
+        self.__conectar_db()
+        self.__crear_tabla()
         
         #! Generar reporte
         e = 0
         while True and e < 5:
-            datos = self.obtenerDatos()
+            datos = self.__obtener_datos()
             
-            if datos == {} or not self.generarReporte(datos=datos):
-                print(f"Error al generar el reporte. Reintentando... ({e + 1}/{5})")
+            if datos == {} or not self.__guardar_reporte(datos=datos):
+                logger.error(
+                    f" Error al generar el reporte. Reintentando... ({e + 1}/{5})"
+                )
                 e += 1
                 time.sleep(configuracion["reporte"]["tiempo_entre_reportes"])
-                
+            
             else:
                 e = 0
-                self.alertar(datos=datos)
+                self.__alertar(datos=datos)
         
-        print("Falló 5 veces seguidas al intentar generar el reporte.")
+        logger.error(" Falló 5 veces seguidas al intentar generar el reporte.")
+        self.__cerrar_db()
     
     
-    def obtenerDatos(self) -> dict:
+    def __crear_logger(self):
+        """
+        Crea un logger para registrar las alertas en un archivo .log.
+        """
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        
+        log_dir = os.path.join(self.__path_reporte)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        #! Crear un manejador de archivos para escribir las alertas en un archivo .log
+        file_handler = logging.FileHandler(
+            os.path.join(self.__path_reporte, "alertas.log")
+        )
+        file_handler.setLevel(logging.INFO)
+        
+        #! Crear un formateador para dar formato a los mensajes de registro
+        formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(message)s"
+        )
+        file_handler.setFormatter(formatter)
+        
+        #! Agregar el manejador de archivos al logger
+        self.logger.addHandler(file_handler)
+    
+    
+    def __conectar_db(self) -> None:
+        """
+        Conecta a la base de datos SQLite.
+        """
+        self.__db_conn = sqlite3.connect(
+            os.path.join(self.__path_reporte, "reporte.db")
+        )
+        self.__cursor = self.__db_conn.cursor()
+    
+    
+    def __cerrar_db(self) -> None:
+        """
+        Cierra la conexión a la base de datos.
+        """
+        if self.__db_conn:
+            self.__db_conn.close()
+    
+    
+    def __obtener_datos(self) -> dict:
         """
         Obtener los datos de la simulación.
         
@@ -62,73 +120,100 @@ class Reporte:
         return datos
     
     
-    def crearCSV(self) -> None:
+    def __crear_tabla(self) -> None:
         """
-        Crear la carpeta y el archivo CSV para el reporte.
+        Crea la tabla en la base de datos SQLite si no existe.
         """
-        #! Crear carpeta
-        if not os.path.exists((self.__path_reporte)):
-            os.makedirs((self.__path_reporte))
-        
-        self.__path_reporte = self.__path_reporte + "/reporte.csv"
-        
-        #! Verificar si el archivo ya existe
-        if not os.path.isfile(self.__path_reporte):
-            with open(self.__path_reporte, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow([
-                    "Steps", 
-                    "Semaforo 1", 
-                    "Semaforo 2", 
-                    "Semaforo 3", 
-                    "Semaforo 4", 
-                    "Tiempo de espera total", 
-                    "Zona A", "Zona B", "Zona C", "Zona D", "Zona E", "Zona F", "Zona G", "Zona H", "Zona I", "Zona J", "Zona K", "Zona L"
-                ])
+        sql = """
+            CREATE TABLE IF NOT EXISTS reporte (
+                Steps INTEGER PRIMARY KEY,
+                Semaforo1 TEXT,
+                Semaforo2 TEXT,
+                Semaforo3 TEXT,
+                Semaforo4 TEXT,
+                TiempoTotal INTEGER,
+                ZonaA INTEGER,
+                ZonaB INTEGER,
+                ZonaC INTEGER,
+                ZonaD INTEGER,
+                ZonaE INTEGER,
+                ZonaF INTEGER,
+                ZonaG INTEGER,
+                ZonaH INTEGER,
+                ZonaI INTEGER,
+                ZonaJ INTEGER,
+                ZonaK INTEGER,
+                ZonaL INTEGER
+            );
+        """
+        if not self.__cursor or not self.__db_conn:
+            return
+        self.__cursor.execute(sql)
+        self.__db_conn.commit()
     
     
-    def generarReporte(self, datos: dict) -> bool:
+    def __guardar_reporte(self, datos: dict) -> bool:
         """
-        Generar reporte de la simulación.
+        Guarda los datos del reporte en la base de datos SQLite.
         
         Args:
             datos (dict): Datos de la simulación.
         
         Returns:
-            bool: True si el reporte fue generado exitosamente, False en caso contrario.
+            bool: True si se guardaron los datos correctamente, False en caso contrario.
         """
-        try: 
-            #! Escribir los datos en el archivo
-            with open(self.__path_reporte, mode='a', newline='') as file:
-                    writer = csv.writer(file)
-                    writer.writerow([
-                        datos["steps"], 
-                        datos["estados_semaforos"][0], 
-                        datos["estados_semaforos"][1], 
-                        datos["estados_semaforos"][2], 
-                        datos["estados_semaforos"][3], 
-                        datos["tiempo_espera_total"], 
-                        datos["tiempos_espera"][0], 
-                        datos["tiempos_espera"][1], 
-                        datos["tiempos_espera"][2], 
-                        datos["tiempos_espera"][3], 
-                        datos["tiempos_espera"][4], 
-                        datos["tiempos_espera"][5], 
-                        datos["tiempos_espera"][6], 
-                        datos["tiempos_espera"][7], 
-                        datos["tiempos_espera"][8], 
-                        datos["tiempos_espera"][9], 
-                        datos["tiempos_espera"][10], 
-                        datos["tiempos_espera"][11], 
-                    ])
-            return True
         
+        try:
+            sql = """
+                INSERT INTO reporte (
+                    Steps, 
+                    Semaforo1, 
+                    Semaforo2, 
+                    Semaforo3, 
+                    Semaforo4, 
+                    TiempoTotal, 
+                    ZonaA, ZonaB, ZonaC, ZonaD, ZonaE, ZonaF, ZonaG, ZonaH, ZonaI, ZonaJ, ZonaK, ZonaL
+                ) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}')  # type: ignore
+            if not self.__cursor:
+                return False
+            else:
+                self.__cursor.execute(
+                    sql,
+                    (
+                        datos["steps"],
+                        datos["estados_semaforos"][0],
+                        datos["estados_semaforos"][1],
+                        datos["estados_semaforos"][2],
+                        datos["estados_semaforos"][3],
+                        datos["tiempo_espera_total"],
+                        datos["tiempos_espera"][0],
+                        datos["tiempos_espera"][1],
+                        datos["tiempos_espera"][2],
+                        datos["tiempos_espera"][3],
+                        datos["tiempos_espera"][4],
+                        datos["tiempos_espera"][5],
+                        datos["tiempos_espera"][6],
+                        datos["tiempos_espera"][7],
+                        datos["tiempos_espera"][8],
+                        datos["tiempos_espera"][9],
+                        datos["tiempos_espera"][10],
+                        datos["tiempos_espera"][11],
+                    ),
+                )
+                if not self.__db_conn:
+                    return False
+                else:
+                    self.__db_conn.commit()
+                    return True
         except Exception as e:
-            print(f"Error al generar el reporte: {e}")
+            logger.error(f" Error al guardar el reporte en la base de datos: {e}")
             return False
     
     
-    def alertar(self, datos: dict) -> None:
+    def __alertar(self, datos: dict) -> None:
         """
         Revisa si se tiene que generar alguna alerta. Condiciones: 
         - Tiempo de espera total mayor al tiempo de espera máximo permitido.
@@ -138,8 +223,14 @@ class Reporte:
             datos (dict): Datos de la simulación.
         """
         
-        if datos["tiempo_espera_total"] > configuracion["reporte"]["tiempo_total_espera_maximo"]:
-            print(f"\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nAlerta {datos['steps']}: El tiempo de espera total es mayor al tiempo de espera máximo permitido.\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        if (datos["tiempo_espera_total"] > configuracion["reporte"]["tiempo_total_espera_maximo"]):
+            self.logger.warning(
+                f"Step {datos['steps']}: Tiempo de espera total mayor al permitido ({datos['tiempo_espera_total']})."
+            )
         
         if max(datos["tiempos_espera"]) > configuracion["reporte"]["tiempo_zona_espera_maximo"]:
-            print(f"\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nAlerta {datos['steps']}: El tiempo de espera de una zona es mayor al tiempo de espera máximo permitido.\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            indice_zona_maxima = datos["tiempos_espera"].index(max(datos["tiempos_espera"]))
+            nombre_zona_maxima = chr(ord('A') + indice_zona_maxima)  #! Convertir índice a letra
+            self.logger.warning(
+                f"Step {datos['steps']}: Tiempo de espera en la zona {nombre_zona_maxima} mayor permitido ({max(datos['tiempos_espera'])})."
+            )

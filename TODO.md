@@ -1,7 +1,5 @@
 # TODO
 ## General
-    [ ] Las alertas que se guarden en un .log   
-    [ ] Los reportes se guarden en una DB así puedo hacer consultas.
     [ ] Agregar 100 / (tiempo + cantidad + 100) ??
 
     [ ] Hacer lo de la multas con los autos de la Zona C, parece que está bastante bien grabado.
@@ -9,6 +7,8 @@
     [ ] Dockerizar o implementar otra forma de despliegue.
     [ ] Limpiar los endpoints que no se usan.
     
+    [x] Los reportes se guarden en una DB así puedo hacer consultas.
+    [x] Las alertas que se guarden en un .log   
     [~] No puedo usar flask en debug porque duplica al hilo detector.
     [x] ¿Qué conviene?: El Detector notifique a la Lógica o la Lógica consulte al Detector.
         Creo que conviene que la lógica solicite la cantidad al detector.
