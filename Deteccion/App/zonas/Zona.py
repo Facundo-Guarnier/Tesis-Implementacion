@@ -58,6 +58,36 @@ class Zona:
                 puntos_objetivos.append([x_objetivo, y_objetivo])
 
             self.puntos_reescalados = np.array(puntos_objetivos)
+    
+    
+    def escalar_puntos_multa(self, resolucion_objetivo: tuple) -> None:
+        """
+        Escala los puntos originales de la multas de la zona a la resolución objetivo.
+        
+        Args:
+            resolucion_objetivo (tuple): Resolución a la que se quiere escalar los puntos de la multa.
+        """
+        
+        if self.__resolucion != resolucion_objetivo:
+            puntos_objetivos = []
+            
+            for punto in self.puntos_multa_originales:
+                x_original, y_original = punto
+                
+                ancho_original, alto_original = self.__resolucion
+                ancho_objetivo, alto_objetivo = resolucion_objetivo
+                
+                #! Calcular las proporciones de escala en x e y
+                escala_x = ancho_objetivo / ancho_original
+                escala_y = alto_objetivo / alto_original
+                
+                #! Aplicar la escala al punto
+                x_objetivo = int(x_original * escala_x)
+                y_objetivo = int(y_original * escala_y)
+                
+                puntos_objetivos.append([x_objetivo, y_objetivo])
+            
+            self.puntos_multa_reescalados = np.array(puntos_objetivos)
 
 
     def __str__(self) -> str:

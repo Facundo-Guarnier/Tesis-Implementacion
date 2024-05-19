@@ -1,5 +1,6 @@
 # TODO
 ## General
+    [ ] Revisar las multas. Como funcionan las lineas? tiene que pasar el centro o el box entero de un objeto para ser contado?
     [ ] Agregar 100 / (tiempo + cantidad + 100) ??
 
     [ ] Hacer lo de la multas con los autos de la Zona C, parece que está bastante bien grabado.

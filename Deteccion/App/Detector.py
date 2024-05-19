@@ -40,6 +40,7 @@ class Detector:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
     
+    
     def __definir_parametros_supervision(self) -> None:
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
@@ -61,9 +62,16 @@ class Detector:
         )
         
         #! Línea de multas
-        start, end = sv.Point(x=450, y=550), sv.Point(x=450, y=950)
-        self.line_zone = sv.LineZone(start=start, end=end)
+        self.video.zona.escalar_puntos_multa(self.video.resolucion)
+        self.line_zones:list[sv.LineZone] = []
+        p = self.video.zona.puntos_multa_reescalados
+        print("Puntos de la multa: ", p)
+        for i in range(len(p) - 1):
+            start = sv.Point(p[i][0], p[i][1])
+            end = sv.Point(p[i+1][0], p[i+1][1])
+            self.line_zones.append(sv.LineZone(start=start, end=end))
         
+        #! Anotador de línea de multas
         self.linea_zone_annotator = sv.LineZoneAnnotator(
             thickness=max(1, int(3 * self.video.factor_escala)),
             text_thickness=max(1, int(2 * self.video.factor_escala)),
@@ -180,25 +188,27 @@ class Detector:
         """
         # https://supervision.roboflow.com/latest/detection/tools/line_zone/#supervision.detection.line_zone.LineZone.trigger 
         
-        crossed_in, crossed_out = self.line_zone.trigger(detections)
-        for i, tracker_id in enumerate(detections.tracker_id):
-            if crossed_out[i]:  #! Verificar si el objeto cruzó la línea
-                idx = np.where(detections.tracker_id == tracker_id)[0][0]
-                bbox = detections.xyxy[idx]
-                class_id = detections.class_id[idx]
-                
-                x1, y1, x2, y2 = map(int, bbox)  #! Convertir las coordenadas a enteros
-                imagen_recortada = frame[round(y1*0.9):round(y2*1.1), round(x1*0.9):round(x2*1.1)]
-                
-                #! Guardar la imagen recortada
-                nombre_archivo =  os.path.join(
-                    self.__path_multas, 
-                    f"multa_{tracker_id}.jpg"
-                )
-                cv2.imwrite(nombre_archivo, imagen_recortada)
-                print(f"Guardado: {nombre_archivo}") 
-        
-        frame = self.linea_zone_annotator.annotate(frame, self.line_zone)
+        for line_zone in self.line_zones:
+            
+            crossed_in, crossed_out = line_zone.trigger(detections)
+            for i, tracker_id in enumerate(detections.tracker_id):
+                if crossed_out[i]:  #! Verificar si el objeto cruzó la línea
+                    idx = np.where(detections.tracker_id == tracker_id)[0][0]
+                    bbox = detections.xyxy[idx]
+                    class_id = detections.class_id[idx]
+                    
+                    x1, y1, x2, y2 = map(int, bbox)  #! Convertir las coordenadas a enteros
+                    imagen_recortada = frame[round(y1*0.9):round(y2*1.1), round(x1*0.9):round(x2*1.1)]
+                    
+                    #! Guardar la imagen recortada
+                    nombre_archivo =  os.path.join(
+                        self.__path_multas, 
+                        f"multa_{tracker_id}.jpg"
+                    )
+                    cv2.imwrite(nombre_archivo, imagen_recortada)
+                    print(f"Guardado: {nombre_archivo}") 
+            
+            frame = self.linea_zone_annotator.annotate(frame, line_zone)
         
         return frame
     
