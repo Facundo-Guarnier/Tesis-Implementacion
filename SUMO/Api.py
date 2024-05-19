@@ -148,18 +148,11 @@ class ApiSUMO(Flask):
                 }
                 status_code: int
         """
-        print("++++++++\nSteps")
-        steps = self.app.getStepsReporte()
-        print("Tiempos espera")
-        tiempos_espera= self.app.getTiemposEspera()
-        print("Estados semaforos")
-        estados_semaforos= self.app.getSemaforosEstados()
-        
         return jsonify(
             {
-                "steps": steps,
-                "tiempos_espera": tiempos_espera,
-                "estados_semaforos": estados_semaforos
+                "steps": self.app.getStepsReporte(),
+                "tiempos_espera":  self.app.getTiemposEspera(),
+                "estados_semaforos": self.app.getSemaforosEstados()
                 
             }
         ), 200

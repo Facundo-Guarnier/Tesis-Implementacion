@@ -87,6 +87,7 @@ def run_app_decision() -> None:
     app = AppDecision()
     if configuracion["decision"]["entrenamiento"]["entrenar"]:
         app.entrenar()
+        cerrar(0, 0)
     
     else:
         app.usar()

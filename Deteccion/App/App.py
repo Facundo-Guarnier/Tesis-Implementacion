@@ -54,7 +54,7 @@ class AppDetection:
                             )
                             
                             print(f" -Video N°{i}: {archivo_video}")
-                            self.detector.procesar_guardar(
+                            self.detector.procesar_y_guardar_video(
                                 video=video
                             )
                             print(f"  Videos procesado\n")
@@ -76,7 +76,7 @@ class AppDetection:
         )
         
         print("Procesando video...")
-        self.detector.procesar_un_video(
+        self.detector.procesar_y_mostrar_resultado_en_vivo(
             video=video
         )
         print("Video procesado.")

@@ -74,3 +74,22 @@ class ZonaList:
         Devuelve la lista de todas las zonas.
         """
         return self.zonas
+    
+    
+    def activar_multas(self, zona_nombre:str) -> bool:
+        """
+        Activa/desactiva las multas en las zonas.
+        
+        Args:
+            zona_nombre (str): Nombre de la zona. Ej: "Zona A"
+        
+        Returns:
+            bool: Estado de las multas de la zona.
+        """
+        
+        for zona in self.zonas:
+            if zona.nombre == zona_nombre:
+                zona.multas_activadas = not zona.multas_activadas
+                return zona.multas_activadas
+        
+        return False

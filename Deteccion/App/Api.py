@@ -19,15 +19,18 @@ class ApiDeteccion(Flask):
         
         #! Tiempos
         self.route('/espera', methods=['GET'])(self.tiempos)
-
-
+        
+        #! Multas
+        self.route('/multas/<zona_name>', methods=['POST'])(self.activar_multas)
+    
+    
     def cantidades(self) -> tuple[Response, int]:
         """
         Cantidades de vehículos en todas las zonas.
         """
         return jsonify(self.zonas.get_cantidades()), 200
-
-
+    
+    
     def cantidad_zona(self, zona_name:str) -> tuple[Response, int]:
         """
         Cantidad de vehículos en una zona específica.
@@ -48,3 +51,11 @@ class ApiDeteccion(Flask):
             "tiempo_espera_total": self.zonas.get_tiempos_total(),
             "tiempos_espera": self.zonas.get_tiempos(),
         }), 200
+    
+    
+    def activar_multas(self, zona_name:str) -> tuple[Response, int]:
+        """
+        Activa las multas en las zonas.
+        """
+        
+        return jsonify({"mensaje": f"Multas {zona_name}: {self.zonas.activar_multas(zona_name)}"}), 200

@@ -198,6 +198,10 @@ class EntrenamientoDQN:
             
             logger.info(f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada.")
     
+        logger.info(" Entrenamiento finalizado.")
+        
+        
+    
     
     def __estado(self) -> NDArray:
         """
