@@ -3,6 +3,7 @@ import cv2
 class Coordinates:
     def __init__(self, video_path: str):
         self.cap = cv2.VideoCapture(video_path)
+        self.pixel_coordinates:list[list[int]] = []
 
         # Establecer el tamaño de la ventana a la mitad del tamaño original
         cv2.namedWindow("Frame", cv2.WINDOW_NORMAL)
@@ -15,7 +16,7 @@ class Coordinates:
 
     def print_coordinates(self, event, x, y, flags, params):
         if event == cv2.EVENT_LBUTTONDOWN:
-            print(f"[{x}, {y}],")
+            self.pixel_coordinates.append([x, y])
 
     def video(self):
         while True:
@@ -34,7 +35,6 @@ class Coordinates:
         cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    v = r"Deteccion/Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"
+    v = r"D:\Repositorios_GitHub\Tesis-Implementacion\Dataset\Dataset_original\Zona L\20240102_133830.mp4"
     c = Coordinates(v)
-    print("Terminado")
-
+    print(c.pixel_coordinates)

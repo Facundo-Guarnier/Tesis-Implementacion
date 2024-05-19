@@ -60,6 +60,7 @@ class Detector:
             text_scale=max(1, int(1 * self.video.factor_escala)),
         )
         
+        #! Línea de multas
         start, end = sv.Point(x=450, y=550), sv.Point(x=450, y=950)
         self.line_zone = sv.LineZone(start=start, end=end)
         
@@ -179,26 +180,23 @@ class Detector:
         """
         # https://supervision.roboflow.com/latest/detection/tools/line_zone/#supervision.detection.line_zone.LineZone.trigger 
         
-        
         crossed_in, crossed_out = self.line_zone.trigger(detections)
         for i, tracker_id in enumerate(detections.tracker_id):
-            if crossed_out[i]:  # Verificar si el objeto cruzó la línea
+            if crossed_out[i]:  #! Verificar si el objeto cruzó la línea
                 idx = np.where(detections.tracker_id == tracker_id)[0][0]
                 bbox = detections.xyxy[idx]
                 class_id = detections.class_id[idx]
                 
-                x1, y1, x2, y2 = map(int, bbox)  # Convertir las coordenadas a enteros
+                x1, y1, x2, y2 = map(int, bbox)  #! Convertir las coordenadas a enteros
                 imagen_recortada = frame[round(y1*0.9):round(y2*1.1), round(x1*0.9):round(x2*1.1)]
                 
-                # Guardar la imagen recortada
+                #! Guardar la imagen recortada
                 nombre_archivo =  os.path.join(
                     self.__path_multas, 
                     f"multa_{tracker_id}.jpg"
                 )
                 cv2.imwrite(nombre_archivo, imagen_recortada)
                 print(f"Guardado: {nombre_archivo}") 
-                
-        # print(self.line_zone.in_count, self.line_zone.out_count)
         
         frame = self.linea_zone_annotator.annotate(frame, self.line_zone)
         
@@ -221,7 +219,8 @@ class Detector:
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
         
-        frame = self.__multas(frame, detections)
+        if self.video.zona.multas_activadas:
+            frame = self.__multas(frame, detections)
         
         frame = self.__poligono_cv2(frame, detections)
         

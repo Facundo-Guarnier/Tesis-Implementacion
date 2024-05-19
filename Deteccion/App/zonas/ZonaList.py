@@ -25,7 +25,7 @@ class ZonaList:
     def __cargar_zonas(self) -> List[Zona]:
         with open('Deteccion/App/zonas/zonas.yaml', 'r') as archivo:
             datos_yaml = yaml.safe_load(archivo)
-            return [Zona(nombre=zona['Nombre'], resolucion=tuple(zona['Resolucion']), puntos_originales=np.array(zona['Puntos'])) for zona in datos_yaml['Zonas']]
+            return [Zona(nombre=zona['Nombre'], resolucion=tuple(zona['Resolucion']), puntos_originales=np.array(zona['Puntos']), puntos_multa_originales=np.array(zona['Multa'])) for zona in datos_yaml['Zonas']]
     
     
     def get_cantidades(self) -> dict:

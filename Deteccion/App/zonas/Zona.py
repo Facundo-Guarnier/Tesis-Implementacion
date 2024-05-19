@@ -13,17 +13,23 @@ class Zona:
         - resolucion (tuple): Resolución de la pantalla en la que se ha tomado la zona.
         - puntos_originales (np.ndarray): Puntos de la zona en la resolución original.
         - puntos_reescalados (np.ndarray): Puntos de la zona reescalados a la resolución objetivo.
+        
         - multas_activadas (bool): Indica si las multas están activadas en la zona.
+        
         - cantidad_detecciones (int): Cantidad de detecciones que han ocurrido en la zona.
         - tiempo_espera (int): Tiempo de espera en la zona.
     """
     
-    def __init__(self, nombre: str, resolucion: tuple, puntos_originales:np.ndarray) -> None:
+    def __init__(self, nombre: str, resolucion: tuple, puntos_originales:np.ndarray, puntos_multa_originales:np.ndarray) -> None:
         self.nombre = nombre
         self.__resolucion = resolucion
         self.puntos_originales = puntos_originales
         self.puntos_reescalados = puntos_originales
+        
         self.multas_activadas:bool = False
+        self.puntos_multa_originales:np.ndarray = puntos_multa_originales
+        self.puntos_multa_reescalados:np.ndarray = puntos_multa_originales
+        
         self.cantidad_detecciones:int = 0
         self.tiempo_espera:int = 0
 
