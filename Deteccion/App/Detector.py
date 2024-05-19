@@ -1,3 +1,4 @@
+import os
 import matplotlib.path as mplPath
 import ultralytics as ul 
 import supervision as sv 
@@ -30,29 +31,43 @@ class Detector:
         self.__CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.__CLASES  = self.modelo.model.names
         self.tiempos_deteccion = {}  # Diccionario para almacenar tiempos de detección
+        
+        self.__path_multas = os.path.join(
+            "Resultados_multa",
+            f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+        )
+        log_dir = os.path.join(self.__path_multas)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
     
     def __definir_parametros_supervision(self) -> None:
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
         """
         
-        #! Instancia de ByteTracker, proporciona el seguimiento de los objetos.
+        #! Seguidor de los objetos.
         self.byte_tracker = sv.ByteTrack(
-            track_thresh=0.25, 
-            match_thresh=0.8, 
-            track_buffer=self.video.fps,    #! Cantidad de frames que se mantiene el seguimiento de un objeto (1 segundo) 
-            frame_rate=self.video.fps,
+            # track_thresh=0.25, 
+            # match_thresh=0.8, 
+            # track_buffer=self.video.fps+10,    #! Cantidad de frames que se mantiene el seguimiento de un objeto (1 segundo) 
+            # frame_rate=self.video.fps,
         )
         
-        #! Dibujar box en los objetos
+        #! Dibujador de box en los objetos.
         self.box_annotator = sv.BoxAnnotator(
             thickness=max(1, int(3 * self.video.factor_escala)), 
             text_thickness=max(1, int(2 * self.video.factor_escala)), 
             text_scale=max(1, int(1 * self.video.factor_escala)),
         )
         
-        #! Linea contadora
-        self.line_counter = sv.LineZone(start=sv.Point(50, 150), end=sv.Point(50, 350))
+        start, end = sv.Point(x=450, y=550), sv.Point(x=450, y=950)
+        self.line_zone = sv.LineZone(start=start, end=end)
+        
+        self.linea_zone_annotator = sv.LineZoneAnnotator(
+            thickness=max(1, int(3 * self.video.factor_escala)),
+            text_thickness=max(1, int(2 * self.video.factor_escala)),
+            text_scale=max(1, int(1 * self.video.factor_escala)),
+        )
     
     
     def __poligono_cv2(self, frame, detections:sv.Detections) -> np.ndarray:
@@ -70,16 +85,12 @@ class Detector:
             thickness=max(1, int(10 * self.video.factor_escala)),
         )
         
-        
         #! Lista de IDs de objetos que ya no están en la imagen
         ids_fuera_imagen = [id for id in self.tiempos_deteccion if id not in detections.tracker_id]
         for id in ids_fuera_imagen:
             del self.tiempos_deteccion[id]
         
-        
-        
-        
-        
+        #! Dibujar el centro de los objetos
         detecciones_poligono = 0
         for box, mask, confianza, class_id, tracker_id in detections:
             #! Centros
@@ -99,8 +110,7 @@ class Detector:
                     self.tiempos_deteccion[tracker_id] += 1
                 else:
                     self.tiempos_deteccion[tracker_id] = 1
-                
-                
+            
             else:
                 color = [0,0,255]
                 #! Reiniciar el tiempo de detección
@@ -113,7 +123,6 @@ class Detector:
                 color=color, 
                 thickness=max(1, int(10 * self.video.factor_escala))
             )
-        
         
         frame_total = sum(self.tiempos_deteccion.values())
         tiempo_total = frame_total // self.video.fps
@@ -157,6 +166,45 @@ class Detector:
         )
     
     
+    def __multas(self, frame:np.ndarray, detections:sv.Detections) -> np.ndarray:
+        """
+        Realiza la deteccion de multas y guarda la foto de la multa.
+        
+        Args:
+            frame (np.ndarray): Frame actual. 
+            detections (sv.Detections): Detecciones de objetos en el frame.
+        
+        Returns:
+            np.ndarray: Frame resultante con las multas. 
+        """
+        # https://supervision.roboflow.com/latest/detection/tools/line_zone/#supervision.detection.line_zone.LineZone.trigger 
+        
+        
+        crossed_in, crossed_out = self.line_zone.trigger(detections)
+        for i, tracker_id in enumerate(detections.tracker_id):
+            if crossed_out[i]:  # Verificar si el objeto cruzó la línea
+                idx = np.where(detections.tracker_id == tracker_id)[0][0]
+                bbox = detections.xyxy[idx]
+                class_id = detections.class_id[idx]
+                
+                x1, y1, x2, y2 = map(int, bbox)  # Convertir las coordenadas a enteros
+                imagen_recortada = frame[round(y1*0.9):round(y2*1.1), round(x1*0.9):round(x2*1.1)]
+                
+                # Guardar la imagen recortada
+                nombre_archivo =  os.path.join(
+                    self.__path_multas, 
+                    f"multa_{tracker_id}.jpg"
+                )
+                cv2.imwrite(nombre_archivo, imagen_recortada)
+                print(f"Guardado: {nombre_archivo}") 
+                
+        # print(self.line_zone.in_count, self.line_zone.out_count)
+        
+        frame = self.linea_zone_annotator.annotate(frame, self.line_zone)
+        
+        return frame
+    
+    
     def __callback(self, frame:np.ndarray, n_frame:int) -> np.ndarray:
         """
         - Procesamiento de video.
@@ -173,15 +221,12 @@ class Detector:
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
         
+        frame = self.__multas(frame, detections)
+        
         frame = self.__poligono_cv2(frame, detections)
         
         frame = self.__box_sv(frame, detections)
         
-        #TODO ACA ESTOY, DIBUJANDO LA LINEA DE CONTEO DE VEHICULOS, Y EN LA 55
-        # https://supervision.roboflow.com/latest/detection/tools/line_zone/#supervision.detection.line_zone.LineZone.trigger 
-        # cv2.line(frame, (50, 550), (50, 850), (0, 255, 0), 3)
-        # crossed_in, crossed_out = self.line_counter.trigger(detections)
-        # print(f"Vehiculos que cruzaron la linea: {self.line_counter.in_count}, Vehiculos que salieron: {self.line_counter.out_count}") 
         return frame
     
     
