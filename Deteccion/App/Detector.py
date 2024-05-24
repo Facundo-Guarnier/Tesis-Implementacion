@@ -21,7 +21,6 @@ class Detector:
         modelo (YOLO): Modelo de detección de objetos.
         tiempos_deteccion (dict): Diccionario para almacenar los tiempos de detección de los objetos.
         byte_tracker (ByteTrack): Proporciona el seguimiento de los objetos.
-        box_annotator (BoxAnnotator): Dibuja las box de los objetos.
         video (Video): Video a procesar.
         
     """
@@ -59,9 +58,11 @@ class Detector:
         
         
         #! Dibujador de box en los objetos.
-        self.box_annotator = sv.BoxAnnotator(
-            thickness=max(1, int(3 * self.video.factor_escala)), 
-            text_thickness=max(1, int(2 * self.video.factor_escala)), 
+        self.bounding_box_annotator = sv.BoundingBoxAnnotator(
+            thickness=max(1, int(3 * self.video.factor_escala)),
+        )
+        self.label_annotator = sv.LabelAnnotator(
+            text_thickness=max(1, int(2 * self.video.factor_escala)),
             text_scale=max(1, int(1 * self.video.factor_escala)),
         )
         
@@ -163,20 +164,18 @@ class Detector:
     
     def __box_sv(self, frame:np.ndarray, detections:sv.Detections) -> np.ndarray:
         """
-        - Hace las etiquetas de cada box.
         - Dibuja una box por cada objeto.
+        - Hace las etiquetas de cada box.
         """
         etiquetas = []
         for xyxy, mask, confianza, class_id, tracker_id, data in detections:
             tiempo_deteccion = self.tiempos_deteccion.get(tracker_id, 0)
             etiqueta = f"{tiempo_deteccion} frames"
             etiquetas.append(etiqueta)
-            
-        return self.box_annotator.annotate(
-            scene=frame,
-            detections=detections,
-            labels=etiquetas,
-        )
+        
+        frame = self.bounding_box_annotator.annotate(scene=frame, detections=detections)
+        frame = self.label_annotator.annotate(scene=frame, detections=detections, labels=etiquetas)
+        return frame
     
     
     def __multas(self, frame:np.ndarray, detections:sv.Detections) -> np.ndarray:
@@ -207,7 +206,7 @@ class Detector:
                     #! Guardar la imagen recortada
                     nombre_archivo =  os.path.join(
                         self.__path_multas, 
-                        f"multa_{tracker_id}.jpg"
+                        f"multa_{time.strftime('%H-%M-%S')}.jpg"
                     )
                     cv2.imwrite(nombre_archivo, imagen_recortada)
                     print(f"Guardado: {nombre_archivo}") 
