@@ -50,9 +50,13 @@ class Detector:
         self.byte_tracker = sv.ByteTrack(
             # track_thresh=0.25, 
             # match_thresh=0.8, 
-            # track_buffer=self.video.fps+10,    #! Cantidad de frames que se mantiene el seguimiento de un objeto (1 segundo) 
+            # track_buffer=self.video.fps+25,    #! Cantidad de frames que se mantiene el seguimiento de un objeto (1 segundo) 
             # frame_rate=self.video.fps,
         )
+        
+        #! Diseñador de lineas de seguimiento
+        self.trace_annotator = sv.TraceAnnotator()
+        
         
         #! Dibujador de box en los objetos.
         self.box_annotator = sv.BoxAnnotator(
@@ -69,7 +73,7 @@ class Detector:
         for i in range(len(p) - 1):
             start = sv.Point(p[i][0], p[i][1])
             end = sv.Point(p[i+1][0], p[i+1][1])
-            self.line_zones.append(sv.LineZone(start=start, end=end))
+            self.line_zones.append(sv.LineZone(start=start, end=end, triggering_anchors=[sv.Position.CENTER]))  #! Crear la línea de multa y cuenta los objetos cuando su centro cruzan la linea.
         
         #! Anotador de línea de multas
         self.linea_zone_annotator = sv.LineZoneAnnotator(
@@ -101,7 +105,7 @@ class Detector:
         
         #! Dibujar el centro de los objetos
         detecciones_poligono = 0
-        for box, mask, confianza, class_id, tracker_id in detections:
+        for box, mask, confianza, class_id, tracker_id, data in detections:
             #! Centros
             #  xmin, ymin, xmax, ymax
             #   0     1     2     3
@@ -163,7 +167,7 @@ class Detector:
         - Dibuja una box por cada objeto.
         """
         etiquetas = []
-        for xyxy, mask, confianza, class_id, tracker_id in detections:
+        for xyxy, mask, confianza, class_id, tracker_id, data in detections:
             tiempo_deteccion = self.tiempos_deteccion.get(tracker_id, 0)
             etiqueta = f"{tiempo_deteccion} frames"
             etiquetas.append(etiqueta)
@@ -231,6 +235,8 @@ class Detector:
         
         if self.video.zona.multas_activadas:
             frame = self.__multas(frame, detections)
+        
+        frame = self.trace_annotator.annotate(frame, detections=detections)
         
         frame = self.__poligono_cv2(frame, detections)
         

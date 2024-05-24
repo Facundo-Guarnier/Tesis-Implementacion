@@ -12,7 +12,8 @@ deteccion:
   un_video: 
     procesar: True    #! Procesar un video en específico
     guardar: False     #! Guardar el video con los resultados
-    path_origen: "Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"    #! Path del video a procesar
+    # path_origen: "Dataset/Dataset_reescalado-576x1024-5fps/Zona J/20240102_133419.mp4"    #! Path del video a procesar
+    path_origen: "Dataset/Dataset_original/Zona J/20240102_133419.mp4"    #! Path del video a procesar
     path_destino: "Resultados_deteccion/"     #! Carpeta donde se guardará el video con los resultados
 
   procesar_camara: False  #! Procesar la cámara en tiempo real
