@@ -1,13 +1,13 @@
 # TODO
 ## General
-    [ ] Revisar las multas. Como funcionan las lineas? tiene que pasar el centro o el box entero de un objeto para ser contado?
+    [ ] Dockerizar o implementar otra forma de despliegue.
     [ ] Agregar 100 / (tiempo + cantidad + 100) ??
 
-    [ ] Hacer lo de la multas con los autos de la Zona C, parece que está bastante bien grabado.
     [ ] Mejorar la descripcion de los metodos: attributes, args, returns...
-    [ ] Dockerizar o implementar otra forma de despliegue.
     [ ] Limpiar los endpoints que no se usan.
     
+    [x] Hacer lo de la multas con los autos de la Zona C, parece que está bastante bien grabado.
+    [x] Revisar las multas. Como funcionan las lineas? tiene que pasar el centro o el box entero de un objeto para ser contado?
     [x] Los reportes se guarden en una DB así puedo hacer consultas.
     [x] Las alertas que se guarden en un .log   
     [~] No puedo usar flask en debug porque duplica al hilo detector.
@@ -19,6 +19,7 @@
     [ ] Buscar a ver si hay algún parametro de traci que indique el tipo total de los autos en una calle, no importa si es detenido o no.
     [ ] En vez de tiempo de espera por calle, que sea por carril?
     [ ] Agregar tf.keras.layers.Dropout(0.15) ?
+                tf.keras.layers.MaxPool2D() ?
 
     [x] Agregar las luces en amarillo antes de aplicar la accion futura que eligió el modelo.
     [x] REVISAR POLITICA
@@ -44,8 +45,8 @@
 ## Detector
     [ ] Detectar varios videos a la vez.
 
-    [ ] Agregar try/except.
     [ ] Detectar ambulancias y patrulleros.
+    [ ] Agregar try/except.
 
     [~] Ver si puedo detectar varios videos a la vez: No da la potencia de procesamiento y no puedo usar la gpu por ser AMD.
 

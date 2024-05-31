@@ -27,7 +27,7 @@ class AppDetection:
             os.makedirs(destino)
         
         try: 
-        #! Recorrer todas las carpetas en la carpeta de entrada
+            #! Recorrer todas las carpetas en la carpeta de entrada
             for carpeta_video in os.listdir(origen):
                 carpeta_video_ruta = os.path.join(origen, carpeta_video)
                 
@@ -72,7 +72,7 @@ class AppDetection:
                 
         video = Video(
             path_origen=configuracion["deteccion"]["un_video"]["path_origen"],
-            zona=next((zona for zona in self.zonas.get() if zona.nombre == "Zona J"), self.zonas.get()[0]),
+            zona=next((zona for zona in self.zonas.get() if zona.nombre == configuracion["deteccion"]["un_video"]["zona"]), self.zonas.get()[0]),
         )
         
         print("Procesando video...")

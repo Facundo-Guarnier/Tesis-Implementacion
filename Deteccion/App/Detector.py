@@ -30,10 +30,17 @@ class Detector:
         self.__CLASES_SELECCIONADAS = [2, 3, 5, 7] # Auto, Moto, Camion, Bus
         self.__CLASES  = self.modelo.model.names
         self.tiempos_deteccion = {}  # Diccionario para almacenar tiempos de detección
+    
+    
+    def __crear_carpeta_multas(self) -> None:
+        """
+        Crea la carpeta de multas si no existe y devuelve la ruta.
+        """
         
         self.__path_multas = os.path.join(
             "Resultados_multa",
-            f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+            f"Multa_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+            self.video.zona.nombre
         )
         log_dir = os.path.join(self.__path_multas)
         if not os.path.exists(log_dir):
@@ -70,7 +77,6 @@ class Detector:
         self.video.zona.escalar_puntos_multa(self.video.resolucion)
         self.line_zones:list[sv.LineZone] = []
         p = self.video.zona.puntos_multa_reescalados
-        print("Puntos de la multa: ", p)
         for i in range(len(p) - 1):
             start = sv.Point(p[i][0], p[i][1])
             end = sv.Point(p[i+1][0], p[i+1][1])
@@ -209,7 +215,6 @@ class Detector:
                         f"multa_{time.strftime('%H-%M-%S')}.jpg"
                     )
                     cv2.imwrite(nombre_archivo, imagen_recortada)
-                    print(f"Guardado: {nombre_archivo}") 
             
             frame = self.linea_zone_annotator.annotate(frame, line_zone)
         
@@ -232,14 +237,14 @@ class Detector:
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
         
-        if self.video.zona.multas_activadas:
-            frame = self.__multas(frame, detections)
-        
         frame = self.trace_annotator.annotate(frame, detections=detections)
         
         frame = self.__poligono_cv2(frame, detections)
         
         frame = self.__box_sv(frame, detections)
+        
+        if self.video.zona.multas_activadas:
+            frame = self.__multas(frame, detections)
         
         return frame
     
@@ -250,6 +255,7 @@ class Detector:
         """
         
         self.video = video
+        self.__crear_carpeta_multas()
         self.video.zona.escalar_puntos(self.video.resolucion)
         self.__definir_parametros_supervision()
         print(f"  Factor de escala: {self.video.factor_escala}")
@@ -268,6 +274,7 @@ class Detector:
         """
         
         self.video = video
+        self.__crear_carpeta_multas()
         guardar = configuracion["deteccion"]["un_video"]["guardar"]
         cap = cv2.VideoCapture(self.video.path_origen)
         self.video.zona.escalar_puntos(self.video.resolucion)
@@ -336,6 +343,7 @@ class Detector:
         
         cap = cv2.VideoCapture(0)
         self.video = video
+        self.__crear_carpeta_multas()
         self.__definir_parametros_supervision()
         
         fps = 0
