@@ -104,7 +104,11 @@ class Reporte:
         Obtener los datos de la simulación.
         
         Returns:
-            dict: Datos de la simulación.
+            dict: Datos de la simulación. Ej: {
+                "steps": 600,
+                "tiempo_espera_total": 750,
+                "tiempos_espera": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200]
+            }
         """
         
         if not self.__api.getSimulacionOK():
@@ -228,9 +232,9 @@ class Reporte:
                 f"Step {datos['steps']}: Tiempo de espera total mayor al permitido ({datos['tiempo_espera_total']})."
             )
         
-        if max(datos["tiempos_espera"]) > configuracion["reporte"]["tiempo_zona_espera_maximo"]:
-            indice_zona_maxima = datos["tiempos_espera"].index(max(datos["tiempos_espera"]))
-            nombre_zona_maxima = chr(ord('A') + indice_zona_maxima)  #! Convertir índice a letra
-            self.logger.warning(
-                f"Step {datos['steps']}: Tiempo de espera en la zona {nombre_zona_maxima} mayor permitido ({max(datos['tiempos_espera'])})."
-            )
+        for i, dato in enumerate(datos["tiempos_espera"]):
+            if dato > configuracion["reporte"]["tiempo_zona_espera_maximo"]:
+                nombre_zona_maxima = chr(ord('A') + i)  #! Convertir índice a letra
+                self.logger.warning(
+                    f"Step {datos['steps']}: Tiempo de espera en la zona {nombre_zona_maxima} mayor permitido ({dato})."
+                )
