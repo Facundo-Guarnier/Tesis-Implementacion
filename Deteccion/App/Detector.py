@@ -1,3 +1,4 @@
+from copy import copy
 import os
 import matplotlib.path as mplPath
 import ultralytics as ul 
@@ -22,7 +23,6 @@ class Detector:
         tiempos_deteccion (dict): Diccionario para almacenar los tiempos de detección de los objetos.
         byte_tracker (ByteTrack): Proporciona el seguimiento de los objetos.
         video (Video): Video a procesar.
-        
     """
     
     def __init__(self):
@@ -237,14 +237,17 @@ class Detector:
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
         
-        frame = self.trace_annotator.annotate(frame, detections=detections)
+        #! Si hay detecciones
+        if detections.tracker_id.size > 0:
         
-        frame = self.__poligono_cv2(frame, detections)
-        
-        frame = self.__box_sv(frame, detections)
-        
-        if self.video.zona.multas_activadas:
-            frame = self.__multas(frame, detections)
+            frame = self.__poligono_cv2(frame, detections)
+            
+            frame = self.trace_annotator.annotate(frame, detections=detections)
+            
+            frame = self.__box_sv(frame, detections)
+            
+            if self.video.zona.multas_activadas:
+                frame = self.__multas(frame, detections)
         
         return frame
     

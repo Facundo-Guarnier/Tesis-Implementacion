@@ -5,14 +5,16 @@ deteccion:
   modelo: "yolov8n.pt"  #! Modelo de detección de objetos
 
   carpeta_dataset: 
-    procesar: False   #! Procesar todos los videos de la carpeta del dataset
+    procesar: True   #! Procesar todos los videos de la carpeta del dataset
     path_origen: "Dataset/Dataset_original/"    #! Carpeta con los videos a procesar
     path_destino: "Resultados_deteccion/"   #! Carpeta donde se guardarán los resultados
 
   un_video: 
-    procesar: True    #! Procesar un video en específico
+    procesar: False    #! Procesar un video en específico
     guardar: True     #! Guardar el video con los resultados
+    # path_origen: "Dataset/Dataset_original/Zona A/20240102_131846.mp4"    #! Path del video a procesar
     path_origen: "Dataset/Dataset_original/Zona C/20240102_132223.mp4"    #! Path del video a procesar
+    # path_origen: "Dataset/Dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"    #! Path del video a procesar
     zona: "Zona C"    #! Zona a considerar
     path_destino: "Resultados_deteccion/"     #! Carpeta donde se guardará el video con los resultados
 
