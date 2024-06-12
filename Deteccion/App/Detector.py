@@ -1,4 +1,3 @@
-from copy import copy
 import os
 import matplotlib.path as mplPath
 import ultralytics as ul 

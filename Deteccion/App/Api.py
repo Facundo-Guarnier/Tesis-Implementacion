@@ -46,6 +46,9 @@ class ApiDeteccion(Flask):
     def tiempos(self) -> tuple[Response, int]:
         """
         Devuelve los tiempos de espera en cada zona.
+        
+        Return: 
+            - dict -> {"tiempo_espera_total": int, "tiempos_espera": list[int]}
         """
         return jsonify({
             "tiempo_espera_total": self.zonas.get_tiempos_total(),

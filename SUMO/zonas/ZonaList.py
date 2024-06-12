@@ -1,5 +1,3 @@
-from typing import List
-
 from SUMO.zonas.Zona import Zona
 
 class ZonaList:
@@ -19,7 +17,7 @@ class ZonaList:
         self.zonas = self.__definir_zonas()
 
 
-    def __definir_zonas(self) -> List[Zona]:
+    def __definir_zonas(self) -> list[Zona]:
         """
         Definir las zonas de la simulación.
         """
@@ -38,7 +36,7 @@ class ZonaList:
             Zona(nombre="Zona L", id="L"),
         ]
 
-    def get(self) -> List[Zona]:
+    def get(self) -> list[Zona]:
         """
         Devuelve la lista de todas las zonas.
         """

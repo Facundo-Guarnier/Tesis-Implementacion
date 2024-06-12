@@ -1,4 +1,3 @@
-from typing import List
 import numpy as np
 import yaml
 
@@ -22,7 +21,7 @@ class ZonaList:
         self.zonas = self.__cargar_zonas()
     
     
-    def __cargar_zonas(self) -> List[Zona]:
+    def __cargar_zonas(self) -> list[Zona]:
         with open('Deteccion/App/zonas/zonas.yaml', 'r') as archivo:
             datos_yaml = yaml.safe_load(archivo)
             return [Zona(nombre=zona['Nombre'], resolucion=tuple(zona['Resolucion']), puntos_originales=np.array(zona['Puntos']), puntos_multa_originales=np.array(zona['Multa'])) for zona in datos_yaml['Zonas']]
@@ -50,13 +49,14 @@ class ZonaList:
         return -1  #! Retornar -1 si la zona no se encuentra
     
     
-    def get_tiempos(self) -> dict:
+    def get_tiempos(self) -> list[int]:
         """
         Tiempos de detección en todas las zonas.
         """
-        tiempos = {}
+        tiempos = []
         for zona in self.zonas:
-            tiempos[zona.nombre] = zona.tiempo_espera
+            if "Zona" in zona.nombre:
+                tiempos.append(zona.tiempo_espera)
         
         return tiempos
     
@@ -69,7 +69,7 @@ class ZonaList:
         return sum(zona.tiempo_espera for zona in self.zonas)
     
     
-    def get(self) -> List[Zona]:
+    def get(self) -> list[Zona]:
         """
         Devuelve la lista de todas las zonas.
         """
