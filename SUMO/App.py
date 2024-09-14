@@ -22,6 +22,12 @@ class AppSUMO:
         self.traci_s2:traci.connection.Connection|Any = None
         self.__gui = configuracion["sumo"]["gui"]
         self.__comparar = configuracion["sumo"]["comparar"]
+        
+        self.__tiemposEsperaAcumuladolS1 = 0.0
+        self.__tiemposEsperaAcumuladoS2 = 0.0
+        
+        self.__cantidadVehiculosAcumuladoS1 = 0
+        self.__cantidadVehiculosAcumuladoS2 = 0
     
     
     def iniciar(self) -> None:
@@ -61,13 +67,36 @@ class AppSUMO:
         
         
         try:
+            i = 0
             while self.traci_s2.simulation.getMinExpectedNumber() > 0 and self.traci_s2.simulation.getTime() < 19500:
                 self.traci_s2.simulationStep()
                 
                 #! Cada 15 segundos muestra el tiempo total
                 if self.traci_s2.simulation.getTime() % 15 == 0:
-                    logger.info(f" (s1: {self.getTiemposEsperaTotal(s2=False)} | s2: {self.getTiemposEsperaTotal(s2=True)})")
-                
+                    i += 1
+                    tiempoS1 = self.getTiemposEsperaTotal(s2=False)
+                    tiempoS2 = self.getTiemposEsperaTotal(s2=True)
+                    
+                    logger.info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                    logger.info(f" Instante actual: {i}: {self.traci_s2.simulation.getTime()}")
+                    logger.info("----------------------- Tiempo de espera total ---------------------------")
+                    self.__tiemposEsperaAcumuladolS1 += tiempoS1
+                    self.__tiemposEsperaAcumuladoS2 += tiempoS2
+                    logger.info(f" Instante actual: (s1: {tiempoS1} | s2: {tiempoS2})")
+                    logger.info(f" Acumulado: (s1: {self.__tiemposEsperaAcumuladolS1} | s2: {self.__tiemposEsperaAcumuladoS2})")
+                    logger.info(f" Promedio: (s1: {self.__tiemposEsperaAcumuladolS1/i} | s2: {self.__tiemposEsperaAcumuladoS2/i})")
+                    
+
+                    logger.info("----------------------- Cantidad de vehiculos ---------------------------")
+                    cantidadS1 = self.getCantidadVehiculos(s2=False)
+                    cantidadS2 = self.getCantidadVehiculos(s2=True)
+                    self.__cantidadVehiculosAcumuladoS1 += cantidadS1
+                    self.__cantidadVehiculosAcumuladoS2 += cantidadS2
+                    logger.info(f" Instante actual: (s1: {cantidadS1} | s2: {cantidadS2})")
+                    logger.info(f" Acumulado: (s1: {self.__cantidadVehiculosAcumuladoS1} | s2: {self.__cantidadVehiculosAcumuladoS2})")
+                    logger.info(f" Promedio: (s1: {self.__cantidadVehiculosAcumuladoS1/i} | s2: {self.__cantidadVehiculosAcumuladoS2/i})")
+
+
         except traci.exceptions.FatalTraCIError as e:
             logger.error(f" Error en la simulación 2 de SUMO: '{e}'")
             os._exit(0)
@@ -215,6 +244,24 @@ class AppSUMO:
             while self.traci_s1.simulation.getTime() < 250:
                 self.traci_s1.simulationStep()
             return (sum(self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
+    
+    def getCantidadVehiculos(self, s2=False) -> int:
+        """
+        Obtener la cantidad de vehículos en la simulación.
+        """
+        if s2:
+            #! Cantidad de vehículos en la simulación 2
+            if self.traci_s2:
+                while self.traci_s2.simulation.getTime() < 250:
+                    self.traci_s2.simulationStep()
+                return self.traci_s2.simulation.getMinExpectedNumber()
+            return -1
+        
+        else:
+            #! Cantidad de vehículos en la simulación 1 (la principal)
+            while self.traci_s1.simulation.getTime() < 250:
+                self.traci_s1.simulationStep()
+            return self.traci_s1.simulation.getMinExpectedNumber()
     
     
     def avanzar(self, steps:int) -> bool:
