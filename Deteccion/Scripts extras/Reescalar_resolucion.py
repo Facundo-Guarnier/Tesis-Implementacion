@@ -1,42 +1,47 @@
-import cv2, os
+import os
+
+import cv2
 
 
-def reescalar_video(ruta_entrada, ruta_salida, nueva_resolucion, factor_reduccion_fps=3):
+def reescalar_video(
+    ruta_entrada, ruta_salida, nueva_resolucion, factor_reduccion_fps=3
+):
     """
     - Reduce a un tercio los fps.
     - Reescala un video a una nueva resolución.
     """
     cap = cv2.VideoCapture(ruta_entrada)
-    
-    ancho_original = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    alto_original = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
+
+    # Las dimensiones originales no se usan en este script
+    # ancho_original = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    # alto_original = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
     #! Obtener la tasa de fotogramas original
     fps_original = cap.get(cv2.CAP_PROP_FPS)
-    
+
     #! Calcular la nueva tasa de fotogramas
     fps_nuevo = fps_original / factor_reduccion_fps
-    
+
     _, extension = os.path.splitext(ruta_entrada)
     nombre_base, _ = os.path.splitext(ruta_salida)
-    
+
     # ruta_salida = nombre_base + f"-{nueva_resolucion[0]}x{nueva_resolucion[1]}-{round(fps_nuevo)}fps{extension}"
-    
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(ruta_salida, fourcc, fps_nuevo, nueva_resolucion)
-    
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-        
+
         # Reducir a un tercio los fps
         if cap.get(cv2.CAP_PROP_POS_FRAMES) % factor_reduccion_fps != 0:
             continue
-        
+
         # Reescalar el frame
         frame_reescalado = cv2.resize(frame, nueva_resolucion)
-        
+
         # Escribir el frame reescalado en el nuevo video
         out.write(frame_reescalado)
 
@@ -46,7 +51,9 @@ def reescalar_video(ruta_entrada, ruta_salida, nueva_resolucion, factor_reduccio
     print(f"Video reescalado: {ruta_salida}")
 
 
-def reescalar_carpeta_videos(carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps):
+def reescalar_carpeta_videos(
+    carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps
+):
     #! Crear la carpeta de salida si no existe
     carpeta_salida = f"{carpeta_salida}-{nueva_resolucion[0]}x{nueva_resolucion[1]}-{round(30/factor_reduccion_fps)}fps"
     if not os.path.exists(carpeta_salida):
@@ -65,22 +72,37 @@ def reescalar_carpeta_videos(carpeta_entrada, carpeta_salida, nueva_resolucion, 
 
             #! Procesar todos los archivos en la carpeta de video
             for archivo_video in os.listdir(carpeta_video_ruta):
-                archivo_video_ruta_entrada = os.path.join(carpeta_video_ruta, archivo_video)
-                archivo_video_ruta_salida = os.path.join(carpeta_salida_ruta, archivo_video)
+                archivo_video_ruta_entrada = os.path.join(
+                    carpeta_video_ruta, archivo_video
+                )
+                archivo_video_ruta_salida = os.path.join(
+                    carpeta_salida_ruta, archivo_video
+                )
 
                 #! Verificar si es un archivo y tiene una extensión de video
-                if os.path.isfile(archivo_video_ruta_entrada) and archivo_video_ruta_entrada.lower().endswith(('.mp4', '.avi', '.mkv')):
+                if os.path.isfile(
+                    archivo_video_ruta_entrada
+                ) and archivo_video_ruta_entrada.lower().endswith(
+                    (".mp4", ".avi", ".mkv")
+                ):
                     #! Reescalar el video
-                    reescalar_video(archivo_video_ruta_entrada, archivo_video_ruta_salida, nueva_resolucion, factor_reduccion_fps)
+                    reescalar_video(
+                        archivo_video_ruta_entrada,
+                        archivo_video_ruta_salida,
+                        nueva_resolucion,
+                        factor_reduccion_fps,
+                    )
 
 
 nueva_resolucion = (576, 1024)
-factor_reduccion_fps = 6    #! 30/factor = fps
+factor_reduccion_fps = 6  #! 30/factor = fps
 
-# #! Reescalar todos los videos carpetas 
+# #! Reescalar todos los videos carpetas
 carpeta_entrada = "Deteccion/Dataset/Dataset_original"
 carpeta_salida = "Deteccion/Dataset/Dataset_reescalado"
-reescalar_carpeta_videos(carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps)
+reescalar_carpeta_videos(
+    carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps
+)
 
 #! Reescalar un único video
 # ruta_video_entrada = f"Pruebas/video-original.mp4"

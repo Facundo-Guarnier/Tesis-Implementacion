@@ -1,6 +1,8 @@
 import multiprocessing
 import time
+
 import _queue
+
 
 class Notificado:
     def __init__(self):
@@ -12,7 +14,7 @@ class Notificado:
         try:
             self.__notificaciones.get_nowait()
         except _queue.Empty:
-            pass    
+            pass
         self.__notificaciones.put(notificacion)
 
     def getNotificaciones(self):
@@ -32,6 +34,7 @@ class Detector:
         # Detecta algo y notifica
         self.notificado.notificar(f"Algo detectado {m}")
         print(f"Notificando {m}")
+
 
 if __name__ == "__main__":
     notificado = Notificado()

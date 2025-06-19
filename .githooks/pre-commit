@@ -1,0 +1,34 @@
+#!/bin/bash
+
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    powershell.exe -ExecutionPolicy Bypass -File .githooks/pre-commit.ps1
+else
+  set -e
+
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  NC='\033[0m' # No Color
+
+  echo -e "${GREEN}>>>> Running isort for Python files...${NC}"
+  python3 -m isort .
+
+  echo -e "${GREEN}\n>>>> Running Ruff for Python files...${NC}"
+  python3 -m ruff check --fix .
+
+  echo -e "${GREEN}\n>>>> Running Black for Python files...${NC}"
+  python3 -m black .
+
+  echo -e "${GREEN}\n>>>> Running Mypy for type checking...${NC}"
+  python3 -m mypy --config-file=mypy.ini .
+
+  git diff --exit-code > /dev/null
+
+  if [ $? -ne 0 ]; then
+    echo -e "${YELLOW}\n>>>> Some files have been modified! Adding them to the commit...${NC}"
+    git add -u
+    echo -e "${GREEN}\n>>>> Files have been updated and staged for commit.${NC}"
+    exit 1
+  fi
+
+  echo -e "${GREEN}\n>>>> All checks passed! Ready to commit.${NC}"
+fi
