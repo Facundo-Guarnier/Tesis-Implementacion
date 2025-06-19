@@ -16,7 +16,7 @@ from SUMO.App import AppSUMO
 
 def cerrar(nro_senial: int, marco) -> None:
     logger = logging.getLogger(f" {__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
-    logger.info("Finalizando el proceso ID:", os.getpid())
+    logger.info(f"Finalizando el proceso ID: {os.getpid()}")
     os._exit(0)
 
 

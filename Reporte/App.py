@@ -1,3 +1,8 @@
+import inspect
+import logging
+
+from Reporte.Reporte import Reporte
+
 # [CU1]
 # Esta seccion le pide información a la API de deteccion y de simulacion para
 # obtener los datos de flujo vehicular y mostrarselos al agente de transito, ya
@@ -6,11 +11,6 @@
 # [CU2]
 # En base a la información obtenida se pueden realizar las alertas correspondientes
 # para el segundo caso de usuario.
-
-import inspect
-import logging
-
-from Reporte.Reporte import Reporte
 
 
 class AppReporte:
