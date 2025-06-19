@@ -1,10 +1,12 @@
 from SUMO.zonas.Zona import Zona
 
+
 class ZonaList:
     """
     Clase de tipo "Singleton" que:
     - Representa una lista de zonas (List[Zona]).
     """
+
     _instance = None
 
     def __new__(cls):
@@ -12,10 +14,8 @@ class ZonaList:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-
     def __init__(self):
         self.zonas = self.__definir_zonas()
-
 
     def __definir_zonas(self) -> list[Zona]:
         """

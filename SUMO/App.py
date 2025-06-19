@@ -1,250 +1,295 @@
-import os, traci, logging, inspect
+import inspect
+import logging
+import os
 from threading import Thread
 from typing import Any
 
-from SUMO.zonas.ZonaList import ZonaList
+import traci
+
 from config import configuracion
+from SUMO.zonas.ZonaList import ZonaList
 
 
 class AppSUMO:
     _instance = None
-    
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
-    
+
     def __init__(self):
         logging.basicConfig(level=logging.DEBUG)
-        
+
         self.zonas = ZonaList()
-        self.traci_s2:traci.connection.Connection|Any = None
+        self.traci_s2: traci.connection.Connection | Any = None
         self.__gui = configuracion["sumo"]["gui"]
         self.__comparar = configuracion["sumo"]["comparar"]
-        
+
         self.__tiemposEsperaAcumuladolS1 = 0.0
         self.__tiemposEsperaAcumuladoS2 = 0.0
-        
+
         self.__cantidadVehiculosAcumuladoS1 = 0
         self.__cantidadVehiculosAcumuladoS2 = 0
-    
-    
+
     def iniciar(self) -> None:
-        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
-        
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+
         logger.info(" Iniciando...")
         if self.__gui:
             os.environ["SUMO_LOG"] = "error"
-            traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
+            traci.start(
+                cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"],
+                label="s1",
+            )
             self.traci_s1 = traci.getConnection("s1")
             if self.__comparar:
-                traci.start(cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s2")
-                self.traci_s2 = traci.getConnection("s2") 
+                traci.start(
+                    cmd=[
+                        "sumo-gui",
+                        "-c",
+                        "SUMO/MapaDe0/mapa.sumocfg",
+                        "--no-warnings",
+                    ],
+                    label="s2",
+                )
+                self.traci_s2 = traci.getConnection("s2")
         else:
-            traci.start(cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"], label="s1")
+            traci.start(
+                cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"],
+                label="s1",
+            )
             self.traci_s1 = traci.getConnection("s1")
-        
-        try: 
+
+        try:
             #! Crear una tarea en paralelo con concurrencia para la simulación s2
             if self.__comparar:
                 Thread(target=self.s2).start()
-            
+
             #! Para que haya un mínimo de vehículos en la simulación.
-            while self.traci_s1.simulation.getMinExpectedNumber() > 0 and self.traci_s1.simulation.getTime() < 250:
+            while (
+                self.traci_s1.simulation.getMinExpectedNumber() > 0
+                and self.traci_s1.simulation.getTime() < 250
+            ):
                 self.traci_s1.simulationStep()
-                
+
         except traci.exceptions.FatalTraCIError as e:
             logger.error(f" Error en la simulación de SUMO: '{e}'")
             os._exit(0)
-    
-    
+
     def s2(self) -> None:
         """
         Simulación 2 de SUMO para poder comparar valores.
         """
-        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
-        
-        
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+
         try:
             i = 0
-            while self.traci_s2.simulation.getMinExpectedNumber() > 0 and self.traci_s2.simulation.getTime() < 19500:
+            while (
+                self.traci_s2.simulation.getMinExpectedNumber() > 0
+                and self.traci_s2.simulation.getTime() < 19500
+            ):
                 self.traci_s2.simulationStep()
-                
+
                 #! Cada 15 segundos muestra el tiempo total
                 if self.traci_s2.simulation.getTime() % 15 == 0:
                     i += 1
                     tiempoS1 = self.getTiemposEsperaTotal(s2=False)
                     tiempoS2 = self.getTiemposEsperaTotal(s2=True)
-                    
-                    logger.info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-                    logger.info(f" Instante actual: {i}: {self.traci_s2.simulation.getTime()}")
-                    logger.info("----------------------- Tiempo de espera total ---------------------------")
+
+                    logger.info(
+                        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+                    )
+                    logger.info(
+                        f" Instante actual: {i}: {self.traci_s2.simulation.getTime()}"
+                    )
+                    logger.info(
+                        "----------------------- Tiempo de espera total ---------------------------"
+                    )
                     self.__tiemposEsperaAcumuladolS1 += tiempoS1
                     self.__tiemposEsperaAcumuladoS2 += tiempoS2
                     logger.info(f" Instante actual: (s1: {tiempoS1} | s2: {tiempoS2})")
-                    logger.info(f" Acumulado: (s1: {self.__tiemposEsperaAcumuladolS1} | s2: {self.__tiemposEsperaAcumuladoS2})")
-                    logger.info(f" Promedio: (s1: {self.__tiemposEsperaAcumuladolS1/i} | s2: {self.__tiemposEsperaAcumuladoS2/i})")
-                    
+                    logger.info(
+                        f" Acumulado: (s1: {self.__tiemposEsperaAcumuladolS1} | s2: {self.__tiemposEsperaAcumuladoS2})"
+                    )
+                    logger.info(
+                        f" Promedio: (s1: {self.__tiemposEsperaAcumuladolS1/i} | s2: {self.__tiemposEsperaAcumuladoS2/i})"
+                    )
 
-                    logger.info("----------------------- Cantidad de vehiculos ---------------------------")
+                    logger.info(
+                        "----------------------- Cantidad de vehiculos ---------------------------"
+                    )
                     cantidadS1 = self.getCantidadVehiculos(s2=False)
                     cantidadS2 = self.getCantidadVehiculos(s2=True)
                     self.__cantidadVehiculosAcumuladoS1 += cantidadS1
                     self.__cantidadVehiculosAcumuladoS2 += cantidadS2
-                    logger.info(f" Instante actual: (s1: {cantidadS1} | s2: {cantidadS2})")
-                    logger.info(f" Acumulado: (s1: {self.__cantidadVehiculosAcumuladoS1} | s2: {self.__cantidadVehiculosAcumuladoS2})")
-                    logger.info(f" Promedio: (s1: {self.__cantidadVehiculosAcumuladoS1/i} | s2: {self.__cantidadVehiculosAcumuladoS2/i})")
-
+                    logger.info(
+                        f" Instante actual: (s1: {cantidadS1} | s2: {cantidadS2})"
+                    )
+                    logger.info(
+                        f" Acumulado: (s1: {self.__cantidadVehiculosAcumuladoS1} | s2: {self.__cantidadVehiculosAcumuladoS2})"
+                    )
+                    logger.info(
+                        f" Promedio: (s1: {self.__cantidadVehiculosAcumuladoS1/i} | s2: {self.__cantidadVehiculosAcumuladoS2/i})"
+                    )
 
         except traci.exceptions.FatalTraCIError as e:
             logger.error(f" Error en la simulación 2 de SUMO: '{e}'")
             os._exit(0)
-        
+
         except Exception as e:
             logger.error(f" Error en la simulación 2 de SUMO: '{e}'")
             os._exit(0)
-    
-    
+
     def setVehiculo(self) -> None:
         """
         Obtener la cantidad de vehículos en una calle
         """
         for zona in self.zonas.zonas:
-            zona.cantidad_detecciones = self.traci_s1.edge.getLastStepVehicleNumber(zona.id)
-    
-    
+            zona.cantidad_detecciones = self.traci_s1.edge.getLastStepVehicleNumber(
+                zona.id
+            )
+
     def setSemaforoEstado(self, semaforo: str, estado_nuevo: str) -> None:
         """
         Cambiar el color del semáforo (ejemplo: ponerlo en verde)
         """
         estado_actual = self.getSemaforoEstado(semaforo)
         if estado_nuevo != estado_actual:
-            estado_amarillo = estado_actual.replace('g', 'y')
-            estado_amarillo = estado_amarillo.replace('G', 'y')
-            
+            estado_amarillo = estado_actual.replace("g", "y")
+            estado_amarillo = estado_amarillo.replace("G", "y")
+
             self.traci_s1.trafficlight.setRedYellowGreenState(semaforo, estado_amarillo)
             self.avanzar(3)
-        
+
             self.traci_s1.trafficlight.setRedYellowGreenState(semaforo, estado_nuevo)
-    
-    
+
     def setSemaforosEstados(self, estados_nuevos: list) -> None:
         """
         Cambiar el color de todos los semáforos.
-        
+
         Args:
             estados_nuevos: Lista de estados de los semáforos. [{'id': '1', 'estado': 'GGGGGGrrrrr'}, {'id': '2', 'estado': 'GGGrrrrrGGg'}, {'id': '3', 'estado': 'GGgGGGrrrrr'}, {'id': '4', 'estado': 'GGGrrrrGGg'}]
         """
-        
-        estados_amarillos:list[dict] = []
-        
+
+        estados_amarillos: list[dict] = []
+
         #! Calcular estados amarillos
         for estado in estados_nuevos:
             semaforo_id = estado["id"]
             estado_nuevo = estado["estado"]
-            
+
             estado_actual = self.getSemaforoEstado(semaforo_id)
-        
+
             if estado_nuevo != estado_actual:
-                estado_amarillo = estado_actual.replace('g', 'y')
-                estado_amarillo = estado_amarillo.replace('G', 'y')
+                estado_amarillo = estado_actual.replace("g", "y")
+                estado_amarillo = estado_amarillo.replace("G", "y")
                 estados_amarillos.append({"id": semaforo_id, "estado": estado_amarillo})
-        
-        #! Cambiar a amarillo 
+
+        #! Cambiar a amarillo
         for estado in estados_amarillos:
             semaforo_id = estado["id"]
             estado_amarillo = estado["estado"]
-            self.traci_s1.trafficlight.setRedYellowGreenState(semaforo_id, estado_amarillo)
-        
+            self.traci_s1.trafficlight.setRedYellowGreenState(
+                semaforo_id, estado_amarillo
+            )
+
         #! Avanzar 3 segundos para que se vea el amarillo
         self.avanzar(3)
-        
+
         #! Cambiar a verde
         for estado in estados_nuevos:
             semaforo_id = estado["id"]
             estado_nuevo = estado["estado"]
             self.traci_s1.trafficlight.setRedYellowGreenState(semaforo_id, estado_nuevo)
-    
-    
+
     def getSemaforoEstado(self, semaforo: str) -> str:
         """
         Obtener el estado actual del semáforo
         """
-        return self.traci_s1.trafficlight.getRedYellowGreenState(semaforo)    
-    
-    
+        return self.traci_s1.trafficlight.getRedYellowGreenState(semaforo)
+
     def getSemaforosEstados(self) -> list[str]:
         """
         Obtener el estado actual de todos los semáforos.
-        
+
         Returns:
             list: ['GGGGGGGGGGg', 'GGGGGGGGGGg', 'GGGGGGGGGGg', 'GGGGGGGGGGg']
         """
-        return [self.traci_s1.trafficlight.getRedYellowGreenState(semaforo) for semaforo in ["1", "2", "3", "4"]]
-    
-    
-    def getTiempoEspera(self, zona_id:str) -> tuple|Any:
+        return [
+            self.traci_s1.trafficlight.getRedYellowGreenState(semaforo)
+            for semaforo in ["1", "2", "3", "4"]
+        ]
+
+    def getTiempoEspera(self, zona_id: str) -> tuple | Any:
         """
         Obtener el tiempo de espera en una zona.
         """
-        #edge.getLastStepVehicleIDs (self, edgeID) -> list(str). Devuelve los identificadores de los vehículos durante el último paso en el borde dado.
-        #vehicle.getWaitingTime (self, ID de borde) -> double. Devuelve la suma del tiempo de espera de todos los vehículos actualmente en ese borde (consulte traci.vehicle.getWaitingTime).
-        #vehicle.getLastStepHaltingNumber (self, ID de borde) -> int. Devuelve el número total de vehículos detenidos durante el último paso de tiempo en el borde dado. Se considera parada una velocidad inferior a 0,1 m/s.
-        
+        # edge.getLastStepVehicleIDs (self, edgeID) -> list(str). Devuelve los identificadores de los vehículos durante el último paso en el borde dado.
+        # vehicle.getWaitingTime (self, ID de borde) -> double. Devuelve la suma del tiempo de espera de todos los vehículos actualmente en ese borde (consulte traci.vehicle.getWaitingTime).
+        # vehicle.getLastStepHaltingNumber (self, ID de borde) -> int. Devuelve el número total de vehículos detenidos durante el último paso de tiempo en el borde dado. Se considera parada una velocidad inferior a 0,1 m/s.
+
         # t =  traci.vehicle.getWaitingTime()
         # t = traci.edge.getLastStepVehicleIDs()
-        
-        return  self.traci_s1.edge.getWaitingTime(zona_id)
-    
-    
+
+        return self.traci_s1.edge.getWaitingTime(zona_id)
+
     def getTiemposEspera(self, s2=False) -> list[float]:
         """
         Obtener todos los tiempos de espera por en todas las zonas.
-        
+
         Returns:
             list[float]: [1.0, 0.0, 8.0, 0.0, 0.0, 12.0, 2.0, 0.0, 5.0, 0.0, 27.0, 0.0]
         """
-        
-        if s2:
-            #! Tiempo de espera en la simulación 2 
-            if self.traci_s2:
-                while self.traci_s2.simulation.getTime() < 250:
-                    self.traci_s2.simulationStep() 
-                
-                return [self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
-            return [0.0]
-        
-        else:
-            #! Tiempo de espera en la simulación 1 (la principal)
-            while self.traci_s1.simulation.getTime() < 250:
-                self.traci_s1.simulationStep()
-            
-            return [self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
-    
-    
-    def getTiemposEsperaTotal(self, s2=False) -> tuple[float]|Any:
-        """
-        Obtener el tiempo total de espera de todas las zonas juntas.
-        
-        Return: 
-            tuple[float]: (55.0)
-        """
-        
+
         if s2:
             #! Tiempo de espera en la simulación 2
             if self.traci_s2:
                 while self.traci_s2.simulation.getTime() < 250:
                     self.traci_s2.simulationStep()
-                return (sum(self.traci_s2.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
-            return tuple([-1.0])
-        
+
+                return [
+                    self.traci_s2.edge.getWaitingTime(zona.id)
+                    for zona in self.zonas.zonas
+                ]
+            return [0.0]
+
         else:
             #! Tiempo de espera en la simulación 1 (la principal)
             while self.traci_s1.simulation.getTime() < 250:
                 self.traci_s1.simulationStep()
-            return (sum(self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas))
-    
+
+            return [
+                self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas
+            ]
+
+    def getTiemposEsperaTotal(self, s2=False) -> tuple[float] | Any:
+        """
+        Obtener el tiempo total de espera de todas las zonas juntas.
+
+        Return:
+            tuple[float]: (55.0)
+        """
+
+        if s2:
+            #! Tiempo de espera en la simulación 2
+            if self.traci_s2:
+                while self.traci_s2.simulation.getTime() < 250:
+                    self.traci_s2.simulationStep()
+                return sum(
+                    self.traci_s2.edge.getWaitingTime(zona.id)
+                    for zona in self.zonas.zonas
+                )
+            return tuple([-1.0])
+
+        else:
+            #! Tiempo de espera en la simulación 1 (la principal)
+            while self.traci_s1.simulation.getTime() < 250:
+                self.traci_s1.simulationStep()
+            return sum(
+                self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas
+            )
+
     def getCantidadVehiculos(self, s2=False) -> int:
         """
         Obtener la cantidad de vehículos en la simulación.
@@ -256,15 +301,14 @@ class AppSUMO:
                     self.traci_s2.simulationStep()
                 return self.traci_s2.simulation.getMinExpectedNumber()
             return -1
-        
+
         else:
             #! Cantidad de vehículos en la simulación 1 (la principal)
             while self.traci_s1.simulation.getTime() < 250:
                 self.traci_s1.simulationStep()
             return self.traci_s1.simulation.getMinExpectedNumber()
-    
-    
-    def avanzar(self, steps:int) -> bool:
+
+    def avanzar(self, steps: int) -> bool:
         """
         Avanzar la cantidad de steps especificada.
         """
@@ -277,50 +321,54 @@ class AppSUMO:
                 self.reiniciar()
                 break
         return done
-    
-    
+
     def reiniciar(self) -> None:
         """
         Reiniciar la simulación.
         """
         self.traci_s1.close()
         self.iniciar()
-    
-    
+
     def puedoSeguir(self) -> bool:
         """
         Verificar si la simulación puede seguir. Para eso hay que saber:
         - Si está por debajo del tiempo/steps 19500.
         - Si hay vehículos en la simulación.
         """
-        return self.traci_s1.simulation.getTime() <= 19500 and self.traci_s1.simulation.getMinExpectedNumber() > 0
-    
-    
+        return (
+            self.traci_s1.simulation.getTime() <= 19500
+            and self.traci_s1.simulation.getMinExpectedNumber() > 0
+        )
+
     def getSimulacionOK(self) -> bool:
         """
         Verificar si la simulación está OK.
         """
-        logger = logging.getLogger(f' {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}') # type: ignore
-        
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+
         try:
-            estado = self.traci_s1.simulation.getMinExpectedNumber() > 0 and self.traci_s1.simulation.getTime() >= 250 
+            estado = (
+                self.traci_s1.simulation.getMinExpectedNumber() > 0
+                and self.traci_s1.simulation.getTime() >= 250
+            )
             return estado
-        
+
         except Exception as e:
             logger.error(f" La simulacion no está disponible: '{e}'")
             return False
-    
-    
+
     def getStepsReporte(self) -> int:
         """
         Obtener la cantidad de steps que lleva la simulación, para el reporte.
         Esto es cada x segundos (configurado en el archivo de configuración).
-        
+
         Returns:
             int: 480
         """
-        
-        while self.traci_s1.simulation.getTime() % configuracion["reporte"]["steps"] != 0:
+
+        while (
+            self.traci_s1.simulation.getTime() % configuracion["reporte"]["steps"] != 0
+        ):
             pass
-        
+
         return int(self.traci_s1.simulation.getTime())

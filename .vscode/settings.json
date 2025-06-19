@@ -1,24 +1,37 @@
 {
-    "cSpell.words": [
-        "amax",
-        "camara",
-        "configuracion",
-        "deteccion",
-        "Deteccion",
-        "epoca",
-        "epocas",
-        "Grrrr",
-        "Grrrrr",
-        "Implementacion",
-        "maximo",
-        "politica",
-        "semaforo",
-        "semaforos",
-        "simulacion",
-        "Vehiculo",
-        "vehiculos",
-        "Vehiculos",
-        "Xtra",
-        "yolov"
-    ]
+  "cSpell.words": [
+    "amax",
+    "camara",
+    "configuracion",
+    "deteccion",
+    "Deteccion",
+    "epoca",
+    "epocas",
+    "Grrrr",
+    "Grrrrr",
+    "Implementacion",
+    "maximo",
+    "politica",
+    "semaforo",
+    "semaforos",
+    "simulacion",
+    "Vehiculo",
+    "vehiculos",
+    "Vehiculos",
+    "Xtra",
+    "yolov"
+  ],
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll.ruff": "explicit"
+    },
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "isort.args": ["--profile", "black"],
+  "ruff.enable": true,
+  "ruff.fixAll": true,
+  "mypy.enabled": true,
+  "mypy.runUsingActiveInterpreter": true
 }
