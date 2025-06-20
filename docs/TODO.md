@@ -10,6 +10,7 @@
     [ ] Refactorizar `config.yaml`, simplificar su uso.
     [ ] Refactorizar la forma de mostrar las 2 simulaciones (con tiempos fijos y con toma de decision)
     [ ] Refactorizar estructuras y usar ingles
+    [ ] Actualizar el project_structure.md
 
 ## 🔩 General
 
