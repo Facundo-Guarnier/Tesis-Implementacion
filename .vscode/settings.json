@@ -32,6 +32,7 @@
   "isort.args": ["--profile", "black"],
   "ruff.enable": true,
   "ruff.fixAll": true,
-  "mypy.enabled": true,
-  "mypy.runUsingActiveInterpreter": true
+  "mypy-type-checker.preferDaemon": true,
+  "mypy-type-checker.reportingScope": "workspace",
+  "mypy-type-checker.importStrategy": "fromEnvironment"
 }
