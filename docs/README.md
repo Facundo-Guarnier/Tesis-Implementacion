@@ -34,6 +34,6 @@ Documentos de consulta sobre la lógica específica y los detalles técnicos del
 
 ## 🛠️ Otros Recursos
 
-- **[`TODO.md`](./TODO.md)**: Lista de tareas y funcionalidades pendientes de implementar en el proyecto.
+- **[`_TODO_migrated_to_issues.md`](./_TODO_migrated_to_issues.md)**: Lista de tareas pendientes y mejoras para el proyecto pero que se han migrado a issues en GitHub.
 - **`assets/`**: Carpeta con recursos visuales como diagramas (`.drawio`) e imágenes que se utilizan en la documentación.
 - **`resources/`**: Carpeta con archivos misceláneos relevantes para el desarrollo, como colecciones de API para Thunder Client.
