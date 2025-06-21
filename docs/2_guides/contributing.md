@@ -38,15 +38,16 @@ tipo(ámbito): descripción corta en imperativo
 - **(ámbito)**: (Opcional) El módulo o parte del proyecto afectado (ej. `api`, `detector`, `docs`).
 - **descripción**: Un resumen claro y conciso de lo que hace el commit.
 
-| Tipo       | Descripción                                                                          |
-| ---------- | ------------------------------------------------------------------------------------ |
-| `feat`     | Una nueva funcionalidad (ej. `feat(api): agregar endpoint de reportes`)              |
-| `fix`      | Una corrección de un error (ej. `fix(detector): corregir conteo duplicado`)          |
-| `docs`     | Cambios exclusivos en la documentación (ej. `docs: añadir guía de vscode`)           |
-| `style`    | Cambios de formato que no afectan la lógica (ej. `style: aplicar black`)             |
-| `refactor` | Cambios en el código que no son ni `fix` ni `feat` (ej. `refactor: optimizar bucle`) |
-| `test`     | Añadir o corregir tests (ej. `test: crear prueba para la lógica de semáforos`)       |
-| `chore`    | Tareas de mantenimiento (ej. `chore: actualizar dependencias en pip`)                |
+| Tipo       | Descripción                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| `Feat`     | Una nueva funcionalidad (ej. `feat(api): agregar endpoint de reportes`)                  |
+| `Fix`      | Una corrección de un error (ej. `fix(detector): corregir conteo duplicado`)              |
+| `Docs`     | Cambios exclusivos en la documentación (ej. `docs: añadir guía de vscode`)               |
+| `Style`    | Cambios de formato que no afectan la lógica (ej. `style: aplicar black`)                 |
+| `Refactor` | Cambios en el código que no son ni `fix` ni `feat` (ej. `refactor: optimizar bucle`)     |
+| `Test`     | Añadir o corregir tests (ej. `test: crear prueba para la lógica de semáforos`)           |
+| `Chore`    | Tareas de mantenimiento (ej. `chore: actualizar dependencias en pip`)                    |
+| `WIP`      | Trabajo en progreso, no listo para producción (ej. `wip: empezar implementación de API`) |
 
 ## 📤 Proceso de Pull Request (PR)
 
