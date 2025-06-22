@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 from numpy import ndarray as NDArray
 
-from src.traffic_system.api_client.DQN_client import ApiDecision
+from src.traffic_system.api_client.data_source_client import ApiDecision
 from src.traffic_system.core.config_loader import app_settings
 
 

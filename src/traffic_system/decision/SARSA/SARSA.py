@@ -1,13 +1,13 @@
 import pickle
 
-from src.traffic_system.api_client.SARSA_client import ApiClient
+from src.traffic_system.api_client.data_source_client import ApiDecision
 
 
 class SARSA:
     def __init__(self, path_Q: str):
         self.__setEspacioAcciones()
         self.__Q = self.__inicializar_Q(path_Q)
-        self.__api = ApiClient("http://127.0.0.1:5000")
+        self.__api = ApiDecision("http://127.0.0.1:5000")
 
     def __setEspacioAcciones(self) -> None:
         """

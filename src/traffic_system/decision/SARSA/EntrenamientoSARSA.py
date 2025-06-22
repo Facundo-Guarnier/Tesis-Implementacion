@@ -34,12 +34,12 @@ import time
 
 import numpy as np
 
-from src.traffic_system.api_client.SARSA_client import ApiClient
+from src.traffic_system.api_client.data_source_client import ApiDecision
 
 
 class EntrenamientoSARSA:
     def __init__(self):
-        self.__api = ApiClient("http://127.0.0.1:5000")
+        self.__api = ApiDecision("http://127.0.0.1:5000")
         self.__setEspacioAcciones()
         self.__setPath()
 

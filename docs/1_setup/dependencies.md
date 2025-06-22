@@ -15,6 +15,7 @@ pip install --upgrade opencv-python
 pip install ultralytics
 pip install traci
 pip install supervision
+pip install pydantic
 ```
 
 > 📝 Nota: Se recomienda encarecidamente utilizar un entorno virtual (venv) para gestionar estas dependencias.
