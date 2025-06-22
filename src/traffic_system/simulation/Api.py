@@ -1,9 +1,8 @@
 import logging
 
 from flask import Flask, Response, jsonify, request
-
-from SUMO.App import AppSUMO
-from SUMO.zonas.ZonaList import ZonaList
+from simulation.AppSUMO import AppSUMO
+from simulation.zonas.ZonaList import ZonaList
 
 
 class ApiSUMO(Flask):

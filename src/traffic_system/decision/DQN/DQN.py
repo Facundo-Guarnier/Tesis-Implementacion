@@ -4,10 +4,10 @@ import time
 
 import numpy as np
 import tensorflow as tf
+from Decision.DQN.Api import ApiDecision
 from numpy import ndarray as NDArray
 
-from config import configuracion
-from Decision.DQN.Api import ApiDecision
+from src.traffic_system.core.config_loader import app_settings
 
 
 class DQN:
@@ -17,7 +17,7 @@ class DQN:
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
         self.__setEspacioAcciones()
-        self.ponderaciones_zonas: list[float] = configuracion["decision"][
+        self.ponderaciones_zonas: list[float] = app_settings["decision"][
             "ponderaciones_zonas"
         ]  #!Ej: [1.0, 1.5, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 

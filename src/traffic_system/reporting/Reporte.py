@@ -4,8 +4,9 @@ import os
 import sqlite3
 import time
 
-from config import configuracion
-from Reporte.Api import ApiReporte
+from reporting.Api import ApiReporte
+
+from src.traffic_system.core.config_loader import app_settings
 
 
 class Reporte:
@@ -13,7 +14,7 @@ class Reporte:
         logging.basicConfig(level=logging.DEBUG)
         self.__api = ApiReporte()
         self.__path_reporte = os.path.join(
-            configuracion["reporte"]["path_reporte"],
+            app_settings["reporte"]["path_reporte"],
             f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
         )
         self.__db_conn: sqlite3.Connection | None = None  #! Conexión a la base de datos
@@ -46,7 +47,7 @@ class Reporte:
                     f" Error al generar el reporte. Reintentando... ({e + 1}/{5})"
                 )
                 e += 1
-                time.sleep(configuracion["reporte"]["tiempo_entre_reportes"])
+                time.sleep(app_settings["reporte"]["tiempo_entre_reportes"])
 
             else:
                 e = 0
@@ -222,14 +223,14 @@ class Reporte:
 
         if (
             datos["tiempo_espera_total"]
-            > configuracion["reporte"]["tiempo_total_espera_maximo"]
+            > app_settings["reporte"]["tiempo_total_espera_maximo"]
         ):
             self.logger.warning(
                 f"Step {datos['steps']}: Tiempo de espera total mayor al permitido ({datos['tiempo_espera_total']})."
             )
 
         for i, dato in enumerate(datos["tiempos_espera"]):
-            if dato > configuracion["reporte"]["tiempo_zona_espera_maximo"]:
+            if dato > app_settings["reporte"]["tiempo_zona_espera_maximo"]:
                 nombre_zona_maxima = chr(ord("A") + i)  #! Convertir índice a letra
                 self.logger.warning(
                     f"Step {datos['steps']}: Tiempo de espera en la zona {nombre_zona_maxima} mayor permitido ({dato})."

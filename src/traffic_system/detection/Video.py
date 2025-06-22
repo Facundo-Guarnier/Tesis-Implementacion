@@ -2,8 +2,7 @@ import datetime
 import os
 
 import cv2
-
-from Deteccion.App.zonas.Zona import Zona
+from detection.App.zonas.Zona import Zona
 
 
 class Video:

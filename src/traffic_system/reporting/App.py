@@ -1,7 +1,7 @@
 import inspect
 import logging
 
-from Reporte.Reporte import Reporte
+from reporting.Reporte import Reporte
 
 # [CU1]
 # Esta seccion le pide información a la API de deteccion y de simulacion para

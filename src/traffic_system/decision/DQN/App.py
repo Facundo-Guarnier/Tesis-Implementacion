@@ -4,9 +4,9 @@ import time  # type: ignore
 
 import requests
 
-from config import configuracion
-from Decision.DQN.DQN import DQN
-from Decision.DQN.EntrenamientoDQN import EntrenamientoDQN
+from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.decision.DQN.DQN import DQN
+from src.traffic_system.decision.DQN.EntrenamientoDQN import EntrenamientoDQN
 
 
 class AppDecision:
@@ -45,7 +45,7 @@ class AppDecision:
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
         logger.info("Usar DQN")
-        path_modelo = configuracion["decision"]["path_modelo_entrenado"]
+        path_modelo = app_settings["decision"]["path_modelo_entrenado"]
         conextion = False
 
         while not conextion:

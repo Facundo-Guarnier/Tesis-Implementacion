@@ -1,4 +1,4 @@
-from SUMO.zonas.Zona import Zona
+from simulation.zonas.Zona import Zona
 
 
 class ZonaList:
@@ -7,7 +7,7 @@ class ZonaList:
     - Representa una lista de zonas (List[Zona]).
     """
 
-    _instance = None
+    _instance = None  # type: ignore
 
     def __new__(cls):
         if not cls._instance:
@@ -21,6 +21,7 @@ class ZonaList:
         """
         Definir las zonas de la simulación.
         """
+        # TODO: Eliminar las zonas hardcodeadas y permitir que se definan dinámicamente (config.yaml u otro).
         return [
             Zona(nombre="Zona A", id="A"),
             Zona(nombre="Zona B", id="B"),

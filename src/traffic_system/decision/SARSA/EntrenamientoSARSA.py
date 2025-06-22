@@ -33,7 +33,6 @@ import pickle
 import time
 
 import numpy as np
-
 from Decision.SARSA.Api import ApiClient
 
 

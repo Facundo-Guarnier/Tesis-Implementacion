@@ -6,12 +6,12 @@ from threading import Thread
 
 from traci.exceptions import FatalTraCIError
 
-from config import configuracion
-from Decision.DQN.App import AppDecision
-from Deteccion.App.Api import ApiDeteccion
-from Deteccion.App.App import AppDetection
-from SUMO.Api import ApiSUMO
-from SUMO.App import AppSUMO
+from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.decision.DQN.App import AppDecision
+from src.traffic_system.detection.Api import ApiDeteccion
+from src.traffic_system.detection.App import AppDetection
+from src.traffic_system.simulation.Api import ApiSUMO
+from src.traffic_system.simulation.AppSUMO import AppSUMO
 
 
 def cerrar(nro_senial: int, marco) -> None:
@@ -29,15 +29,15 @@ def run_app_deteccion() -> None:
         app = AppDetection()
 
         #! Procesar toda la carpetas del dataset.
-        if configuracion["deteccion"]["carpeta_dataset"]["procesar"]:
+        if app_settings["deteccion"]["carpeta_dataset"]["procesar"]:
             app.analizar_carpeta_videos()
 
         #! Procesar un video específico del dataset.
-        if configuracion["deteccion"]["un_video"]["procesar"]:
+        if app_settings["deteccion"]["un_video"]["procesar"]:
             app.analizar_un_video()
 
         #! Deteccion con cámara en vivo.
-        if configuracion["deteccion"]["procesar_camara"]:
+        if app_settings["deteccion"]["procesar_camara"]:
             app.analizar_camara()
 
     except Exception as e:
@@ -86,7 +86,7 @@ def run_app_decision() -> None:
     - Utilizar un modelo ya entrenado.
     """
     app = AppDecision()
-    if configuracion["decision"]["entrenamiento"]["entrenar"]:
+    if app_settings["decision"]["entrenamiento"]["entrenar"]:
         app.entrenar()
         cerrar(0, 0)
 
@@ -99,7 +99,7 @@ def run_app_reporte() -> None:
     """
     Genera el reporte de la simulación.
     """
-    from Reporte.App import AppReporte
+    from src.traffic_system.reporting.App import AppReporte
 
     app = AppReporte()
     app.generar_reporte()
@@ -107,33 +107,33 @@ def run_app_reporte() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    os.environ["SUMO_HOME"] = configuracion["sumo"]["path_sumo"]
+    os.environ["SUMO_HOME"] = app_settings["sumo"]["path_sumo"]
     signal.signal(signal.SIGINT, cerrar)
 
-    if configuracion["deteccion"]["detectar"]:
+    if app_settings["deteccion"]["detectar"]:
         app = Thread(target=run_app_deteccion)
         app.start()
         run_api_deteccion()
 
-    if configuracion["sumo"]["simular"]:
+    if app_settings["sumo"]["simular"]:
         app = Thread(target=run_app_sumo)
         app.start()
 
-    if configuracion["decision"]["decision"]:
+    if app_settings["decision"]["decision"]:
         app2 = Thread(target=run_app_decision)
         app2.start()
 
-    if configuracion["reporte"]["generar"]:
+    if app_settings["reporte"]["generar"]:
         reporte = Thread(target=run_app_reporte)
         reporte.start()
 
     # ? Estos va siempre al final
-    if configuracion["sumo"]["simular"]:
+    if app_settings["sumo"]["simular"]:
         run_api_sumo()
 
     app.join()
-    if configuracion["decision"]["decision"]:
+    if app_settings["decision"]["decision"]:
         app2.join()
 
-    if configuracion["reporte"]["generar"]:
+    if app_settings["reporte"]["generar"]:
         reporte.join()

@@ -5,13 +5,13 @@ from threading import Thread
 from typing import Any
 
 import traci
+from simulation.zonas.ZonaList import ZonaList
 
-from config import configuracion
-from SUMO.zonas.ZonaList import ZonaList
+from src.traffic_system.core.config_loader import app_settings
 
 
 class AppSUMO:
-    _instance = None
+    _instance = None  # type: ignore
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -22,11 +22,11 @@ class AppSUMO:
         logging.basicConfig(level=logging.DEBUG)
 
         self.zonas = ZonaList()
-        self.traci_s2: traci.connection.Connection | Any = None
-        self.__gui = configuracion["sumo"]["gui"]
-        self.__comparar = configuracion["sumo"]["comparar"]
+        self.traci_s2: traci.connection.Connection | Any = None  # type: ignore
+        self.__gui = app_settings["sumo"]["gui"]
+        self.__comparar = app_settings["sumo"]["comparar"]
 
-        self.__tiemposEsperaAcumuladolS1 = 0.0
+        self.__tiemposEsperaAcumuladoS1 = 0.0
         self.__tiemposEsperaAcumuladoS2 = 0.0
 
         self.__cantidadVehiculosAcumuladoS1 = 0
@@ -106,14 +106,14 @@ class AppSUMO:
                     logger.info(
                         "----------------------- Tiempo de espera total ---------------------------"
                     )
-                    self.__tiemposEsperaAcumuladolS1 += tiempoS1
+                    self.__tiemposEsperaAcumuladoS1 += tiempoS1
                     self.__tiemposEsperaAcumuladoS2 += tiempoS2
                     logger.info(f" Instante actual: (s1: {tiempoS1} | s2: {tiempoS2})")
                     logger.info(
-                        f" Acumulado: (s1: {self.__tiemposEsperaAcumuladolS1} | s2: {self.__tiemposEsperaAcumuladoS2})"
+                        f" Acumulado: (s1: {self.__tiemposEsperaAcumuladoS1} | s2: {self.__tiemposEsperaAcumuladoS2})"
                     )
                     logger.info(
-                        f" Promedio: (s1: {self.__tiemposEsperaAcumuladolS1/i} | s2: {self.__tiemposEsperaAcumuladoS2/i})"
+                        f" Promedio: (s1: {self.__tiemposEsperaAcumuladoS1/i} | s2: {self.__tiemposEsperaAcumuladoS2/i})"
                     )
 
                     logger.info(
@@ -367,7 +367,7 @@ class AppSUMO:
         """
 
         while (
-            self.traci_s1.simulation.getTime() % configuracion["reporte"]["steps"] != 0
+            self.traci_s1.simulation.getTime() % app_settings["reporte"]["steps"] != 0
         ):
             pass
 

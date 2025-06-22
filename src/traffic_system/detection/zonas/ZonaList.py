@@ -1,7 +1,7 @@
 import numpy as np
 import yaml
 
-from Deteccion.App.zonas.Zona import Zona
+from src.traffic_system.detection.zonas.Zona import Zona
 
 
 class ZonaList:
@@ -11,7 +11,7 @@ class ZonaList:
     - Representa una lista de zonas (List[Zona]).
     """
 
-    _instance = None
+    _instance = None  # type: ignore
 
     def __new__(cls):
         if not cls._instance:

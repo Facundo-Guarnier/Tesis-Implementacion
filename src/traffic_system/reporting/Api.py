@@ -1,11 +1,11 @@
 import requests  # type: ignore
 
-from config import configuracion
+from src.traffic_system.core.config_loader import app_settings
 
 
 class ApiReporte:
     def __init__(self) -> None:
-        self.__url = configuracion["base_url"]
+        self.__url = app_settings["base_url"]
 
     def getReporte(self) -> dict:
         """

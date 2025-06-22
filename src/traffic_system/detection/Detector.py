@@ -6,9 +6,9 @@ import matplotlib.path as mplPath
 import numpy as np
 import supervision as sv
 import ultralytics as ul
+from detection.App.Video import Video
 
-from config import configuracion
-from Deteccion.App.Video import Video
+from src.traffic_system.core.config_loader import app_settings
 
 
 class Detector:
@@ -27,7 +27,7 @@ class Detector:
 
     def __init__(self):
         self.modelo = ul.YOLO(
-            f"Deteccion/Modelos/{configuracion['deteccion']['modelo']}"
+            f"Deteccion/Modelos/{app_settings['deteccion']['modelo']}"
         )
         self.__CLASES_SELECCIONADAS = [2, 3, 5, 7]  # Auto, Moto, Camion, Bus
         self.__CLASES = self.modelo.model.names
@@ -282,7 +282,7 @@ class Detector:
 
         self.video = video
         self.__crear_carpeta_multas()
-        guardar = configuracion["deteccion"]["un_video"]["guardar"]
+        guardar = app_settings["deteccion"]["un_video"]["guardar"]
         cap = cv2.VideoCapture(self.video.path_origen)
         self.video.zona.escalar_puntos(self.video.resolucion)
         self.__definir_parametros_supervision()
