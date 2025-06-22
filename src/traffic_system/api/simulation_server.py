@@ -1,8 +1,9 @@
 import logging
 
 from flask import Flask, Response, jsonify, request
-from simulation.AppSUMO import AppSUMO
-from simulation.zonas.ZonaList import ZonaList
+
+from src.traffic_system.simulation.AppSUMO import AppSUMO
+from src.traffic_system.simulation.zonas.ZonaList import ZonaList
 
 
 class ApiSUMO(Flask):
@@ -155,7 +156,9 @@ class ApiSUMO(Flask):
         return (
             jsonify(
                 {
-                    "steps": self.app.getStepsReporte(),
+                    # TODO: SUMO no debería saber nada de getStepsReporte
+                    # "steps": self.app.getStepsReporte(),
+                    "steps": 1,
                     "tiempos_espera": self.app.getTiemposEspera(),
                     "estados_semaforos": self.app.getSemaforosEstados(),
                 }

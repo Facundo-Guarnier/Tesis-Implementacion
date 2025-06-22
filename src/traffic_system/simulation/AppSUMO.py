@@ -7,7 +7,9 @@ from typing import Any
 import traci
 from simulation.zonas.ZonaList import ZonaList
 
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+
+from ..core.config_models import SumoSettings
 
 
 class AppSUMO:
@@ -18,13 +20,17 @@ class AppSUMO:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, sumo_settings: SumoSettings | None = None) -> None:
         logging.basicConfig(level=logging.DEBUG)
+
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().sumo
+        # self.settings = sumo_settings
 
         self.zonas = ZonaList()
         self.traci_s2: traci.connection.Connection | Any = None  # type: ignore
-        self.__gui = app_settings["sumo"]["gui"]
-        self.__comparar = app_settings["sumo"]["comparar"]
+        self.__gui = self.settings.gui
+        self.__comparar = self.settings.comparar
 
         self.__tiemposEsperaAcumuladoS1 = 0.0
         self.__tiemposEsperaAcumuladoS2 = 0.0
@@ -106,8 +112,8 @@ class AppSUMO:
                     logger.info(
                         "----------------------- Tiempo de espera total ---------------------------"
                     )
-                    self.__tiemposEsperaAcumuladoS1 += tiempoS1
-                    self.__tiemposEsperaAcumuladoS2 += tiempoS2
+                    self.__tiemposEsperaAcumuladoS1 += tiempoS1[0]
+                    self.__tiemposEsperaAcumuladoS2 += tiempoS2[0]
                     logger.info(f" Instante actual: (s1: {tiempoS1} | s2: {tiempoS2})")
                     logger.info(
                         f" Acumulado: (s1: {self.__tiemposEsperaAcumuladoS1} | s2: {self.__tiemposEsperaAcumuladoS2})"
@@ -357,7 +363,7 @@ class AppSUMO:
             logger.error(f" La simulacion no está disponible: '{e}'")
             return False
 
-    def getStepsReporte(self) -> int:
+    def getStepsReporte(self) -> None:
         """
         Obtener la cantidad de steps que lleva la simulación, para el reporte.
         Esto es cada x segundos (configurado en el archivo de configuración).
@@ -365,10 +371,9 @@ class AppSUMO:
         Returns:
             int: 480
         """
+        # TODO: Esta logica no se si debería estar acá, SUMO no le interesa el reporte.
+        # while self.traci_s1.simulation.getTime() % self.settings.reporte.steps != 0:
+        #     pass
 
-        while (
-            self.traci_s1.simulation.getTime() % app_settings["reporte"]["steps"] != 0
-        ):
-            pass
-
-        return int(self.traci_s1.simulation.getTime())
+        # return int(self.traci_s1.simulation.getTime())
+        pass
