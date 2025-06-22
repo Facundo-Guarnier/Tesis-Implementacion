@@ -9,10 +9,11 @@ class ApiDeteccion(Flask):
     vehículos que hay en cada zona.
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, zonas_instance: ZonaList | None = None) -> None:
         super().__init__(name)
 
-        self.zonas = ZonaList()
+        # self.zonas = ZonaList()
+        self.zonas = zonas_instance if zonas_instance is not None else ZonaList()
 
         #! Cantidades
         self.route("/cantidad", methods=["GET"])(self.cantidades)

@@ -44,7 +44,12 @@ class AppSUMO:
         if self.__gui:
             os.environ["SUMO_LOG"] = "error"
             traci.start(
-                cmd=["sumo-gui", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"],
+                cmd=[
+                    "sumo-gui",
+                    "-c",
+                    "assets/sumo_maps/MapaDe0/mapa.sumocfg",
+                    "--no-warnings",
+                ],
                 label="s1",
             )
             self.traci_s1 = traci.getConnection("s1")
@@ -53,7 +58,7 @@ class AppSUMO:
                     cmd=[
                         "sumo-gui",
                         "-c",
-                        "SUMO/MapaDe0/mapa.sumocfg",
+                        "assets/sumo_maps/MapaDe0/mapa.sumocfg",
                         "--no-warnings",
                     ],
                     label="s2",
@@ -61,7 +66,12 @@ class AppSUMO:
                 self.traci_s2 = traci.getConnection("s2")
         else:
             traci.start(
-                cmd=["sumo", "-c", "SUMO/MapaDe0/mapa.sumocfg", "--no-warnings"],
+                cmd=[
+                    "sumo",
+                    "-c",
+                    "assets/sumo_maps/MapaDe0/mapa.sumocfg",
+                    "--no-warnings",
+                ],
                 label="s1",
             )
             self.traci_s1 = traci.getConnection("s1")

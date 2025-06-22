@@ -6,7 +6,7 @@
     Ruta raíz desde la que comenzar (por defecto, la carpeta actual).
 
 .EXAMPLE
-    .\Print-Tree.ps1 -RootPath "C:\MiProyecto"
+    .\scripts\Print-Tree.ps1 -RootPath "D:\Repositorios_GitHub\Tesis-Implementacion"
 #>
 param(
     [string]$RootPath = "."

@@ -95,3 +95,19 @@ class ZonaList:
                 return zona.multas_activadas
 
         return False
+
+    def get_zona_by_name(self, zona_nombre: str) -> Zona | None:
+        """
+        Devuelve una zona por su nombre.
+
+        Args:
+            zona_nombre (str): Nombre de la zona. Ej: "Zona A"
+
+        Returns:
+            Zona | None: La zona encontrada o None si no se encuentra.
+        """
+        for zona in self.zonas:
+            if zona.nombre == zona_nombre:
+                return zona
+
+        return None

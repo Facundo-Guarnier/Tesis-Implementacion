@@ -1,7 +1,9 @@
 import inspect
 import logging
 import os
+import signal
 import sys
+from threading import Thread
 
 from traci.exceptions import FatalTraCIError
 from ultralytics import settings
@@ -112,37 +114,37 @@ def main() -> None:
     print(settings)
     logger.info("✅ Configuración cargada correctamente.")
 
-    # logging.basicConfig(level=logging.DEBUG)
-    # os.environ["SUMO_HOME"] = settings.sumo.path_sumo
-    # signal.signal(signal.SIGINT, cerrar)
+    logging.basicConfig(level=logging.DEBUG)
+    os.environ["SUMO_HOME"] = settings.sumo.path_sumo
+    signal.signal(signal.SIGINT, cerrar)
 
-    # if settings.deteccion.detectar:
-    #     app = Thread(target=run_app_deteccion)
-    #     app.start()
-    #     run_api_deteccion()
+    if settings.deteccion.detectar:
+        app = Thread(target=run_app_deteccion)
+        app.start()
+        run_api_deteccion()
 
-    # if settings.sumo.simular:
-    #     app = Thread(target=run_app_sumo)
-    #     app.start()
+    if settings.sumo.simular:
+        app = Thread(target=run_app_sumo)
+        app.start()
 
-    # if settings.decision.decision:
-    #     app2 = Thread(target=run_app_decision)
-    #     app2.start()
+    if settings.decision.decision:
+        app2 = Thread(target=run_app_decision)
+        app2.start()
 
-    # if settings.reporte.generar:
-    #     reporte = Thread(target=run_app_reporte)
-    #     reporte.start()
+    if settings.reporte.generar:
+        reporte = Thread(target=run_app_reporte)
+        reporte.start()
 
-    # # ? Estos va siempre al final
-    # if settings.sumo.simular:
-    #     run_api_sumo()
+    # ? Estos va siempre al final
+    if settings.sumo.simular:
+        run_api_sumo()
 
-    # app.join()
-    # if settings.decision.decision:
-    #     app2.join()
+    app.join()
+    if settings.decision.decision:
+        app2.join()
 
-    # if settings.reporte.generar:
-    #     reporte.join()
+    if settings.reporte.generar:
+        reporte.join()
 
 
 logging.basicConfig(

@@ -10,6 +10,7 @@ import ultralytics as ul
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
 from src.traffic_system.detection.Video import Video
+from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 
 class Detector:
@@ -26,12 +27,19 @@ class Detector:
         video (Video): Video a procesar.
     """
 
-    def __init__(self, detection_settings: DeteccionSettings | None = None) -> None:
+    def __init__(
+        self,
+        detection_settings: DeteccionSettings | None = None,
+        zonas_instance: ZonaList | None = None,
+    ) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
-        self.modelo = ul.YOLO(f"Deteccion/Modelos/{self.settings.modelo}")
+        self.modelo = ul.YOLO(f"assets/yolo_models/{self.settings.modelo}")
         self.__CLASES_SELECCIONADAS = [2, 3, 5, 7]  # Auto, Moto, Camion, Bus
         self.__CLASES = self.modelo.model.names
+
+        self.zonas = zonas_instance if zonas_instance is not None else ZonaList()
+
         self.tiempos_deteccion: dict[int, int] = (
             {}
         )  # Diccionario para almacenar tiempos de detección
@@ -169,7 +177,11 @@ class Detector:
         )
 
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
-        self.video.zona.cantidad_detecciones = detecciones_poligono
+        # self.video.zona.cantidad_detecciones = detecciones_poligono
+        zona_actualizada = self.zonas.get_zona_by_name(self.video.zona.nombre)
+        if zona_actualizada:
+            zona_actualizada.cantidad_detecciones = detecciones_poligono
+            zona_actualizada.tiempo_espera = int(tiempo_total)
         self.video.zona.tiempo_espera = int(tiempo_total)
 
         return frame
