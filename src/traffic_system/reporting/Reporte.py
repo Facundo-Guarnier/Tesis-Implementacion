@@ -5,15 +5,19 @@ import sqlite3
 import time
 
 from src.traffic_system.api_client.reporting_client import ApiReporte
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import ReporteSettings
 
 
 class Reporte:
-    def __init__(self) -> None:
+    def __init__(self, reporte_settings: ReporteSettings | None = None) -> None:
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().reporte
+
         logging.basicConfig(level=logging.DEBUG)
         self.__api = ApiReporte()
         self.__path_reporte = os.path.join(
-            app_settings["reporte"]["path_reporte"],
+            self.settings.path_reporte,
             f"Reporte_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
         )
         self.__db_conn: sqlite3.Connection | None = None  #! Conexión a la base de datos
@@ -46,7 +50,7 @@ class Reporte:
                     f" Error al generar el reporte. Reintentando... ({e + 1}/{5})"
                 )
                 e += 1
-                time.sleep(app_settings["reporte"]["tiempo_entre_reportes"])
+                time.sleep(self.settings.tiempo_entre_reportes)
 
             else:
                 e = 0
@@ -220,16 +224,13 @@ class Reporte:
             datos (dict): Datos de la simulación.
         """
 
-        if (
-            datos["tiempo_espera_total"]
-            > app_settings["reporte"]["tiempo_total_espera_maximo"]
-        ):
+        if datos["tiempo_espera_total"] > self.settings.tiempo_total_espera_maximo:
             self.logger.warning(
                 f"Step {datos['steps']}: Tiempo de espera total mayor al permitido ({datos['tiempo_espera_total']})."
             )
 
         for i, dato in enumerate(datos["tiempos_espera"]):
-            if dato > app_settings["reporte"]["tiempo_zona_espera_maximo"]:
+            if dato > self.settings.tiempo_zona_espera_maximo:
                 nombre_zona_maxima = chr(ord("A") + i)  #! Convertir índice a letra
                 self.logger.warning(
                     f"Step {datos['steps']}: Tiempo de espera en la zona {nombre_zona_maxima} mayor permitido ({dato})."

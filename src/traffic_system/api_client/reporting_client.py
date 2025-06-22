@@ -1,11 +1,14 @@
 import requests  # type: ignore
 
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import AppSettings
 
 
 class ApiReporte:
-    def __init__(self) -> None:
-        self.__url = app_settings["base_url"]
+    def __init__(self, app_settings: AppSettings | None = None) -> None:
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.app_settings = load_app_settings()
+        self.__url = self.app_settings.base_url
 
     def getReporte(self) -> dict:
         """

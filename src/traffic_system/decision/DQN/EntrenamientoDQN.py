@@ -11,7 +11,8 @@ import tensorflow as tf
 from numpy import ndarray as NDArray
 
 from src.traffic_system.api_client.data_source_client import ApiDecision
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import DecisionSettings
 
 
 class EntrenamientoDQN:
@@ -39,10 +40,13 @@ class EntrenamientoDQN:
         gamma (float): Factor de descuento, que determina la importancia de las recompensas futuras.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, decision_settings: DecisionSettings | None = None) -> None:
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().decision
+
         logging.basicConfig(level=logging.DEBUG)
         self.memory: deque = deque(
-            maxlen=app_settings["decision"]["entrenamiento"]["memory"]
+            maxlen=self.settings.entrenamiento.memory
         )  #! Memoria de reproducción
         self.__api = ApiDecision("http://127.0.0.1:5000")
 
@@ -51,24 +55,20 @@ class EntrenamientoDQN:
         self.state_size = 12
 
         #! Hiperparámetros
-        self.num_epocas = app_settings["decision"]["entrenamiento"]["num_epocas"]
-        self.batch_size = app_settings["decision"]["entrenamiento"]["batch_size"]
-        self.steps = app_settings["decision"]["entrenamiento"]["steps"]
+        self.num_epocas = self.settings.entrenamiento.num_epocas
+        self.batch_size = self.settings.entrenamiento.batch_size
+        self.steps = self.settings.entrenamiento.steps
 
-        self.learning_rate = app_settings["decision"]["entrenamiento"]["learning_rate"]
-        self.learning_rate_decay = app_settings["decision"]["entrenamiento"][
-            "learning_rate_decay"
-        ]
-        self.learning_rate_min = app_settings["decision"]["entrenamiento"][
-            "learning_rate_min"
-        ]
+        self.learning_rate = self.settings.entrenamiento.learning_rate
+        self.learning_rate_decay = self.settings.entrenamiento.learning_rate_decay
+        self.learning_rate_min = self.settings.entrenamiento.learning_rate_min
 
-        self.epsilon = app_settings["decision"]["entrenamiento"]["epsilon"]
-        self.epsilon_decay = app_settings["decision"]["entrenamiento"]["epsilon_decay"]
-        self.epsilon_min = app_settings["decision"]["entrenamiento"]["epsilon_min"]
+        self.epsilon = self.settings.entrenamiento.epsilon
+        self.epsilon_decay = self.settings.entrenamiento.epsilon_decay
+        self.epsilon_min = self.settings.entrenamiento.epsilon_min
 
-        self.gamma = app_settings["decision"]["entrenamiento"]["gamma"]
-        self.hidden_layers = app_settings["decision"]["entrenamiento"]["hidden_layers"]
+        self.gamma = self.settings.entrenamiento.gamma
+        self.hidden_layers = self.settings.entrenamiento.hidden_layers
 
     def __setEspacioAcciones(self) -> None:
         """
@@ -94,7 +94,7 @@ class EntrenamientoDQN:
         Establece la ruta donde se guardarán los archivos.
         """
         self.__path = os.path.join(
-            app_settings["decision"]["entrenamiento"]["path_resultado"],
+            self.settings.entrenamiento.path_resultado,
             f'DQN_{time.strftime("%Y-%m-%d_%H-%M")}',
         )
         if not os.path.exists(self.__path):

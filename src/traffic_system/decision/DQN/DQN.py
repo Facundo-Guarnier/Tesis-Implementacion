@@ -7,19 +7,22 @@ import tensorflow as tf
 from numpy import ndarray as NDArray
 
 from src.traffic_system.api_client.data_source_client import ApiDecision
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import DecisionSettings
 
 
 class DQN:
-    def __init__(self, path_modelo: str):
+    def __init__(
+        self, path_modelo: str, decision_settings: DecisionSettings | None = None
+    ) -> None:
         logging.basicConfig(level=logging.DEBUG)
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().decision
         self.__api = ApiDecision("http://127.0.0.1:5000")
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
         self.__setEspacioAcciones()
-        self.ponderaciones_zonas: list[float] = app_settings["decision"][
-            "ponderaciones_zonas"
-        ]  #!Ej: [1.0, 1.5, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        self.ponderaciones_zonas: list[float] = self.settings.ponderaciones_zonas
 
     def __setEspacioAcciones(self) -> None:
         """

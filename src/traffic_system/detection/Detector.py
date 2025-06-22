@@ -7,7 +7,8 @@ import numpy as np
 import supervision as sv
 import ultralytics as ul
 
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import DeteccionSettings
 from src.traffic_system.detection.Video import Video
 
 
@@ -25,13 +26,15 @@ class Detector:
         video (Video): Video a procesar.
     """
 
-    def __init__(self):
-        self.modelo = ul.YOLO(
-            f"Deteccion/Modelos/{app_settings['deteccion']['modelo']}"
-        )
+    def __init__(self, detection_settings: DeteccionSettings | None = None) -> None:
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().deteccion
+        self.modelo = ul.YOLO(f"Deteccion/Modelos/{self.settings.modelo}")
         self.__CLASES_SELECCIONADAS = [2, 3, 5, 7]  # Auto, Moto, Camion, Bus
         self.__CLASES = self.modelo.model.names
-        self.tiempos_deteccion = {}  # Diccionario para almacenar tiempos de detección
+        self.tiempos_deteccion: dict[int, int] = (
+            {}
+        )  # Diccionario para almacenar tiempos de detección
 
     def __crear_carpeta_multas(self) -> None:
         """
@@ -167,7 +170,7 @@ class Detector:
 
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
         self.video.zona.cantidad_detecciones = detecciones_poligono
-        self.video.zona.tiempo_espera = tiempo_total
+        self.video.zona.tiempo_espera = int(tiempo_total)
 
         return frame
 
@@ -282,7 +285,7 @@ class Detector:
 
         self.video = video
         self.__crear_carpeta_multas()
-        guardar = app_settings["deteccion"]["un_video"]["guardar"]
+        guardar = self.settings.un_video.guardar
         cap = cv2.VideoCapture(self.video.path_origen)
         self.video.zona.escalar_puntos(self.video.resolucion)
         self.__definir_parametros_supervision()

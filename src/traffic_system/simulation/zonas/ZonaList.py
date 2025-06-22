@@ -1,4 +1,4 @@
-from simulation.zonas.Zona import Zona
+from src.traffic_system.simulation.zonas.Zona import Zona
 
 
 class ZonaList:

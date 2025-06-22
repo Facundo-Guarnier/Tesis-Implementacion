@@ -3,8 +3,16 @@ import logging
 import os
 import sys
 
+from traci.exceptions import FatalTraCIError
+from ultralytics import settings
+
+from src.traffic_system.api.detection_server import ApiDeteccion
+from src.traffic_system.api.simulation_server import ApiSUMO
 from src.traffic_system.core.config_exceptions import ConfigValidationError
 from src.traffic_system.core.config_loader import AppSettings, load_app_settings
+from src.traffic_system.decision.DQN.App import AppDecision
+from src.traffic_system.detection.App import AppDetection
+from src.traffic_system.simulation.AppSUMO import AppSUMO
 
 
 def cerrar(nro_senial: int, marco) -> None:
@@ -13,78 +21,79 @@ def cerrar(nro_senial: int, marco) -> None:
     os._exit(0)
 
 
-# # T* Deteccion
-# def run_app_deteccion() -> None:
-#     """
-#     Inicia la detección de vehículos con YOLO.
-#     """
-#     try:
-#         app = AppDetection()
+# T* Deteccion
+def run_app_deteccion() -> None:
+    """
+    Inicia la detección de vehículos con YOLO.
+    """
+    try:
+        app = AppDetection()
 
-#         #! Procesar toda la carpetas del dataset.
-#         if settings.deteccion.carpeta_dataset.procesar:
-#             app.analizar_carpeta_videos()
+        #! Procesar toda la carpetas del dataset.
+        if settings.deteccion.carpeta_dataset.procesar:
+            app.analizar_carpeta_videos()
 
-#         #! Procesar un video específico del dataset.
-#         if settings.deteccion.un_video.procesar:
-#             app.analizar_un_video()
+        #! Procesar un video específico del dataset.
+        if settings.deteccion.un_video.procesar:
+            app.analizar_un_video()
 
-#         #! Deteccion con cámara en vivo.
-#         if settings.deteccion.procesar_camara:
-#             app.analizar_camara()
+        #! Deteccion con cámara en vivo.
+        if settings.deteccion.procesar_camara:
+            app.analizar_camara()
 
-#     except Exception as e:
-#         print("Error:", e)
-#         cerrar(0, 0)
-
-
-# def run_api_deteccion() -> None:
-#     """
-#     Inicia la API de detección de vehículos.
-#     """
-#     api = ApiDeteccion(name="API Deteccion")
-#     api.run(debug=False)
+    except Exception as e:
+        print("Error:", e)
+        cerrar(0, 0)
 
 
-# # T* SUMO
-# def run_app_sumo() -> None:
-#     """
-#     Simulación de tráfico con SUMO.
-#     """
-#     logger = logging.getLogger(f" {__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
-
-#     try:
-#         app = AppSUMO()
-#         app.iniciar()
-#     except FatalTraCIError as e:
-#         logger.error(" Error en la simulación de tráfico:", e)
-#         cerrar(0, 0)
-#         exit(1)
+def run_api_deteccion() -> None:
+    """
+    Inicia la API de detección de vehículos.
+    """
+    api = ApiDeteccion(name="API Deteccion")
+    api.run(debug=False)
 
 
-# def run_api_sumo() -> None:
-#     """
-#     Inicia la API de SUMO.
-#     """
-#     api = ApiSUMO(name="API SUMO")
-#     api.run(debug=False)
+# T* SUMO
+def run_app_sumo() -> None:
+    """
+    Simulación de tráfico con SUMO.
+    """
+    logger = logging.getLogger(f" {__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+
+    try:
+        app = AppSUMO()
+        app.iniciar()
+
+    except FatalTraCIError as e:
+        logger.error(" Error en la simulación de tráfico:", e)
+        cerrar(0, 0)
+        exit(1)
 
 
-# # T* Decision
-# def run_app_decision() -> None:
-#     """
-#     Inicial el modelo de toma de decisiones.
-#     Puede:
-#     - Entrenar el modelo.
-#     - Utilizar un modelo ya entrenado.
-#     """
-#     app = AppDecision()
-#     if settings.decision.entrenamiento.entrenar:
-#         app.entrenar()
-#         cerrar(0, 0)
+def run_api_sumo() -> None:
+    """
+    Inicia la API de SUMO.
+    """
+    api = ApiSUMO(name="API SUMO")
+    api.run(debug=False)
 
-#     else:
-#         app.usar()
+
+# T* Decision
+def run_app_decision() -> None:
+    """
+    Inicial el modelo de toma de decisiones.
+    Puede:
+    - Entrenar el modelo.
+    - Utilizar un modelo ya entrenado.
+    """
+    app = AppDecision()
+    if settings.decision.entrenamiento.entrenar:
+        app.entrenar()
+        cerrar(0, 0)
+
+    else:
+        app.usar()
 
 
 # T* Reporte

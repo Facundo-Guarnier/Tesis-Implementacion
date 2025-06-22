@@ -5,11 +5,10 @@ from threading import Thread
 from typing import Any
 
 import traci
-from simulation.zonas.ZonaList import ZonaList
 
 from src.traffic_system.core.config_loader import load_app_settings
-
-from ..core.config_models import SumoSettings
+from src.traffic_system.core.config_models import SumoSettings
+from src.traffic_system.simulation.zonas.ZonaList import ZonaList
 
 
 class AppSUMO:

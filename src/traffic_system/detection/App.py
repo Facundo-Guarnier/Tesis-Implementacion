@@ -1,13 +1,16 @@
 import os
 
-from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import DeteccionSettings
 from src.traffic_system.detection.Detector import Detector
 from src.traffic_system.detection.Video import Video
 from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 
 class AppDetection:
-    def __init__(self):
+    def __init__(self, detection_settings: DeteccionSettings | None = None) -> None:
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().deteccion
         self.detector = Detector()
         self.zonas = ZonaList()
 
@@ -17,8 +20,8 @@ class AppDetection:
         """
         print("Procesando videos...")
         i = 0
-        origen = app_settings["deteccion"]["carpeta_dataset"]["path_origen"]
-        destino = app_settings["deteccion"]["carpeta_dataset"]["path_destino"]
+        origen = self.settings.carpeta_dataset.path_origen
+        destino = self.settings.carpeta_dataset.path_destino
 
         #! Crear la carpeta de resultados si no existe
         if not os.path.exists(destino):
@@ -83,12 +86,12 @@ class AppDetection:
         """
 
         video = Video(
-            path_origen=app_settings["deteccion"]["un_video"]["path_origen"],
+            path_origen=self.settings.un_video.path_origen,
             zona=next(
                 (
                     zona
                     for zona in self.zonas.get()
-                    if zona.nombre == app_settings["deteccion"]["un_video"]["zona"]
+                    if zona.nombre == self.settings.un_video.zona
                 ),
                 self.zonas.get()[0],
             ),
