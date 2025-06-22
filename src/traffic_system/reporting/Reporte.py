@@ -4,8 +4,7 @@ import os
 import sqlite3
 import time
 
-from reporting.Api import ApiReporte
-
+from src.traffic_system.api_client.reporting_client import ApiReporte
 from src.traffic_system.core.config_loader import app_settings
 
 

@@ -1,5 +1,6 @@
-from detection.App.zonas.ZonaList import ZonaList
 from flask import Flask, Response, jsonify
+
+from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 
 class ApiDeteccion(Flask):

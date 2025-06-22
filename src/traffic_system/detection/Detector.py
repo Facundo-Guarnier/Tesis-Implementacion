@@ -6,9 +6,9 @@ import matplotlib.path as mplPath
 import numpy as np
 import supervision as sv
 import ultralytics as ul
-from detection.App.Video import Video
 
 from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.detection.Video import Video
 
 
 class Detector:

@@ -1,10 +1,9 @@
 import os
 
-from detection.App.Detector import Detector
-from detection.App.Video import Video
-from detection.App.zonas.ZonaList import ZonaList
-
 from src.traffic_system.core.config_loader import app_settings
+from src.traffic_system.detection.Detector import Detector
+from src.traffic_system.detection.Video import Video
+from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 
 class AppDetection:

@@ -2,7 +2,8 @@ import datetime
 import os
 
 import cv2
-from detection.App.zonas.Zona import Zona
+
+from src.traffic_system.detection.zonas.Zona import Zona
 
 
 class Video:
