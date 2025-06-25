@@ -121,8 +121,10 @@ class AppSUMO:
                     logger.info(
                         "----------------------- Tiempo de espera total ---------------------------"
                     )
-                    self.__tiemposEsperaAcumuladoS1 += tiempoS1[0]
-                    self.__tiemposEsperaAcumuladoS2 += tiempoS2[0]
+
+                    logger.info(f"++++ {tiempoS1} | {tiempoS2} ++++")
+                    self.__tiemposEsperaAcumuladoS1 += tiempoS1
+                    self.__tiemposEsperaAcumuladoS2 += tiempoS2
                     logger.info(f" Instante actual: (s1: {tiempoS1} | s2: {tiempoS2})")
                     logger.info(
                         f" Acumulado: (s1: {self.__tiemposEsperaAcumuladoS1} | s2: {self.__tiemposEsperaAcumuladoS2})"
@@ -278,12 +280,12 @@ class AppSUMO:
                 self.traci_s1.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas
             ]
 
-    def getTiemposEsperaTotal(self, s2=False) -> tuple[float] | Any:
+    def getTiemposEsperaTotal(self, s2=False) -> float | Any:
         """
         Obtener el tiempo total de espera de todas las zonas juntas.
 
         Return:
-            tuple[float]: (55.0)
+            float: 55.0
         """
 
         if s2:

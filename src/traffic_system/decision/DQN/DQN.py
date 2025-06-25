@@ -19,6 +19,7 @@ class DQN:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().decision
         self.__api = ApiDecision("http://127.0.0.1:5000")
+        print(f"+++++++++++++++++++++++ {path_modelo}")
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
         self.__setEspacioAcciones()
