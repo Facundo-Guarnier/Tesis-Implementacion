@@ -1,8 +1,12 @@
+import inspect
+import logging
+
 import requests  # type: ignore
 
 
 class ApiDecision:
     def __init__(self, base_url):
+        logging.basicConfig(level=logging.DEBUG)
         self.base_url = base_url
 
     def getCantidades(self) -> dict[str, int] | None:
@@ -115,8 +119,15 @@ class ApiDecision:
         """
         Verificar si la simulación está en ejecución.
         """
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+
         endpoint = "/simulacion"
-        response = requests.get(self.base_url + endpoint)
+        try:
+            response = requests.get(self.base_url + endpoint)
+        except Exception:
+            logger.error("Error al conectar con la API")
+            return False
+
         if response.status_code == 200:
             return response.json()["simulacion"]
         else:

@@ -51,9 +51,17 @@ class AppDecision:
         path_modelo = self.settings.path_modelo_entrenado
         conextion = False
 
+        try:
+            algoritmo2 = DQN(path_modelo=path_modelo)
+            logger.info(f"Modelo cargado desde: {path_modelo}")
+        except Exception as e:
+            logger.error(f"Error al cargar el modelo: {e}")
+
+        conextion = False
+
         while not conextion:
+
             try:
-                algoritmo2 = DQN(path_modelo=path_modelo)
                 algoritmo2.usar()
                 conextion = True
 
