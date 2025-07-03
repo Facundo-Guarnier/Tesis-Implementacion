@@ -93,6 +93,7 @@ class ApiDecision:
 
         endpoint = "/avanzar"
         response = requests.put(self.base_url + endpoint, params={"steps": steps})
+        print(f"response: {response.text}")
         if response.status_code == 200:
             return response.json()
         else:

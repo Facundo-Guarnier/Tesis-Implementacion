@@ -1,5 +1,3 @@
-# src\traffic_system\simulation\AppSUMO.py
-
 import logging
 from typing import Any
 
@@ -106,13 +104,34 @@ class AppSUMO:
         Avanzar la cantidad de steps especificada.
         Devuelve True si la simulación terminó durante el avance.
         """
+        tiempo_inicial = self.traci.simulation.getTime()
+        self.logger.debug(f"Avanzando {steps} pasos desde t={tiempo_inicial:.1f}s...")
+
         done = False
-        for _ in range(steps):
+        pasos_ejecutados = 0
+
+        for i in range(steps):
             if self.puedo_seguir():
-                self.traci.simulationStep()
+                try:
+                    self.traci.simulationStep()
+                    pasos_ejecutados += 1
+                except Exception as e:
+                    self.logger.error(f"Error ejecutando paso {i+1}: {e}")
+                    done = True
+                    break
             else:
                 done = True
+                self.logger.info(
+                    f"Simulación {self.label} terminó en paso {i+1} de {steps}"
+                )
                 break
+
+        tiempo_final = self.traci.simulation.getTime()
+        self.logger.debug(
+            f"Simulación {self.label}: {pasos_ejecutados}/{steps} pasos ejecutados, "
+            f"t={tiempo_inicial:.1f}s -> {tiempo_final:.1f}s, done={done}"
+        )
+
         return done
 
     def puedo_seguir(self) -> bool:

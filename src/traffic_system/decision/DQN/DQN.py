@@ -47,18 +47,24 @@ class DQN:
         Utilizar el modelo entrenado.
         """
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
-
+        print("+++++++++++++++++1")
         #! Esperar a que la simulación esté lista
         while not self.__api.getSimulacionOK():
+            print("+++++++++++++++++2")
             logger.info(" Esperando a que la simulación esté lista...")
             time.sleep(1)
+        print("+++++++++++++++++3")
         logger.info(" La simulación está lista.")
 
         done = False
         while not done:
+            print("+++++++++++++++++4")
             state = self.__estado()
+            print("+++++++++++++++++5")
             action = self.model.predict(state, verbose=0)
+            print("+++++++++++++++++6")
             done = self.__avanzar(int(np.argmax(action)))
+            print("+++++++++++++++++7")
 
     def __estado(self) -> NDArray:
         """
@@ -102,14 +108,21 @@ class DQN:
         2. Simula 15 pasos (para tener una recompensa mas realista).
         3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
+
+        print("-----1")
         action2 = self.__espacio_acciones[action]
+        print("-----2")
 
         #! Cambiar el estado de los semáforos en SUMO
         self.__api.putEstados(accion=action2.split("-"))
+        print("-----3")
 
         #! Avanzar en SUMO con la acción seleccionada
         respuesta = self.__api.putAvanzar(steps=15)
+        print(f"-----4 {respuesta}")
 
-        done: bool = respuesta["done"]  # type: ignore #! Si la simulación ha terminado
-
-        return done
+        if respuesta is None:
+            return False
+        else:
+            done: bool = respuesta["done"]
+            return done
