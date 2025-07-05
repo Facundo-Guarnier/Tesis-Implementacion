@@ -35,6 +35,7 @@ class ApiSUMO(Flask):
         self.route("/semaforo/<id>", methods=["GET"])(self.getEstado)
         self.route("/semaforo/<id>", methods=["PUT"])(self.putEstado)
         self.route("/simulacion", methods=["GET"])(self.getSimulacionOK)
+        self.route("/simulacion/reiniciar", methods=["POST"])(self.postReiniciar)
         self.route("/reporte", methods=["GET"])(self.getReporte)
 
     def putAvanzar(self) -> tuple[Response, int]:
@@ -314,3 +315,30 @@ class ApiSUMO(Flask):
             ),
             200,
         )
+
+    def postReiniciar(self) -> tuple[Response, int]:
+        """Reiniciar las simulaciones S1 y S2 (si existe)."""
+        try:
+            # Reiniciar S1
+            self.app_s1.reiniciar()
+            resultado = {"s1": "reiniciada"}
+
+            # Reiniciar S2 si existe
+            if self.app_s2:
+                self.app_s2.reiniciar()
+                resultado["s2"] = "reiniciada"
+
+            self.logger.info("🔄 Simulaciones reiniciadas exitosamente desde API")
+            return (
+                jsonify(
+                    {
+                        "mensaje": "Simulaciones reiniciadas exitosamente",
+                        "resultado": resultado,
+                    }
+                ),
+                200,
+            )
+
+        except Exception as e:
+            self.logger.error(f"❌ Error al reiniciar simulaciones: {e}")
+            return jsonify({"error": f"Error al reiniciar simulaciones: {str(e)}"}), 500

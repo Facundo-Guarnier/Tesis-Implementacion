@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Callable
 
 import traci
 
@@ -9,9 +9,14 @@ from src.traffic_system.simulation.zonas.ZonaList import ZonaList
 class AppSUMO:
     def __init__(
         self,
-        traci_conn: traci.connection.Connection | Any,
+        traci_conn: traci.connection.Connection,
         zonas: ZonaList,
         label: str,
+        config_file: str,
+        use_gui: bool,
+        restart_callback: (
+            Callable[[str, str, bool], traci.connection.Connection] | None
+        ) = None,
     ) -> None:
         """
         Una clase de servicio que encapsula las interacciones con una única
@@ -21,10 +26,16 @@ class AppSUMO:
             traci_conn: El objeto de conexión Traci ya iniciado.
             zonas: Una instancia de ZonaList con la definición de las zonas.
             label: Una etiqueta para identificar esta instancia de simulación (ej. 's1').
+            config_file: Ruta al archivo de configuración de SUMO.
+            use_gui: Si usar la interfaz gráfica de SUMO.
+            restart_callback: Función que puede recrear la conexión traci cuando se necesite reiniciar.
         """
         self.traci = traci_conn
         self.zonas = zonas
         self.label = label
+        self.config_file = config_file
+        self.use_gui = use_gui
+        self.restart_callback = restart_callback
         self.logger = logging.getLogger(f" {self.__class__.__name__}[{self.label}]")
 
     def setSemaforoEstado(self, semaforo: str, estado_nuevo: str) -> None:
@@ -117,14 +128,11 @@ class AppSUMO:
                     pasos_ejecutados += 1
                 except Exception as e:
                     self.logger.error(f"Error ejecutando paso {i+1}: {e}")
-                    done = True
+                    done = False
                     break
             else:
-                # TODO: este log solo sale cuando termina la simulacion con los 19500 pasos. Eliminar?
                 done = True
-                self.logger.info(
-                    f"Simulación {self.label} terminó en paso {i+1} de {steps}"
-                )
+                self.reiniciar()
                 break
 
         tiempo_final = self.traci.simulation.getTime()
@@ -134,6 +142,36 @@ class AppSUMO:
         )
 
         return done
+
+    def reiniciar(self) -> None:
+        """
+        Reiniciar la simulación.
+        """
+        self.logger.info("🔄 Reiniciando simulación")
+
+        try:
+            # Cerrar la conexión actual
+            self.traci.close()
+        except Exception as e:
+            self.logger.warning(f"Error al cerrar conexión anterior: {e}")
+
+        # Usar el callback para recrear la conexión si está disponible
+        if self.restart_callback:
+            try:
+                self.traci = self.restart_callback(
+                    self.label, self.config_file, self.use_gui
+                )
+                self.logger.info("✅ Simulación reiniciada exitosamente")
+            except Exception as e:
+                self.logger.error(f"❌ Error al reiniciar la simulación: {e}")
+                raise
+        else:
+            self.logger.error(
+                "❌ No se puede reiniciar: no hay callback de reinicio configurado"
+            )
+            raise RuntimeError(
+                "No se puede reiniciar la simulación: callback no disponible"
+            )
 
     def puedo_seguir(self) -> bool:
         """

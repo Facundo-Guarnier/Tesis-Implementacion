@@ -65,7 +65,14 @@ if __name__ == "__main__":
 
         logger.info("Iniciando conexión Traci para la simulación principal (s1)...")
         traci_s1 = start_traci_connection("s1", config_file_path, settings.sumo.gui)
-        app_s1 = AppSUMO(traci_s1, zonas, "s1")
+        app_s1 = AppSUMO(
+            traci_s1,
+            zonas,
+            "s1",
+            config_file_path,
+            settings.sumo.gui,
+            start_traci_connection,
+        )
 
         if settings.sumo.comparar:
             logger.info("Modo de comparación habilitado.")
@@ -73,7 +80,14 @@ if __name__ == "__main__":
                 "Iniciando conexión Traci para la simulación de comparación (s2)..."
             )
             traci_s2 = start_traci_connection("s2", config_file_path, settings.sumo.gui)
-            app_s2 = AppSUMO(traci_s2, zonas, "s2")
+            app_s2 = AppSUMO(
+                traci_s2,
+                zonas,
+                "s2",
+                config_file_path,
+                settings.sumo.gui,
+                start_traci_connection,
+            )
             comparison_logger = ComparisonLogger(interval_seconds=15)
 
             # Verificar sincronización inicial
