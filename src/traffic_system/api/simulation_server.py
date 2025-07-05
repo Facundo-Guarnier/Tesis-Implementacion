@@ -15,23 +15,20 @@ class ApiSUMO(Flask):
     ) -> None:
         super().__init__(name)
 
-        # Inyección de dependencias
         self.app_s1 = app_s1
         self.app_s2 = app_s2
         self.comparison_logger = comparison_logger
 
-        # Logger para esta instancia
         self.logger = logging.getLogger("ApiSUMO")
 
         log = logging.getLogger("werkzeug")
         log.setLevel(logging.ERROR)
 
-        # Las rutas no cambian
         self.route("/espera", methods=["GET"])(self.getTiemposEspera)
         self.route("/espera2", methods=["GET"])(self.getTiemposEspera2)
         self.route("/espera/<zona_id>", methods=["GET"])(self.getTiempoEspera)
         self.route("/sincronizacion", methods=["GET"])(self.getSincronizacion)
-        # ... (resto de rutas sin cambios)
+
         self.route("/avanzar", methods=["PUT"])(self.putAvanzar)
         self.route("/semaforo", methods=["GET"])(self.getEstados)
         self.route("/semaforo", methods=["PUT"])(self.putEstados)
@@ -233,18 +230,73 @@ class ApiSUMO(Flask):
     def putEstado(self, id) -> tuple[Response, int]:
         """Cambiar el estado de un semáforo en S1."""
         estado = request.args.get("estado", type=str)
-        if estado:
+        if not estado:
+            return jsonify({"error": "Falta el parámetro 'estado'."}), 400
+
+        try:
+            # Capturar tiempo antes del cambio
+            tiempo_s1_antes = self.app_s1.traci.simulation.getTime()
+
+            # Cambiar estado del semáforo en S1 (esto puede avanzar 3 pasos internamente)
             self.app_s1.setSemaforoEstado(id, estado)
+
+            # Si hay simulación de comparación, sincronizar el avance
+            if self.app_s2:
+                tiempo_s1_despues = self.app_s1.traci.simulation.getTime()
+                pasos_avanzados = tiempo_s1_despues - tiempo_s1_antes
+
+                if pasos_avanzados > 0:
+                    self.logger.debug(
+                        f"S1 avanzó {pasos_avanzados:.1f} pasos por cambio de semáforo {id}. "
+                        f"Sincronizando S2..."
+                    )
+                    # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
+                    self.app_s2.avanzar(int(pasos_avanzados))
+
             return jsonify({"estado": estado}), 200
-        return jsonify({"error": "Falta el parámetro 'estado'."}), 400
+
+        except Exception as e:
+            self.logger.error(f"Error cambiando estado de semáforo {id}: {e}")
+            return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
     def putEstados(self) -> tuple[Response, int]:
         """Cambiar los estados de varios semáforos en S1."""
         data = request.json
-        if data and "data" in data:
+        if not data or "data" not in data:
+            return jsonify({"error": "Falta el campo 'data' en el JSON."}), 400
+
+        try:
+            # Capturar tiempo antes del cambio
+            tiempo_s1_antes = self.app_s1.traci.simulation.getTime()
+
+            # Cambiar estados de semáforos en S1 (esto puede avanzar 3 pasos internamente)
             self.app_s1.setSemaforosEstados(estados_nuevos=data["data"])
+
+            # Si hay simulación de comparación, sincronizar el avance
+            if self.app_s2:
+                tiempo_s1_despues = self.app_s1.traci.simulation.getTime()
+                pasos_avanzados = tiempo_s1_despues - tiempo_s1_antes
+
+                if pasos_avanzados > 0:
+                    self.logger.debug(
+                        f"S1 avanzó {pasos_avanzados:.1f} pasos por cambio de semáforos. "
+                        f"Sincronizando S2..."
+                    )
+                    # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
+                    self.app_s2.avanzar(int(pasos_avanzados))
+
+                    # Verificar sincronización final
+                    if not self._verificar_sincronizacion():
+                        self.logger.warning(
+                            "Advertencia: Las simulaciones no quedaron perfectamente sincronizadas "
+                            "después del cambio de semáforos"
+                        )
+
             return jsonify({"estado": "OK"}), 200
-        return jsonify({"error": "Falta el campo 'data' en el JSON."}), 400
+
+        except Exception as e:
+            self.logger.error(f"Error cambiando estados de semáforos: {e}")
+            return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
     def getSimulacionOK(self) -> tuple[Response, int]:
         """Verificar si la simulación S1 está en ejecución."""

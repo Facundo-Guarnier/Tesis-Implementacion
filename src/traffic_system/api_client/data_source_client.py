@@ -93,7 +93,6 @@ class ApiDecision:
 
         endpoint = "/avanzar"
         response = requests.put(self.base_url + endpoint, params={"steps": steps})
-        print(f"response: {response.text}")
         if response.status_code == 200:
             return response.json()
         else:
@@ -116,20 +115,38 @@ class ApiDecision:
         else:
             return None
 
-    def getSimulacionOK(self) -> bool:
+    def isSimulationOk(self) -> bool:
         """
         Verificar si la simulación está en ejecución.
         """
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
-        endpoint = "/simulacion"
         try:
-            response = requests.get(self.base_url + endpoint)
-        except Exception:
-            logger.error("Error al conectar con la API")
+            response = requests.get(f"{self.base_url}/simulacion")
+            if response.status_code != 200:
+                logger.error("❌ La API no está disponible")
+                return False
+            return True
+        except requests.ConnectionError:
+            logger.error(
+                "❌ No se puede conectar a la API. ¿Está ejecutándose el servidor?"
+            )
             return False
 
-        if response.status_code == 200:
-            return response.json()["simulacion"]
-        else:
+    def isSimulationSync(self) -> bool:
+        """
+        Verificar si la simulación está sincronizada.
+        """
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        try:
+            response = requests.get(f"{self.base_url}/sincronizacion")
+            if response.status_code == 200:
+                sync_data = response.json()
+                logger.info(f"📊 Sincronización actual: {sync_data}")
+                return True
+            else:
+                logger.warning("⚠️ No hay simulación de comparación activa")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Error verificando sincronización: {e}")
             return False

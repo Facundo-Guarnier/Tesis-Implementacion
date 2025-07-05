@@ -76,18 +76,18 @@ class ComparisonLogger:
         self._stats["s2"]["vehicles"] += v2
 
         # --- Logging ---
-        self.logger.info("=" * 80)
+        self.logger.info("=" * 75)
         self.logger.info(
             f" COMPARATIVA en t ~ {sim_time:.0f}s (Reporte #{self._report_count})"
         )
         self.logger.info(
-            "----------------------- Estado de sincronización -------------------------"
+            "----------------------- Estado de sincronización --------------------------"
         )
         self.logger.info(
             f" S1: {tiempo_s1:.1f}s | S2: {tiempo_s2:.1f}s | Diff: {diferencia_tiempo:.1f}s | {sync_status}"
         )
         self.logger.info(
-            "----------------------- Tiempo de espera total ---------------------------"
+            "----------------------- Tiempo de espera total ----------------------------"
         )
         self.logger.info(f" S1 (API): {t1:.2f}s  |  S2 (Normal): {t2:.2f}s")
         self.logger.info(
@@ -97,7 +97,7 @@ class ComparisonLogger:
             f" Promedio S1: {self._stats['s1']['wait_time']/self._report_count:.2f}s | Promedio S2: {self._stats['s2']['wait_time']/self._report_count:.2f}s"
         )
         self.logger.info(
-            "----------------------- Cantidad de vehiculos ----------------------------"
+            "----------------------- Cantidad de vehiculos -----------------------------"
         )
         self.logger.info(f" S1 (API): {v1}  |  S2 (Normal): {v2}")
         self.logger.info(
@@ -106,4 +106,4 @@ class ComparisonLogger:
         self.logger.info(
             f" Promedio S1: {self._stats['s1']['vehicles']/self._report_count:.2f} | Promedio S2: {self._stats['s2']['vehicles']/self._report_count:.2f}"
         )
-        self.logger.info("=" * 80)
+        self.logger.info("=" * 75)

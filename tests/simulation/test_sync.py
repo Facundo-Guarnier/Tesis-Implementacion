@@ -19,7 +19,7 @@ def test_simulation_sync():
     """Prueba la sincronización de las simulaciones."""
     logger.info("🧪 Iniciando prueba de sincronización...")
 
-    # Verificar que la API esté disponible
+    #! Verificar que la API esté disponible
     try:
         response = requests.get(f"{API_BASE_URL}/simulacion")
         if response.status_code != 200:
@@ -31,7 +31,7 @@ def test_simulation_sync():
         )
         return False
 
-    # Verificar sincronización inicial
+    #! Verificar sincronización inicial
     try:
         response = requests.get(f"{API_BASE_URL}/sincronizacion")
         if response.status_code == 200:

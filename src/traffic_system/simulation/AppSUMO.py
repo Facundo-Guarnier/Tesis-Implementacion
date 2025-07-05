@@ -120,6 +120,7 @@ class AppSUMO:
                     done = True
                     break
             else:
+                # TODO: este log solo sale cuando termina la simulacion con los 19500 pasos. Eliminar?
                 done = True
                 self.logger.info(
                     f"Simulación {self.label} terminó en paso {i+1} de {steps}"

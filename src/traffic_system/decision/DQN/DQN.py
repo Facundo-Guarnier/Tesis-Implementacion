@@ -18,12 +18,13 @@ class DQN:
         logging.basicConfig(level=logging.DEBUG)
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().decision
-        self.__api = ApiDecision("http://127.0.0.1:5000")
+        self.__service = ApiDecision("http://127.0.0.1:5000")
         self.model = tf.keras.models.load_model(path_modelo)
         self.state_size = 12
         self.__setEspacioAcciones()
         self.ponderaciones_zonas: list[float] = self.settings.ponderaciones_zonas
 
+    # TODO: Generalizar esto, archivo de config? otro lugar?
     def __setEspacioAcciones(self) -> None:
         """
         Devuelve el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos.
@@ -47,24 +48,27 @@ class DQN:
         Utilizar el modelo entrenado.
         """
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
-        print("+++++++++++++++++1")
-        #! Esperar a que la simulación esté lista
-        while not self.__api.getSimulacionOK():
-            print("+++++++++++++++++2")
-            logger.info(" Esperando a que la simulación esté lista...")
-            time.sleep(1)
-        print("+++++++++++++++++3")
-        logger.info(" La simulación está lista.")
 
+        logger.info("🔄 Verificando que la simulación esté lista...")
+        while not self.__service.isSimulationOk():
+            logger.info("⌛ Esperando que la simulación esté lista...")
+            time.sleep(1)
+        logger.info("✅ La simulación está lista.")
+
+        logger.info("🔄 Verificando que la simulación esté sincronizada...")
+        while not self.__service.isSimulationSync():
+            logger.info("⌛ Esperando que la simulación esté sincronizada...")
+            time.sleep(1)
+        logger.info("✅ La simulación está sincronizada.")
+
+        # TODO: Agregar que avance hasta los X pasos iniciales de la simulación para que las calles estén cargadas.
+
+        logger.info("🚦 Comenzando la toma de decisiones...")
         done = False
         while not done:
-            print("+++++++++++++++++4")
             state = self.__estado()
-            print("+++++++++++++++++5")
             action = self.model.predict(state, verbose=0)
-            print("+++++++++++++++++6")
             done = self.__avanzar(int(np.argmax(action)))
-            print("+++++++++++++++++7")
 
     def __estado(self) -> NDArray:
         """
@@ -77,7 +81,7 @@ class DQN:
             NDArray: Estado actual normalizado. Ej: [0.1, 0.3, 0.5, 0, 0.1, 0.2, 0.4, 0.2, 0.6, 0.3, 0.9, 1]
         """
         #! Tiempo
-        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])  # type: ignore
+        estado = tuple(self.__service.getTiemposEspera()["tiempos_espera"])  # type: ignore
 
         #! Ponderar mas un semáforo que otro
         estado_ponderado = tuple(
@@ -109,18 +113,13 @@ class DQN:
         3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
 
-        print("-----1")
         action2 = self.__espacio_acciones[action]
-        print("-----2")
 
         #! Cambiar el estado de los semáforos en SUMO
-        self.__api.putEstados(accion=action2.split("-"))
-        print("-----3")
+        self.__service.putEstados(accion=action2.split("-"))
 
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=15)
-        print(f"-----4 {respuesta}")
-
+        respuesta = self.__service.putAvanzar(steps=15)
         if respuesta is None:
             return False
         else:

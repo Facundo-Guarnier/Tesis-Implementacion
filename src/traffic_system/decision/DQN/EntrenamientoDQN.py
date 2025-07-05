@@ -321,7 +321,7 @@ class EntrenamientoDQN:
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
         #! Esperar a que la simulación esté lista
-        while not self.__api.getSimulacionOK():
+        while not self.__api.isSimulationOk():
             logger.info(" Esperando a que la simulación esté lista...")
             time.sleep(1)
         logger.info(" La simulación está lista")
