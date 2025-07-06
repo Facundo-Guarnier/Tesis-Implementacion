@@ -106,7 +106,7 @@ def api_client() -> None:
     api.run(debug=False)
 
 
-def shutdown_handler(signum, frame):
+def shutdown_handler(sig_num, frame):
     logger.info("Cerrando el servicio de detección...")
     sys.exit(0)
 

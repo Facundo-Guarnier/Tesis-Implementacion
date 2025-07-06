@@ -39,7 +39,7 @@ def api_service(
         logger.error(f"No se pudo iniciar el servicio API: {e}", exc_info=True)
 
 
-def shutdown_handler(signum, frame):
+def shutdown_handler(sig_num, frame):
     logger.info("⚠️  Cerrando el servicio de simulación...")
     traci.close()  # Cierra todas las conexiones activas
     sys.exit(0)

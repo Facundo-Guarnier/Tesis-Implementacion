@@ -9,7 +9,7 @@ import ultralytics as ul
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
-from src.traffic_system.detection.Video import Video
+from src.traffic_system.detection.video import Video
 from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 
@@ -52,7 +52,7 @@ class Detector:
         self.__path_multas = os.path.join(
             "Resultados_multa",
             f"Multa_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
-            self.video.zona.nombre,
+            self.video.zone.nombre,
         )
         log_dir = os.path.join(self.__path_multas)
         if not os.path.exists(log_dir):
@@ -84,9 +84,9 @@ class Detector:
         )
 
         #! Línea de multas
-        self.video.zona.escalar_puntos_multa(self.video.resolucion)
+        self.video.zone.escalar_puntos_multa(self.video.resolution)
         self.line_zones: list[sv.LineZone] = []
-        p = self.video.zona.puntos_multa_reescalados
+        p = self.video.zone.puntos_multa_reescalados
         for i in range(len(p) - 1):
             start = sv.Point(p[i][0], p[i][1])
             end = sv.Point(p[i + 1][0], p[i + 1][1])
@@ -112,7 +112,7 @@ class Detector:
         #! Dibujar el polígono de detección
         cv2.polylines(
             img=frame,
-            pts=[self.video.zona.puntos_reescalados],
+            pts=[self.video.zone.puntos_reescalados],
             isClosed=True,
             color=(0, 0, 255),
             thickness=max(1, int(10 * self.video.factor_escala)),
@@ -136,7 +136,7 @@ class Detector:
 
             #! Validar el punto dentro del poligono
             color: list[int]  # BGR
-            if mplPath.Path(self.video.zona.puntos_reescalados).contains_point((x, y)):
+            if mplPath.Path(self.video.zone.puntos_reescalados).contains_point((x, y)):
                 detecciones_poligono += 1
                 color = [255, 80, 0]
 
@@ -178,11 +178,11 @@ class Detector:
 
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
         # self.video.zona.cantidad_detecciones = detecciones_poligono
-        zona_actualizada = self.zonas.get_zona_by_name(self.video.zona.nombre)
+        zona_actualizada = self.zonas.get_zona_by_name(self.video.zone.nombre)
         if zona_actualizada:
             zona_actualizada.cantidad_detecciones = detecciones_poligono
             zona_actualizada.tiempo_espera = int(tiempo_total)
-        self.video.zona.tiempo_espera = int(tiempo_total)
+        self.video.zone.tiempo_espera = int(tiempo_total)
 
         return frame
 
@@ -268,7 +268,7 @@ class Detector:
 
             frame = self.__box_sv(frame, detections)
 
-            if self.video.zona.multas_activadas:
+            if self.video.zone.multas_activadas:
                 frame = self.__multas(frame, detections)
 
         return frame
@@ -280,13 +280,13 @@ class Detector:
 
         self.video = video
         self.__crear_carpeta_multas()
-        self.video.zona.escalar_puntos(self.video.resolucion)
+        self.video.zone.escalar_puntos(self.video.resolution)
         self.__definir_parametros_supervision()
         print(f"  Factor de escala: {self.video.factor_escala}")
 
         sv.process_video(
-            source_path=video.path_origen,
-            target_path=video.path_resultado,
+            source_path=video.origin_path,
+            target_path=video.result_path,
             callback=self.__callback,
         )
 
@@ -298,13 +298,13 @@ class Detector:
         self.video = video
         self.__crear_carpeta_multas()
         guardar = self.settings.un_video.guardar
-        cap = cv2.VideoCapture(self.video.path_origen)
-        self.video.zona.escalar_puntos(self.video.resolucion)
+        cap = cv2.VideoCapture(self.video.origin_path)
+        self.video.zone.escalar_puntos(self.video.resolution)
         self.__definir_parametros_supervision()
 
         if guardar:
             out_guardar = cv2.VideoWriter(
-                filename=self.video.path_resultado,
+                filename=self.video.result_path,
                 fourcc=1983148141,  #! mp4v
                 fps=cap.get(cv2.CAP_PROP_FPS),
                 frameSize=(
@@ -363,7 +363,7 @@ class Detector:
         cap.release()
         cv2.destroyAllWindows()
         if guardar:
-            print("Guardado en: ", self.video.path_resultado)
+            print("Guardado en: ", self.video.result_path)
 
     def procesar_camara(self, video: Video) -> None:
         """

@@ -61,7 +61,7 @@ def main() -> None:
         app.usar()
 
 
-def shutdown_handler(signum, frame):
+def shutdown_handler(sig_num, frame):
     logger.info("Cerrando el agente de decisión...")
     sys.exit(0)
 

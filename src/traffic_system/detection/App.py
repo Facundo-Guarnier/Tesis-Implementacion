@@ -2,8 +2,8 @@ import os
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
-from src.traffic_system.detection.Detector import Detector
-from src.traffic_system.detection.Video import Video
+from src.traffic_system.detection.detector_service import Detector
+from src.traffic_system.detection.video import Video
 from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 
@@ -57,9 +57,9 @@ class AppDetection:
                             (".mp4", ".avi", ".mkv")
                         ):
                             video = Video(
-                                path_origen=archivo_video_ruta_entrada,
-                                path_resultado=archivo_video_ruta_salida,
-                                zona=next(
+                                origin_path=archivo_video_ruta_entrada,
+                                result_path=archivo_video_ruta_salida,
+                                zone=next(
                                     (
                                         zona
                                         for zona in self.zonas.get()
@@ -86,8 +86,8 @@ class AppDetection:
         """
 
         video = Video(
-            path_origen=self.settings.un_video.path_origen,
-            zona=next(
+            origin_path=self.settings.un_video.path_origen,
+            zone=next(
                 (
                     zona
                     for zona in self.zonas.get()
@@ -107,9 +107,9 @@ class AppDetection:
         """
 
         video = Video(
-            path_origen="",
-            factor_escala=0.2,
-            zona=next(
+            origin_path="",
+            scale_factor=0.2,
+            zone=next(
                 (zona for zona in self.zonas.get() if zona.nombre == "Camara"),
                 self.zonas.get()[0],
             ),

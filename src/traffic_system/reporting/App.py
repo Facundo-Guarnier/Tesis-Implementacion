@@ -1,7 +1,7 @@
 import inspect
 import logging
 
-from reporting.Reporte import Reporte
+from src.traffic_system.reporting.report_service import ReportService
 
 # [CU1]
 # Esta seccion le pide información a la API de deteccion y de simulacion para
@@ -13,16 +13,17 @@ from reporting.Reporte import Reporte
 # para el segundo caso de usuario.
 
 
-class AppReporte:
+class ReportApp:
     def __init__(self):
         logging.basicConfig(level=logging.DEBUG)
-        self.reporte = Reporte()
+        self.reporte = ReportService()
 
-    def generar_reporte(self) -> None:
+    def generate_report(self) -> None:
         """
         Generar reporte.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
-        logger.info("Generar reporte")
-
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
+        logger.info("📄 Iniciando generación de reporte...")
         self.reporte.main()
