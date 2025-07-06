@@ -17,28 +17,34 @@ class DQN:
     ) -> None:
         logging.basicConfig(level=logging.DEBUG)
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
-        self.settings = load_app_settings().decision
-        self.__service = ApiDecision("http://127.0.0.1:5000")
-        
+        self.settings = load_app_settings()
+        self.decision_settings = load_app_settings().decision
+
+        self.__service = ApiDecision(self.settings.base_url)
+
         # Cargar modelo con manejo de compatibilidad
         try:
             # Intentar cargar con custom_objects para manejar funciones obsoletas
-            custom_objects = {'mse': tf.keras.metrics.MeanSquaredError()}
-            self.model = tf.keras.models.load_model(path_modelo, custom_objects=custom_objects)
+            custom_objects = {"mse": tf.keras.metrics.MeanSquaredError()}
+            self.model = tf.keras.models.load_model(
+                path_modelo, custom_objects=custom_objects
+            )
         except Exception as e:
             logging.error(f"Error cargando con custom_objects: {e}")
             # Intentar cargar normalmente
             self.model = tf.keras.models.load_model(path_modelo, compile=False)
             # Recompilar el modelo manualmente
             self.model.compile(
-                optimizer='adam',
+                optimizer="adam",
                 loss=tf.keras.losses.MeanSquaredError(),
-                metrics=[tf.keras.metrics.MeanSquaredError()]
+                metrics=[tf.keras.metrics.MeanSquaredError()],
             )
-        
+
         self.state_size = 12
         self.__setEspacioAcciones()
-        self.ponderaciones_zonas: list[float] = self.settings.ponderaciones_zonas
+        self.ponderaciones_zonas: list[float] = (
+            self.decision_settings.ponderaciones_zonas
+        )
 
     # TODO: Generalizar esto, archivo de config? otro lugar?
     def __setEspacioAcciones(self) -> None:

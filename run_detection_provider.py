@@ -12,7 +12,7 @@ from src.traffic_system.core.config_loader import load_app_settings
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
 from src.traffic_system.api.detection_server import ApiDeteccion
-from src.traffic_system.detection.App import AppDetection
+from src.traffic_system.detection.app import AppDetection
 from src.traffic_system.detection.zonas.ZonaList import ZonaList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
@@ -103,7 +103,7 @@ def api_client() -> None:
     Inicia la API de detección de vehículos.
     """
     api = ApiDeteccion(name="API Deteccion")
-    api.run(debug=False)
+    api.run(host="0.0.0.0", port=5000, debug=False)
 
 
 def shutdown_handler(sig_num, frame):
