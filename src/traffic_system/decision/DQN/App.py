@@ -1,5 +1,6 @@
 import inspect
 import logging
+import os
 import time  # type: ignore
 
 import requests
@@ -49,13 +50,22 @@ class AppDecision:
 
         logger.info("Usar DQN")
         path_modelo = self.settings.path_modelo_entrenado
+        
+        # Convertir a ruta absoluta si es relativa
+        if not os.path.isabs(path_modelo):
+            path_modelo = os.path.abspath(path_modelo)
+        
+        algoritmo2 = None
         conextion = False
 
         try:
+            print(f"Intentando cargar modelo desde: {path_modelo}")
             algoritmo2 = DQN(path_modelo=path_modelo)
-            logger.info(f"Modelo cargado desde: {path_modelo}")
+            logger.info(f"Modelo cargado exitosamente desde: {path_modelo}")
         except Exception as e:
             logger.error(f"Error al cargar el modelo: {e}")
+            logger.error("No se puede continuar sin el modelo. Terminando...")
+            return
 
         conextion = False
 

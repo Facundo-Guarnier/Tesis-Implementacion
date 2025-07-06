@@ -44,6 +44,9 @@ class EntrenamientoDQN:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().decision
 
+        # Configurar GPU para entrenamiento óptimo
+        self.__configure_gpu()
+
         logging.basicConfig(level=logging.DEBUG)
         self.memory: deque = deque(
             maxlen=self.settings.entrenamiento.memory
@@ -69,6 +72,46 @@ class EntrenamientoDQN:
 
         self.gamma = self.settings.entrenamiento.gamma
         self.hidden_layers = self.settings.entrenamiento.hidden_layers
+
+    def __configure_gpu(self) -> None:
+        """
+        Configura la GPU para entrenamiento óptimo, o CPU como fallback.
+        """
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        
+        # Verificar GPUs disponibles
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        self.use_gpu = False
+        
+        if gpus:
+            try:
+                # Configurar crecimiento dinámico de memoria
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+                
+                # Habilitar mixed precision para mejor rendimiento en GPU
+                policy = tf.keras.mixed_precision.Policy('mixed_float16')
+                tf.keras.mixed_precision.set_global_policy(policy)
+                
+                self.use_gpu = True
+                self.device = '/GPU:0'
+                
+                logger.info(f" 🚀 GPU configurada: {len(gpus)} dispositivo(s)")
+                logger.info(f" 💾 Crecimiento dinámico de memoria: Habilitado")
+                logger.info(f" ⚡ Mixed precision training: Habilitado")
+                
+            except RuntimeError as e:
+                logger.warning(f" ⚠️ Error configurando GPU: {e}")
+                logger.info(" 🔄 Cambiando a CPU...")
+                self.use_gpu = False
+                self.device = '/CPU:0'
+        else:
+            logger.warning(" ⚠️ No se encontraron GPUs")
+            logger.info(" 🖥️ Usando CPU para entrenamiento")
+            self.use_gpu = False
+            self.device = '/CPU:0'
+            
+        logger.info(f" 🎯 Dispositivo seleccionado: {self.device}")
 
     def __setEspacioAcciones(self) -> None:
         """
@@ -109,25 +152,40 @@ class EntrenamientoDQN:
         """
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
-        #! Construir el modelo en base a self.hidden_layers
-        model = tf.keras.Sequential()
-        model.add(
-            tf.keras.layers.Dense(
-                self.hidden_layers[0], input_dim=self.state_size, activation="relu"
+        # Usar el dispositivo detectado (GPU o CPU)
+        with tf.device(self.device):
+            #! Construir el modelo en base a self.hidden_layers
+            model = tf.keras.Sequential()
+            model.add(
+                tf.keras.layers.Dense(
+                    self.hidden_layers[0], input_dim=self.state_size, activation="relu"
+                )
             )
-        )
 
-        for i in range(1, len(self.hidden_layers)):
-            model.add(tf.keras.layers.Dense(self.hidden_layers[i], activation="relu"))
+            for i in range(1, len(self.hidden_layers)):
+                model.add(tf.keras.layers.Dense(self.hidden_layers[i], activation="relu"))
 
-        model.add(
-            tf.keras.layers.Dense(len(self.__espacio_acciones), activation="linear")
-        )
+            model.add(
+                tf.keras.layers.Dense(len(self.__espacio_acciones), activation="linear")
+            )
 
-        model.compile(
-            loss="mse", optimizer=tf.keras.optimizers.Adam(lr=self.learning_rate)
-        )
+            # Usar learning_rate en lugar de lr (deprecado)
+            # XLA compilation solo si usamos GPU
+            model.compile(
+                loss="mse", 
+                optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
+                jit_compile=self.use_gpu  # XLA solo para GPU
+            )
+        
         logger.info(f" {model.summary()}")
+        
+        # Mostrar información del dispositivo usado
+        try:
+            device_info = model.layers[0].weights[0].device if model.layers[0].weights else self.device
+            logger.info(f" 🎯 Modelo creado en: {device_info}")
+        except Exception:
+            logger.info(f" 🎯 Modelo configurado para: {self.device}")
+            
         return model
 
     def __remember(
@@ -251,6 +309,28 @@ class EntrenamientoDQN:
             )
 
         logger.info(" Entrenamiento finalizado.")
+        
+        # Mostrar información final del dispositivo usado
+        if self.use_gpu:
+            try:
+                gpus = tf.config.experimental.list_physical_devices('GPU')
+                if gpus:
+                    memory_info = tf.config.experimental.get_memory_info(gpus[0].name.replace("/physical_device:", ""))
+                    if memory_info:
+                        peak_mb = memory_info['peak'] / (1024**2)
+                        logger.info(f" 💾 Memoria GPU máxima usada: {peak_mb:.1f} MB")
+            except Exception as e:
+                logger.debug(f" No se pudo obtener info de memoria GPU: {e}")
+        else:
+            logger.info(f" 🖥️ Entrenamiento completado usando CPU")
+            # Opcional: Mostrar información de memoria RAM usada
+            try:
+                import psutil
+                memory_info = psutil.virtual_memory()
+                used_gb = (memory_info.total - memory_info.available) / (1024**3)
+                logger.info(f" 💾 Memoria RAM en uso: {used_gb:.1f} GB")
+            except ImportError:
+                logger.debug(" psutil no disponible para mostrar uso de RAM")
 
     def __estado(self) -> NDArray:
         """

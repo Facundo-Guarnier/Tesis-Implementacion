@@ -19,7 +19,23 @@ class DQN:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().decision
         self.__service = ApiDecision("http://127.0.0.1:5000")
-        self.model = tf.keras.models.load_model(path_modelo)
+        
+        # Cargar modelo con manejo de compatibilidad
+        try:
+            # Intentar cargar con custom_objects para manejar funciones obsoletas
+            custom_objects = {'mse': tf.keras.metrics.MeanSquaredError()}
+            self.model = tf.keras.models.load_model(path_modelo, custom_objects=custom_objects)
+        except Exception as e:
+            logging.error(f"Error cargando con custom_objects: {e}")
+            # Intentar cargar normalmente
+            self.model = tf.keras.models.load_model(path_modelo, compile=False)
+            # Recompilar el modelo manualmente
+            self.model.compile(
+                optimizer='adam',
+                loss=tf.keras.losses.MeanSquaredError(),
+                metrics=[tf.keras.metrics.MeanSquaredError()]
+            )
+        
         self.state_size = 12
         self.__setEspacioAcciones()
         self.ponderaciones_zonas: list[float] = self.settings.ponderaciones_zonas

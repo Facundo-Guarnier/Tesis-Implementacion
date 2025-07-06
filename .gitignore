@@ -9,6 +9,7 @@ Resultados_entrenamiento*
 Resultados_reportes*
 results*
 *.pt
+.mi-venv/
 
 
 # Byte-compiled / optimized / DLL files
