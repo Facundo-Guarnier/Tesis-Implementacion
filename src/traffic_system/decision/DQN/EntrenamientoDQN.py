@@ -5,6 +5,8 @@ import os
 import random
 import time
 from collections import deque
+from typing import Optional
+import threading
 
 import numpy as np
 import tensorflow as tf
@@ -213,6 +215,7 @@ class EntrenamientoDQN:
     def __politica(self, state: NDArray) -> int:
         """
         Elige una acción basada en el estado actual del agente, utilizando una política ε-greedy para el control de la exploración.
+        Optimizado para el dispositivo configurado (GPU/CPU).
 
         returns:
             int: Índice de la acción seleccionada.
@@ -220,22 +223,51 @@ class EntrenamientoDQN:
         if np.random.rand() <= self.epsilon:
             return np.random.choice(len(self.__espacio_acciones))
         else:
-            act_values = self.model.predict(state, verbose=0)
+            # Asegurar que la predicción ocurra en el dispositivo correcto
+            with tf.device(self.device):
+                act_values = self.model.predict(state, verbose=0)
             return int(np.argmax(act_values[0]))
 
     def __replay(self) -> None:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
+        Optimizado para GPU/CPU según el dispositivo disponible.
         """
 
         minibatch = random.sample(self.memory, self.batch_size)
 
-        all_predictions = self.model.predict(
-            np.array([s[0] for s, _, _, _, _ in minibatch]),
-            batch_size=self.batch_size,
-            verbose=0,
-            use_multiprocessing=True,
-        )
+        # Preparar datos de entrada para predicción en lote
+        batch_states = np.array([s[0] for s, _, _, _, _ in minibatch])
+        
+        # Configurar parámetros según el dispositivo
+        predict_kwargs = {
+            'batch_size': self.batch_size,
+            'verbose': 0,
+        }
+        fit_kwargs = {
+            'epochs': 1,
+            'verbose': 0,
+            'batch_size': self.batch_size,
+        }
+        
+        # Solo usar multiprocessing en CPU y si está disponible en esta versión de TensorFlow
+        if not self.use_gpu:
+            try:
+                # Verificar si el parámetro está disponible
+                import inspect
+                predict_sig = inspect.signature(self.model.predict)
+                fit_sig = inspect.signature(self.model.fit)
+                
+                if 'use_multiprocessing' in predict_sig.parameters:
+                    predict_kwargs['use_multiprocessing'] = True
+                if 'use_multiprocessing' in fit_sig.parameters:
+                    fit_kwargs['use_multiprocessing'] = True
+            except Exception:
+                # Si hay algún error verificando los parámetros, continuar sin multiprocessing
+                pass
+        
+        # Realizar predicción en lote (más eficiente)
+        all_predictions = self.model.predict(batch_states, **predict_kwargs)
         all_predictions_copy = all_predictions.copy()
 
         states = []
@@ -252,14 +284,13 @@ class EntrenamientoDQN:
             states.append(state[0])
             targets.append(target_f)
 
-        self.model.fit(
-            np.array(states),
-            np.array(targets),
-            epochs=1,
-            verbose=0,
-            batch_size=self.batch_size,
-            use_multiprocessing=True,
-        )
+        # Entrenar con los datos preparados
+        states_array = np.array(states)
+        targets_array = np.array(targets)
+        
+        # Usar tf.device para asegurar que el entrenamiento ocurra en el dispositivo correcto
+        with tf.device(self.device):
+            self.model.fit(states_array, targets_array, **fit_kwargs)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
@@ -295,10 +326,12 @@ class EntrenamientoDQN:
                 if len(self.memory) > self.batch_size:
                     self.__replay()
 
-            #! Guardar los datos de entrenamiento por epoca
+            #! Guardar los datos de entrenamiento por epoca en formato Keras moderno
             self.model.save(self.__path + f"/epoca_{e+1}.h5")
+            self.model.save(self.__path + f"/epoca_{e+1}.keras")
 
             #! Guardar métricas de entrenamiento en un archivo CSV
+            duracion_epoca = time.time() - t1
             with open(
                 self.__path + "/entrenamiento_data.csv", mode="a", newline=""
             ) as file:
@@ -306,7 +339,7 @@ class EntrenamientoDQN:
                 writer.writerow(
                     [
                         e + 1,
-                        f"{(time.time()-t1):.2f}",
+                        f"{duracion_epoca:.2f}",
                         f"{total_reward:.2f}",
                         f"{self.epsilon:.5f}",
                         f"{self.learning_rate:.5f}",
@@ -314,7 +347,7 @@ class EntrenamientoDQN:
                 )
 
             logger.info(
-                f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada."
+                f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {duracion_epoca:.2f}s"
             )
 
         logger.info(" Entrenamiento finalizado.")
@@ -427,7 +460,7 @@ class EntrenamientoDQN:
                 writer.writerow(
                     [
                         "Epoca",
-                        "Duración",
+                        "Duración (segundos)",
                         "Recompensa Acumulada",
                         "Epsilon",
                         "Tasa de Aprendizaje",
@@ -478,16 +511,18 @@ class EntrenamientoDQN:
         total_reward = 0.0
         done = False
         logger.info(" Calculando recompensa con semaforos con tiempo fijo.")
+        t_fijo_inicio = time.time()
         while not done:
             total_reward += self.__recompensa()
             done = self.__api.putAvanzar(steps=self.steps)["done"]  # type: ignore
+        tiempo_fijo = time.time() - t_fijo_inicio
 
         #! Guardar los datos de los semaforos con tiempo fijo
         with open(
             self.__path + "/entrenamiento_data.csv", mode="a", newline=""
         ) as file:
             writer = csv.writer(file)
-            writer.writerow(["-", "-", total_reward, "-", "-"])
+            writer.writerow(["-", f"{tiempo_fijo:.2f}", f"{total_reward:.2f}", "-", "-"])
 
         self.model = self.__build_model()
 
