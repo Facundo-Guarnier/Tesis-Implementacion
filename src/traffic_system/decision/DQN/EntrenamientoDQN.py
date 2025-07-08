@@ -276,55 +276,43 @@ class EntrenamientoDQN:
         returns:
             int: Índice de la acción seleccionada.
         """
-        # Usar TensorFlow para generación de números aleatorios en GPU si es posible
-        if self.use_gpu:
-            with tf.device(self.device):
-                # Usar TensorFlow para la comparación aleatoria
-                random_val = tf.random.uniform([], 0, 1, dtype=tf.float32)
-                if random_val <= self.epsilon:
-                    # Selección aleatoria usando TensorFlow
-                    action = tf.random.uniform([], 0, len(self.__espacio_acciones), dtype=tf.int32)
-                    return int(action.numpy())
-                else:
-                    # Predicción en GPU
-                    state_tensor = tf.constant(state, dtype=tf.float32)
-                    act_values = self.model.predict(state_tensor, verbose=0)
-                    return int(tf.argmax(act_values[0]).numpy())
+        if np.random.rand() <= self.epsilon:
+            return np.random.choice(len(self.__espacio_acciones))
         else:
-            # Fallback a NumPy para CPU
-            if np.random.rand() <= self.epsilon:
-                return np.random.choice(len(self.__espacio_acciones))
-            else:
-                act_values = self.model.predict(state, verbose=0)
-                return int(np.argmax(act_values[0]))
+            # Reshape para predicción en lote (más eficiente)
+            state_batch = np.expand_dims(state, axis=0)  # (12,) -> (1, 12)
+            act_values = self.model.predict(state_batch, verbose=0)
+            return int(np.argmax(act_values[0]))
 
     def __replay(self) -> None:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
-        Optimizado para GPU/CPU con monitoreo detallado y procesamiento eficiente de datos.
+        Optimizado para reducir conversiones y cálculos redundantes.
         """
         minibatch = random.sample(self.memory, self.batch_size)
 
-        # Preparar todos los datos como tensores de TensorFlow para máxima eficiencia
+        # Preparar datos de manera más eficiente
         if self.use_gpu:
             with tf.device(self.device):
-                # Convertir datos a tensores de TensorFlow directamente
-                # Corregir el acceso a los estados - s[0] ya tiene la forma correcta (1, 12)
-                batch_states = tf.constant([s[0] for s, _, _, _, _ in minibatch], dtype=tf.float32)
-                batch_states = tf.reshape(batch_states, [self.batch_size, self.state_size])
-                
-                batch_next_states = tf.constant([ns[0] for _, _, _, ns, _ in minibatch], dtype=tf.float32)
-                batch_next_states = tf.reshape(batch_next_states, [self.batch_size, self.state_size])
-                
-                batch_rewards = tf.constant([r for _, _, r, _, _ in minibatch], dtype=tf.float32)
-                batch_actions = tf.constant([a for _, a, _, _, _ in minibatch], dtype=tf.int32)
-                batch_dones = tf.constant([d for _, _, _, _, d in minibatch], dtype=tf.bool)
+                # Extraer datos directamente como arrays numpy y convertir una sola vez
+                states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
+                next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
+                rewards = np.array([r for _, _, r, _, _ in minibatch], dtype=np.float32)
+                actions = np.array([a for _, a, _, _, _ in minibatch], dtype=np.int32)
+                dones = np.array([d for _, _, _, _, d in minibatch], dtype=bool)
 
-                # Predicciones en lote usando TensorFlow
+                # Convertir a tensores una sola vez
+                batch_states = tf.constant(states)
+                batch_next_states = tf.constant(next_states)
+                batch_rewards = tf.constant(rewards)
+                batch_actions = tf.constant(actions)
+                batch_dones = tf.constant(dones)
+
+                # Predicciones en lote
                 current_q_values = self.model(batch_states, training=False)
                 next_q_values = self.model(batch_next_states, training=False)
                 
-                # Calcular targets usando operaciones de TensorFlow
+                # Calcular targets
                 max_next_q = tf.reduce_max(next_q_values, axis=1)
                 targets = tf.where(
                     batch_dones,
@@ -350,42 +338,34 @@ class EntrenamientoDQN:
                     batch_size=self.batch_size
                 )
         else:
-            # Procesamiento optimizado para CPU
-            batch_states = np.array([s[0] for s, _, _, _, _ in minibatch])
-            all_predictions = self.model.predict(batch_states, verbose=0, batch_size=self.batch_size)
-            all_predictions_copy = all_predictions.copy()
-
-            states = []
-            targets = []
-
-            for i, (state, action, reward, next_state, done) in enumerate(minibatch):
-                target = reward
-                if not done:
-                    target = reward + self.gamma * np.amax(all_predictions_copy[i])
-
-                target_f = all_predictions_copy[i]
-                target_f[action] = target
-                states.append(state[0])
-                targets.append(target_f)
-
-            # Entrenar con los datos preparados
-            states_array = np.array(states)
-            targets_array = np.array(targets)
+            # Versión CPU optimizada - sin copias innecesarias
+            states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
+            next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
             
+            # Predicciones en lote
+            current_q_values = self.model.predict(states, verbose=0, batch_size=self.batch_size)
+            next_q_values = self.model.predict(next_states, verbose=0, batch_size=self.batch_size)
+            
+            # Preparar targets directamente
+            targets = current_q_values.copy()
+            for i, (_, action, reward, _, done) in enumerate(minibatch):
+                if done:
+                    targets[i][action] = reward
+                else:
+                    targets[i][action] = reward + self.gamma * np.max(next_q_values[i])
+            
+            # Entrenar
             self.model.fit(
-                states_array, 
-                targets_array,
+                states, 
+                targets,
                 epochs=1,
                 verbose=0,
                 batch_size=self.batch_size
             )
 
-        # Actualizar parámetros
+        # Actualizar parámetros - solo epsilon (learning_rate se maneja en el optimizador)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
-
-        if self.learning_rate > self.learning_rate_min:
-            self.learning_rate *= self.learning_rate_decay
 
     def __train(self) -> None:
         """
@@ -442,7 +422,7 @@ class EntrenamientoDQN:
                         f"{duracion_epoca:.2f}",
                         f"{total_reward:.2f}",
                         f"{self.epsilon:.5f}",
-                        f"{self.learning_rate:.5f}",
+                        "-",  # Ya no actualizamos learning_rate en cada replay
                     ]
                 )
 
@@ -480,42 +460,21 @@ class EntrenamientoDQN:
     def __estado(self) -> NDArray:
         """
         Define el estado (El tiempo de espera de los vehículos en las intersecciones) normalizado en un rango de 0 a 1.
-        Optimizado para usar TensorFlow en GPU cuando sea posible.
+        Optimizado para reducir conversiones innecesarias.
         returns:
-            NDArray: Estado normalizado. [1,3,5,0,1,2,4,2,6,3,9,10] -> [0.1, 0.3, 0.5, 0.0, 0.1, 0.2, 0.4, 0.2, 0.6, 0.3, 0.9, 1.0]
+            NDArray: Estado normalizado como (12,) en lugar de (1,12)
         """
         #! Tiempo
-        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])  # type: ignore
+        estado = self.__api.getTiemposEspera()["tiempos_espera"]  # type: ignore
+        estado = np.array(estado, dtype=np.float32)
         
-        # Usar TensorFlow para operaciones numéricas si tenemos GPU
-        if self.use_gpu:
-            with tf.device(self.device):
-                # Convertir a tensor de TensorFlow
-                estado_tensor = tf.constant(estado, dtype=tf.float32)
-                tiempo_maximo_espera = tf.reduce_max(estado_tensor)
-
-                if tiempo_maximo_espera == 0:
-                    # Reshape y convertir de vuelta a numpy
-                    result = tf.reshape(estado_tensor, [1, self.state_size])
-                    return result.numpy()
-                else:
-                    # Normalizar usando TensorFlow
-                    estado_normalizado = tf.round(estado_tensor / tiempo_maximo_espera, 2)
-                    result = tf.reshape(estado_normalizado, [1, self.state_size])
-                    return result.numpy()
+        # Optimizar normalización
+        tiempo_maximo_espera = np.max(estado)
+        if tiempo_maximo_espera == 0:
+            return estado
         else:
-            # Fallback a NumPy para CPU
-            tiempo_maximo_espera = max(estado)
-            if tiempo_maximo_espera == 0:
-                return np.reshape(estado, [1, self.state_size])
-            else:
-                estado_normalizado = tuple(
-                    [
-                        round(tiempo_espera / tiempo_maximo_espera, 2)
-                        for tiempo_espera in estado
-                    ]
-                )
-                return np.reshape(estado_normalizado, [1, self.state_size])
+            # Normalización simple sin conversiones innecesarias
+            return estado / tiempo_maximo_espera
 
     def __avanzar(self, id_action: int) -> tuple[NDArray, float, bool]:
         """
