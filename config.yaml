@@ -58,7 +58,8 @@ decision:
     epsilon_decay: 0.99995
     epsilon_min: 0.01
     gamma: 0.85
-    hidden_layers: [10, 10, 10]
+    # hidden_layers: [10, 10, 10]
+    hidden_layers: [512, 512, 256, 256, 128, 128, 64]
 
 sumo:
   simular: True #* Iniciar la simulación en SUMO

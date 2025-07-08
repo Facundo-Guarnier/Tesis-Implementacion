@@ -5,8 +5,6 @@ import os
 import random
 import time
 from collections import deque
-from typing import Optional
-import threading
 
 import numpy as np
 import tensorflow as tf
@@ -77,10 +75,20 @@ class EntrenamientoDQN:
 
         self.gamma = self.decision_settings.entrenamiento.gamma
         self.hidden_layers = self.decision_settings.entrenamiento.hidden_layers
+        
+        # Configuración para testing con modelo más grande
+        self.test_large_model = False  # Cambiar a True para probar modelo grande
+        
+        if self.test_large_model:
+            logger = logging.getLogger(f" {self.__class__.__name__}.__init__")
+            logger.info(" 🧪 MODO TESTING: Usando modelo DQN más grande")
+            # Modelo mucho más grande para testing de GPU
+            self.hidden_layers = [512, 512, 256, 256, 128, 128, 64]
 
     def __configure_gpu(self) -> None:
         """
         Configura la GPU para entrenamiento óptimo, o CPU como fallback.
+        Incluye monitoreo detallado de GPU.
         """
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
@@ -94,16 +102,23 @@ class EntrenamientoDQN:
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
 
-                # Habilitar mixed precision para mejor rendimiento en GPU
-                policy = tf.keras.mixed_precision.Policy("mixed_float16")
-                tf.keras.mixed_precision.set_global_policy(policy)
+                # Deshabilitar mixed precision temporalmente para evitar problemas de compatibilidad
+                # policy = tf.keras.mixed_precision.Policy("mixed_float16")
+                # tf.keras.mixed_precision.set_global_policy(policy)
+                logger.info(" 🔧 Mixed precision deshabilitado temporalmente para compatibilidad")
 
                 self.use_gpu = True
                 self.device = "/GPU:0"
 
+                # Información detallada de GPU
+                gpu_details = tf.config.experimental.get_device_details(gpus[0])
                 logger.info(f" 🚀 GPU configurada: {len(gpus)} dispositivo(s)")
+                logger.info(f" 📊 GPU Info: {gpu_details.get('device_name', 'N/A')}")
                 logger.info(" 💾 Crecimiento dinámico de memoria: Habilitado")
-                logger.info(" ⚡ Mixed precision training: Habilitado")
+                logger.info(" 🔧 Mixed precision deshabilitado temporalmente para compatibilidad")
+                
+                # Inicializar monitoreo de GPU
+                self._init_gpu_monitoring()
 
             except RuntimeError as e:
                 logger.warning(f" ⚠️ Error configurando GPU: {e}")
@@ -117,6 +132,47 @@ class EntrenamientoDQN:
             self.device = "/CPU:0"
 
         logger.info(f" 🎯 Dispositivo seleccionado: {self.device}")
+
+    def _init_gpu_monitoring(self) -> None:
+        """
+        Inicializa el monitoreo de GPU.
+        """
+        if self.use_gpu:
+            try:
+                # Crear un tensor dummy para inicializar el contexto de GPU
+                with tf.device(self.device):
+                    dummy = tf.constant([1.0])
+                    _ = tf.square(dummy)
+                    
+                # Obtener información inicial de memoria
+                gpus = tf.config.experimental.list_physical_devices("GPU")
+                if gpus:
+                    memory_info = tf.config.experimental.get_memory_info(gpus[0].name.replace("/physical_device:", ""))
+                    if memory_info:
+                        current_mb = memory_info["current"] / (1024**2)
+                        logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
+                        logger.info(f" 🔍 Memoria GPU inicial: {current_mb:.1f} MB")
+            except Exception as e:
+                logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
+                logger.warning(f" ⚠️ Error inicializando monitoreo GPU: {e}")
+
+    def _log_gpu_usage(self, context: str = "") -> None:
+        """
+        Registra el uso actual de GPU.
+        """
+        if self.use_gpu:
+            try:
+                gpus = tf.config.experimental.list_physical_devices("GPU")
+                if gpus:
+                    memory_info = tf.config.experimental.get_memory_info(gpus[0].name.replace("/physical_device:", ""))
+                    if memory_info:
+                        current_mb = memory_info["current"] / (1024**2)
+                        peak_mb = memory_info["peak"] / (1024**2)
+                        logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
+                        logger.info(f" 📊 {context} - GPU: {current_mb:.1f} MB actual, {peak_mb:.1f} MB pico")
+            except Exception as e:
+                logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
+                logger.debug(f" Error monitoreando GPU: {e}")
 
     def __setEspacioAcciones(self) -> None:
         """
@@ -177,11 +233,11 @@ class EntrenamientoDQN:
             )
 
             # Usar learning_rate en lugar de lr (deprecado)
-            # XLA compilation solo si usamos GPU
+            # Deshabilitar XLA compilation temporalmente para evitar problemas
             model.compile(
                 loss="mse",
                 optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-                jit_compile=self.use_gpu,  # XLA solo para GPU
+                jit_compile=False,  # Deshabilitar XLA temporalmente
             )
 
         logger.info(f" {model.summary()}")
@@ -215,83 +271,116 @@ class EntrenamientoDQN:
     def __politica(self, state: NDArray) -> int:
         """
         Elige una acción basada en el estado actual del agente, utilizando una política ε-greedy para el control de la exploración.
-        Optimizado para el dispositivo configurado (GPU/CPU).
+        Optimizado para el dispositivo configurado (GPU/CPU) con monitoreo.
 
         returns:
             int: Índice de la acción seleccionada.
         """
-        if np.random.rand() <= self.epsilon:
-            return np.random.choice(len(self.__espacio_acciones))
-        else:
-            # Asegurar que la predicción ocurra en el dispositivo correcto
+        # Usar TensorFlow para generación de números aleatorios en GPU si es posible
+        if self.use_gpu:
             with tf.device(self.device):
+                # Usar TensorFlow para la comparación aleatoria
+                random_val = tf.random.uniform([], 0, 1, dtype=tf.float32)
+                if random_val <= self.epsilon:
+                    # Selección aleatoria usando TensorFlow
+                    action = tf.random.uniform([], 0, len(self.__espacio_acciones), dtype=tf.int32)
+                    return int(action.numpy())
+                else:
+                    # Predicción en GPU
+                    state_tensor = tf.constant(state, dtype=tf.float32)
+                    act_values = self.model.predict(state_tensor, verbose=0)
+                    return int(tf.argmax(act_values[0]).numpy())
+        else:
+            # Fallback a NumPy para CPU
+            if np.random.rand() <= self.epsilon:
+                return np.random.choice(len(self.__espacio_acciones))
+            else:
                 act_values = self.model.predict(state, verbose=0)
-            return int(np.argmax(act_values[0]))
+                return int(np.argmax(act_values[0]))
 
     def __replay(self) -> None:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
-        Optimizado para GPU/CPU según el dispositivo disponible.
+        Optimizado para GPU/CPU con monitoreo detallado y procesamiento eficiente de datos.
         """
-
         minibatch = random.sample(self.memory, self.batch_size)
 
-        # Preparar datos de entrada para predicción en lote
-        batch_states = np.array([s[0] for s, _, _, _, _ in minibatch])
-        
-        # Configurar parámetros según el dispositivo
-        predict_kwargs = {
-            'batch_size': self.batch_size,
-            'verbose': 0,
-        }
-        fit_kwargs = {
-            'epochs': 1,
-            'verbose': 0,
-            'batch_size': self.batch_size,
-        }
-        
-        # Solo usar multiprocessing en CPU y si está disponible en esta versión de TensorFlow
-        if not self.use_gpu:
-            try:
-                # Verificar si el parámetro está disponible
-                import inspect
-                predict_sig = inspect.signature(self.model.predict)
-                fit_sig = inspect.signature(self.model.fit)
+        # Preparar todos los datos como tensores de TensorFlow para máxima eficiencia
+        if self.use_gpu:
+            with tf.device(self.device):
+                # Convertir datos a tensores de TensorFlow directamente
+                # Corregir el acceso a los estados - s[0] ya tiene la forma correcta (1, 12)
+                batch_states = tf.constant([s[0] for s, _, _, _, _ in minibatch], dtype=tf.float32)
+                batch_states = tf.reshape(batch_states, [self.batch_size, self.state_size])
                 
-                if 'use_multiprocessing' in predict_sig.parameters:
-                    predict_kwargs['use_multiprocessing'] = True
-                if 'use_multiprocessing' in fit_sig.parameters:
-                    fit_kwargs['use_multiprocessing'] = True
-            except Exception:
-                # Si hay algún error verificando los parámetros, continuar sin multiprocessing
-                pass
-        
-        # Realizar predicción en lote (más eficiente)
-        all_predictions = self.model.predict(batch_states, **predict_kwargs)
-        all_predictions_copy = all_predictions.copy()
+                batch_next_states = tf.constant([ns[0] for _, _, _, ns, _ in minibatch], dtype=tf.float32)
+                batch_next_states = tf.reshape(batch_next_states, [self.batch_size, self.state_size])
+                
+                batch_rewards = tf.constant([r for _, _, r, _, _ in minibatch], dtype=tf.float32)
+                batch_actions = tf.constant([a for _, a, _, _, _ in minibatch], dtype=tf.int32)
+                batch_dones = tf.constant([d for _, _, _, _, d in minibatch], dtype=tf.bool)
 
-        states = []
-        targets = []
+                # Predicciones en lote usando TensorFlow
+                current_q_values = self.model(batch_states, training=False)
+                next_q_values = self.model(batch_next_states, training=False)
+                
+                # Calcular targets usando operaciones de TensorFlow
+                max_next_q = tf.reduce_max(next_q_values, axis=1)
+                targets = tf.where(
+                    batch_dones,
+                    batch_rewards,
+                    batch_rewards + self.gamma * max_next_q
+                )
+                
+                # Actualizar Q-values
+                target_q_values = tf.identity(current_q_values)
+                batch_indices = tf.range(self.batch_size)
+                action_indices = tf.stack([batch_indices, batch_actions], axis=1)
+                
+                updated_q_values = tf.tensor_scatter_nd_update(
+                    target_q_values, action_indices, targets
+                )
+                
+                # Entrenar el modelo
+                self.model.fit(
+                    batch_states, 
+                    updated_q_values,
+                    epochs=1,
+                    verbose=0,
+                    batch_size=self.batch_size
+                )
+        else:
+            # Procesamiento optimizado para CPU
+            batch_states = np.array([s[0] for s, _, _, _, _ in minibatch])
+            all_predictions = self.model.predict(batch_states, verbose=0, batch_size=self.batch_size)
+            all_predictions_copy = all_predictions.copy()
 
-        for i, (state, action, reward, next_state, done) in enumerate(minibatch):
-            target = reward
+            states = []
+            targets = []
 
-            if not done:
-                target = reward + self.gamma * np.amax(all_predictions_copy[i])
+            for i, (state, action, reward, next_state, done) in enumerate(minibatch):
+                target = reward
+                if not done:
+                    target = reward + self.gamma * np.amax(all_predictions_copy[i])
 
-            target_f = all_predictions_copy[i]
-            target_f[action] = target
-            states.append(state[0])
-            targets.append(target_f)
+                target_f = all_predictions_copy[i]
+                target_f[action] = target
+                states.append(state[0])
+                targets.append(target_f)
 
-        # Entrenar con los datos preparados
-        states_array = np.array(states)
-        targets_array = np.array(targets)
-        
-        # Usar tf.device para asegurar que el entrenamiento ocurra en el dispositivo correcto
-        with tf.device(self.device):
-            self.model.fit(states_array, targets_array, **fit_kwargs)
+            # Entrenar con los datos preparados
+            states_array = np.array(states)
+            targets_array = np.array(targets)
+            
+            self.model.fit(
+                states_array, 
+                targets_array,
+                epochs=1,
+                verbose=0,
+                batch_size=self.batch_size
+            )
 
+        # Actualizar parámetros
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
@@ -305,14 +394,20 @@ class EntrenamientoDQN:
         experiencia en la memoria de reproducción.
         Cuando el tamaño de la memoria de reproducción alcanza el tamaño del lote, el agente
         realiza el proceso de repetición.
+        Incluye monitoreo detallado de GPU.
         - 19500 segundos / 15 steps  = 1300 repeticiones por epoca
         """
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
+        self._log_gpu_usage("Inicio entrenamiento")
+
         for e in range(self.num_epocas):
+            logger.info(f" 🏁 Iniciando época {e+1}/{self.num_epocas}")
+            
             state = self.__estado()
             done = False
             total_reward = 0.0
+            replay_count = 0
 
             t1 = time.time()
             while not done:
@@ -325,6 +420,11 @@ class EntrenamientoDQN:
                 state = next_state
                 if len(self.memory) > self.batch_size:
                     self.__replay()
+                    replay_count += 1
+                    
+                    # Monitorear GPU cada 500 replays para evitar spam
+                    if replay_count % 500 == 0:
+                        self._log_gpu_usage(f"Época {e+1} - Replay {replay_count}")
 
             #! Guardar los datos de entrenamiento por epoca en formato Keras moderno
             self.model.save(self.__path + f"/epoca_{e+1}.h5")
@@ -347,7 +447,7 @@ class EntrenamientoDQN:
                 )
 
             logger.info(
-                f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {duracion_epoca:.2f}s"
+                f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {duracion_epoca:.2f}s - Replays: {replay_count}"
             )
 
         logger.info(" Entrenamiento finalizado.")
@@ -380,24 +480,42 @@ class EntrenamientoDQN:
     def __estado(self) -> NDArray:
         """
         Define el estado (El tiempo de espera de los vehículos en las intersecciones) normalizado en un rango de 0 a 1.
+        Optimizado para usar TensorFlow en GPU cuando sea posible.
         returns:
             NDArray: Estado normalizado. [1,3,5,0,1,2,4,2,6,3,9,10] -> [0.1, 0.3, 0.5, 0.0, 0.1, 0.2, 0.4, 0.2, 0.6, 0.3, 0.9, 1.0]
         """
         #! Tiempo
         estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])  # type: ignore
-        tiempo_maximo_espera = max(estado)
+        
+        # Usar TensorFlow para operaciones numéricas si tenemos GPU
+        if self.use_gpu:
+            with tf.device(self.device):
+                # Convertir a tensor de TensorFlow
+                estado_tensor = tf.constant(estado, dtype=tf.float32)
+                tiempo_maximo_espera = tf.reduce_max(estado_tensor)
 
-        if tiempo_maximo_espera == 0:
-            return np.reshape(estado, [1, self.state_size])
+                if tiempo_maximo_espera == 0:
+                    # Reshape y convertir de vuelta a numpy
+                    result = tf.reshape(estado_tensor, [1, self.state_size])
+                    return result.numpy()
+                else:
+                    # Normalizar usando TensorFlow
+                    estado_normalizado = tf.round(estado_tensor / tiempo_maximo_espera, 2)
+                    result = tf.reshape(estado_normalizado, [1, self.state_size])
+                    return result.numpy()
         else:
-            #! Normalizar los tiempos de espera
-            estado = tuple(
-                [
-                    round(tiempo_espera / tiempo_maximo_espera, 2)
-                    for tiempo_espera in estado
-                ]
-            )
-            return np.reshape(estado, [1, self.state_size])
+            # Fallback a NumPy para CPU
+            tiempo_maximo_espera = max(estado)
+            if tiempo_maximo_espera == 0:
+                return np.reshape(estado, [1, self.state_size])
+            else:
+                estado_normalizado = tuple(
+                    [
+                        round(tiempo_espera / tiempo_maximo_espera, 2)
+                        for tiempo_espera in estado
+                    ]
+                )
+                return np.reshape(estado_normalizado, [1, self.state_size])
 
     def __avanzar(self, id_action: int) -> tuple[NDArray, float, bool]:
         """
