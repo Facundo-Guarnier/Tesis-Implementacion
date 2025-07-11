@@ -41,7 +41,7 @@
 #     Write-Host "`n>>>> Running Mypy..." -ForegroundColor Green
 #     python -m mypy --config-file=mypy.ini $pythonFiles
 
-#     git diff --quiet HEAD
+#     git diff --quiet --exit-code
 #     if ($LASTEXITCODE -ne 0) {
 #         Write-Host "`n>>>> Files were modified by formatters. Staging changes..." -ForegroundColor Yellow
 #         git add $pythonFiles
