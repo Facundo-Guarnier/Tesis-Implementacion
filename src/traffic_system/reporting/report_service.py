@@ -1,0 +1,235 @@
+import inspect
+import logging
+import os
+import sqlite3
+import time
+
+from src.traffic_system.api_client.reporting_client import ApiReporte
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import ReporteSettings
+
+
+class ReportService:
+    def __init__(self, reporte_settings: ReporteSettings | None = None) -> None:
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().reporte
+
+        logging.basicConfig(level=logging.DEBUG)
+        self.__client_api_report = ApiReporte()
+        self.__path_report = os.path.join(
+            self.settings.path_reporte,
+            f"report_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+        )
+        self.__db_conn: sqlite3.Connection | None = None  #! Conexión a la base de datos
+        self.__cursor: sqlite3.Cursor | None = None  #! Cursor de la base de datos
+        self.__create_logger()
+
+    def main(self) -> None:
+        """
+        Método principal para generar el reporte de la simulación.
+        - Crea la carpeta para el reporte.
+        - Verifica si la simulación está en curso.
+        - Genera el reporte de la simulación.
+        """
+        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+
+        #! Verificar si la simulación fue exitosa
+        while not self.__client_api_report.getSimulacionOK():
+            time.sleep(1)
+
+        self.__connect_db()
+        self.__create_table()
+
+        #! Generar reporte
+        e = 0
+        while True and e < 5:
+            datos = self.__get_data()
+
+            if datos == {} or not self.__save_report(datos=datos):
+                logger.error(
+                    f"❌ Error al generar el reporte. Reintentando... ({e + 1}/{5})"
+                )
+                e += 1
+                time.sleep(self.settings.tiempo_entre_reportes)
+
+            else:
+                e = 0
+                self.__alert(datos=datos)
+
+        logger.error("❌ Falló 5 veces seguidas al intentar generar el reporte.")
+        self.__close_db()
+
+    def __create_logger(self):
+        """
+        Crea un logger para registrar las alertas en un archivo .log.
+        """
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+
+        log_dir = os.path.join(self.__path_report)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        #! Crear un manejador de archivos para escribir las alertas en un archivo .log
+        file_handler = logging.FileHandler(
+            os.path.join(self.__path_report, "alertas.log")
+        )
+        file_handler.setLevel(logging.INFO)
+
+        #! Crear un formateador para dar formato a los mensajes de registro
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler.setFormatter(formatter)
+
+        #! Agregar el manejador de archivos al logger
+        self.logger.addHandler(file_handler)
+
+    def __connect_db(self) -> None:
+        """
+        Conecta a la base de datos SQLite.
+        """
+        self.__db_conn = sqlite3.connect(os.path.join(self.__path_report, "reporte.db"))
+        self.__cursor = self.__db_conn.cursor()
+
+    def __close_db(self) -> None:
+        """
+        Cierra la conexión a la base de datos.
+        """
+        if self.__db_conn:
+            self.__db_conn.close()
+
+    def __get_data(self) -> dict:
+        """
+        Obtener los datos de la simulación.
+
+        Returns:
+            dict: Datos de la simulación. Ej: {
+                "steps": 600,
+                "tiempo_espera_total": 750,
+                "tiempos_espera": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200]
+            }
+        """
+
+        if not self.__client_api_report.getSimulacionOK():
+            return {}
+
+        #! Obtener los datos de la simulación
+        datos = self.__client_api_report.getReporte()
+
+        #! Calcular el tiempo de espera total
+        total = sum(datos["tiempos_espera"])
+        datos["tiempo_espera_total"] = total
+
+        return datos
+
+    def __create_table(self) -> None:
+        """
+        Crea la tabla en la base de datos SQLite si no existe.
+        """
+        sql = """
+            CREATE TABLE IF NOT EXISTS reporte (
+                Steps INTEGER PRIMARY KEY,
+                Semaforo1 TEXT,
+                Semaforo2 TEXT,
+                Semaforo3 TEXT,
+                Semaforo4 TEXT,
+                TiempoTotal INTEGER,
+                ZonaA INTEGER,
+                ZonaB INTEGER,
+                ZonaC INTEGER,
+                ZonaD INTEGER,
+                ZonaE INTEGER,
+                ZonaF INTEGER,
+                ZonaG INTEGER,
+                ZonaH INTEGER,
+                ZonaI INTEGER,
+                ZonaJ INTEGER,
+                ZonaK INTEGER,
+                ZonaL INTEGER
+            );
+        """
+        if not self.__cursor or not self.__db_conn:
+            return
+        self.__cursor.execute(sql)
+        self.__db_conn.commit()
+
+    def __save_report(self, datos: dict) -> bool:
+        """
+        Guarda los datos del reporte en la base de datos SQLite.
+
+        Args:
+            datos (dict): Datos de la simulación.
+
+        Returns:
+            bool: True si se guardaron los datos correctamente, False en caso contrario.
+        """
+
+        try:
+            sql = """
+                INSERT INTO reporte (
+                    Steps, 
+                    Semaforo1, 
+                    Semaforo2, 
+                    Semaforo3, 
+                    Semaforo4, 
+                    TiempoTotal, 
+                    ZonaA, ZonaB, ZonaC, ZonaD, ZonaE, ZonaF, ZonaG, ZonaH, ZonaI, ZonaJ, ZonaK, ZonaL
+                ) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+            if not self.__cursor:
+                return False
+            else:
+                self.__cursor.execute(
+                    sql,
+                    (
+                        datos["steps"],
+                        datos["estados_semaforos"][0],
+                        datos["estados_semaforos"][1],
+                        datos["estados_semaforos"][2],
+                        datos["estados_semaforos"][3],
+                        datos["tiempo_espera_total"],
+                        datos["tiempos_espera"][0],
+                        datos["tiempos_espera"][1],
+                        datos["tiempos_espera"][2],
+                        datos["tiempos_espera"][3],
+                        datos["tiempos_espera"][4],
+                        datos["tiempos_espera"][5],
+                        datos["tiempos_espera"][6],
+                        datos["tiempos_espera"][7],
+                        datos["tiempos_espera"][8],
+                        datos["tiempos_espera"][9],
+                        datos["tiempos_espera"][10],
+                        datos["tiempos_espera"][11],
+                    ),
+                )
+                if not self.__db_conn:
+                    return False
+                else:
+                    self.__db_conn.commit()
+                    return True
+        except Exception as e:
+            logger.error(f"❌ Error al guardar el reporte en la base de datos: {e}")
+            return False
+
+    def __alert(self, datos: dict) -> None:
+        """
+        Revisa si se tiene que generar alguna alerta. Condiciones:
+        - Tiempo de espera total mayor al tiempo de espera máximo permitido.
+        - Tiempo de espera de una zona mayor al tiempo de espera máximo permitido.
+
+        Args:
+            datos (dict): Datos de la simulación.
+        """
+
+        if datos["tiempo_espera_total"] > self.settings.tiempo_total_espera_maximo:
+            self.logger.warning(
+                f"⚠️ Step {datos['steps']}: Tiempo de espera total mayor al permitido ({datos['tiempo_espera_total']})."
+            )
+
+        for i, dato in enumerate(datos["tiempos_espera"]):
+            if dato > self.settings.tiempo_zona_espera_maximo:
+                nombre_zona_maxima = chr(ord("A") + i)  #! Convertir índice a letra
+                self.logger.warning(
+                    f"⚠️ Step {datos['steps']}: Tiempo de espera en la zona {nombre_zona_maxima} mayor permitido ({dato})."
+                )

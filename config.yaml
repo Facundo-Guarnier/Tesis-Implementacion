@@ -1,38 +1,52 @@
-base_url: "http://127.0.0.1:5000"   #! URL base del servidor Flask
+base_url: "http://10.10.0.111:5000" #! URL base del servidor Flask
 
 deteccion:
-  detectar: True       #* Iniciar la detección de objetos
-  modelo: "yolov8n.pt"  #! Modelo de detección de objetos
+  detectar: False #* Iniciar la detección de objetos
+  modelo: "yolov8n.pt" #! Modelo de detección de objetos
 
-  carpeta_dataset: 
-    procesar: True   #! Procesar todos los videos de la carpeta del dataset
-    path_origen: "Dataset/Dataset_original/"    #! Carpeta con los videos a procesar
-    path_destino: "Resultados_deteccion/"   #! Carpeta donde se guardarán los resultados
+  carpeta_dataset:
+    procesar: True #! Procesar todos los videos de la carpeta del dataset
+    path_origen: "dataset/dataset_original/" #! Carpeta con los videos a procesar
+    path_destino: "results/deteccion/" #! Carpeta donde se guardarán los resultados
 
-  un_video: 
-    procesar: False    #! Procesar un video en específico
-    guardar: True     #! Guardar el video con los resultados
-    # path_origen: "Dataset/Dataset_original/Zona A/20240102_131846.mp4"    #! Path del video a procesar
-    path_origen: "Dataset/Dataset_original/Zona C/20240102_132223.mp4"    #! Path del video a procesar
-    # path_origen: "Dataset/Dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"    #! Path del video a procesar
-    zona: "Zona C"    #! Zona a considerar
-    path_destino: "Resultados_deteccion/"     #! Carpeta donde se guardará el video con los resultados
+  un_video:
+    procesar: False #! Procesar un video en específico
+    guardar: True #! Guardar el video con los resultados
+    zona: "Zona C" #! Zona a considerar
+    path_destino: "results/deteccion/" #! Carpeta donde se guardará el video con los resultados
+    # path_origen: "dataset/dataset_original/Zona A/20240102_131846.mp4"    #! Path del video a procesar
+    path_origen: "dataset/dataset_original/Zona C/20240102_132223.mp4" #! Path del video a procesar
+    # path_origen: "dataset/dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"    #! Path del video a procesar
 
-  procesar_camara: False  #! Procesar la cámara en tiempo real
+  procesar_camara: False #! Procesar la cámara en tiempo real
 
 decision:
-  decision: False    #* Iniciar la toma de decisiones 
-  ponderaciones_zonas: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]     #! Ponderaciones de las zonas
+  decision: True #* Iniciar la toma de decisiones
+  ponderaciones_zonas: [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+    ] #! Ponderaciones de las zonas
   # ponderaciones_zonas: [1.0, 2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.9, 1.0, 2.9, 2.9]     #! Ponderaciones de las zonas
-  
-  # path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-04-21_19-55/epoca_18.h5"    #! No funciona: 1235
-  # path_modelo_entrenado: "Resultados_entrenamiento-2/DQN_2024-05-02_15-33/epoca_14.h5"  #! Si funciona: 1322
-  path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-05-06_12-21/epoca_13.h5"    #! Si funciona: 786
-  # path_modelo_entrenado: "Resultados_entrenamiento/DQN_2024-05-16_11-06/epoca_25.h5"    #! Si funciona: 895
-  
+
+  # path_modelo_entrenado: "results/training/DQN_2024-04-21_19-55/epoca_18.h5"    #! No funciona: 1235
+  # path_modelo_entrenado: "results/training-2/DQN_2024-05-02_15-33/epoca_14.h5"  #! Si funciona: 1322
+  # path_modelo_entrenado: "results/training/DQN_2024-05-06_12-21/epoca_13.h5" #! Si funciona: 786 ES EL BUENO
+  # path_modelo_entrenado: "results/training/DQN_2024-05-16_11-06/epoca_25.h5"    #! Si funciona: 895
+  path_modelo_entrenado: "assets/dqn_models/2024-05-06_12-21-epoca_13.h5"
+
   entrenamiento:
-    entrenar: False     #* Entrenar el modelo
-    path_resultado: "Resultados_entrenamiento/"  #! Carpeta donde se guardarán los resultados del entrenamiento
+    entrenar: True #* Entrenar el modelo
+    path_resultado: "results/training/" #! Carpeta donde se guardarán los resultados del entrenamiento
     num_epocas: 25
     batch_size: 64
     steps: 10
@@ -44,18 +58,19 @@ decision:
     epsilon_decay: 0.99995
     epsilon_min: 0.01
     gamma: 0.85
-    hidden_layers: [10,10,10]
+    # hidden_layers: [10, 10, 10]
+    hidden_layers: [512, 512, 256, 256, 128, 128, 64]
 
 sumo:
-  simular: False    #* Iniciar la simulación en SUMO
-  gui: True         #! Mostrar la interfaz gráfica de SUMO
-  comparar: False   #! Comparar la simulación con la detección de objetos
-  path_sumo: "/usr/share/sumo"  #! Path de la instalación de SUMO
+  simular: True #* Iniciar la simulación en SUMO
+  gui: True #! Mostrar la interfaz gráfica de SUMO
+  comparar: False #! Comparar la simulación con la detección de objetos
+  path_sumo: "/usr/share/sumo" #! Path de la instalación de SUMO
 
-reporte: 
-  generar: False    #* Generar el reporte de la simulación
-  path_reporte: "Resultados_reportes/"   #! Carpeta donde se guardará el reporte
-  steps: 60      #! Número de pasos a considerar entre cada reporte
-  tiempo_total_espera_maximo: 600    #! Tiempo de espera máximo en segundos en total
-  tiempo_zona_espera_maximo: 300     #! Tiempo de espera máximo en segundos por zona
-  tiempo_entre_reportes: 5    #! Tiempo entre cada intento fallado de reporte en segundos
+reporte:
+  generar: False #* Generar el reporte de la simulación
+  path_reporte: "results/reportes/" #! Carpeta donde se guardará el reporte
+  steps: 60 #! Número de pasos a considerar entre cada reporte
+  tiempo_total_espera_maximo: 600 #! Tiempo de espera máximo en segundos en total
+  tiempo_zona_espera_maximo: 300 #! Tiempo de espera máximo en segundos por zona
+  tiempo_entre_reportes: 5 #! Tiempo entre cada intento fallido de reporte en segundos
