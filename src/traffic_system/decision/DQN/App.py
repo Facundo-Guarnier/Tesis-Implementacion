@@ -56,7 +56,7 @@ class AppDecision:
             path_modelo = os.path.abspath(path_modelo)
 
         algoritmo2 = None
-        conextion = False
+        is_connected = False
 
         try:
             print(f"Intentando cargar modelo desde: {path_modelo}")
@@ -67,13 +67,13 @@ class AppDecision:
             logger.error("No se puede continuar sin el modelo. Terminando...")
             return
 
-        conextion = False
+        is_connected = False
 
-        while not conextion:
+        while not is_connected:
 
             try:
                 algoritmo2.usar()
-                conextion = True
+                is_connected = True
 
             except requests.exceptions.ConnectionError:
                 logger.info("Reintentando conexión...")
