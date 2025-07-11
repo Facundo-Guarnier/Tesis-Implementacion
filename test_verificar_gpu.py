@@ -21,20 +21,23 @@ def verificar_gpu():
     # Verificar entorno WSL2
     logger.info("\n🐧 Verificando entorno...")
     try:
-        import platform
         import os
-        
+        import platform
+
         logger.info(f"   Sistema: {platform.system()} {platform.release()}")
-        
+
         # Verificar si estamos en WSL
-        if "microsoft" in platform.release().lower() or "wsl" in platform.release().lower():
+        if (
+            "microsoft" in platform.release().lower()
+            or "wsl" in platform.release().lower()
+        ):
             logger.info("   🪟 Entorno: WSL2 detectado")
-        
+
         # Verificar variables de entorno CUDA
-        cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', 'No configurado')
-        if cuda_visible != 'No configurado':
+        cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", "No configurado")
+        if cuda_visible != "No configurado":
             logger.info(f"   🎮 CUDA_VISIBLE_DEVICES: {cuda_visible}")
-            
+
     except Exception as e:
         logger.warning(f"   ⚠️ No se pudo verificar el entorno: {e}")
 

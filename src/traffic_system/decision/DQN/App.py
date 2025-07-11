@@ -50,11 +50,11 @@ class AppDecision:
 
         logger.info("Usar DQN")
         path_modelo = self.settings.path_modelo_entrenado
-        
+
         # Convertir a ruta absoluta si es relativa
         if not os.path.isabs(path_modelo):
             path_modelo = os.path.abspath(path_modelo)
-        
+
         algoritmo2 = None
         conextion = False
 

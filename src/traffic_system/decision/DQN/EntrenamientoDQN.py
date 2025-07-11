@@ -75,10 +75,10 @@ class EntrenamientoDQN:
 
         self.gamma = self.decision_settings.entrenamiento.gamma
         self.hidden_layers = self.decision_settings.entrenamiento.hidden_layers
-        
+
         # Configuración para testing con modelo más grande
         self.test_large_model = False  # Cambiar a True para probar modelo grande
-        
+
         if self.test_large_model:
             logger = logging.getLogger(f" {self.__class__.__name__}.__init__")
             logger.info(" 🧪 MODO TESTING: Usando modelo DQN más grande")
@@ -105,7 +105,9 @@ class EntrenamientoDQN:
                 # Deshabilitar mixed precision temporalmente para evitar problemas de compatibilidad
                 # policy = tf.keras.mixed_precision.Policy("mixed_float16")
                 # tf.keras.mixed_precision.set_global_policy(policy)
-                logger.info(" 🔧 Mixed precision deshabilitado temporalmente para compatibilidad")
+                logger.info(
+                    " 🔧 Mixed precision deshabilitado temporalmente para compatibilidad"
+                )
 
                 self.use_gpu = True
                 self.device = "/GPU:0"
@@ -115,8 +117,10 @@ class EntrenamientoDQN:
                 logger.info(f" 🚀 GPU configurada: {len(gpus)} dispositivo(s)")
                 logger.info(f" 📊 GPU Info: {gpu_details.get('device_name', 'N/A')}")
                 logger.info(" 💾 Crecimiento dinámico de memoria: Habilitado")
-                logger.info(" 🔧 Mixed precision deshabilitado temporalmente para compatibilidad")
-                
+                logger.info(
+                    " 🔧 Mixed precision deshabilitado temporalmente para compatibilidad"
+                )
+
                 # Inicializar monitoreo de GPU
                 self._init_gpu_monitoring()
 
@@ -143,14 +147,18 @@ class EntrenamientoDQN:
                 with tf.device(self.device):
                     dummy = tf.constant([1.0])
                     _ = tf.square(dummy)
-                    
+
                 # Obtener información inicial de memoria
                 gpus = tf.config.experimental.list_physical_devices("GPU")
                 if gpus:
-                    memory_info = tf.config.experimental.get_memory_info(gpus[0].name.replace("/physical_device:", ""))
+                    memory_info = tf.config.experimental.get_memory_info(
+                        gpus[0].name.replace("/physical_device:", "")
+                    )
                     if memory_info:
                         current_mb = memory_info["current"] / (1024**2)
-                        logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
+                        logger = logging.getLogger(
+                            f" {self.__class__.__name__}.GPU_Monitor"
+                        )
                         logger.info(f" 🔍 Memoria GPU inicial: {current_mb:.1f} MB")
             except Exception as e:
                 logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
@@ -164,12 +172,18 @@ class EntrenamientoDQN:
             try:
                 gpus = tf.config.experimental.list_physical_devices("GPU")
                 if gpus:
-                    memory_info = tf.config.experimental.get_memory_info(gpus[0].name.replace("/physical_device:", ""))
+                    memory_info = tf.config.experimental.get_memory_info(
+                        gpus[0].name.replace("/physical_device:", "")
+                    )
                     if memory_info:
                         current_mb = memory_info["current"] / (1024**2)
                         peak_mb = memory_info["peak"] / (1024**2)
-                        logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
-                        logger.info(f" 📊 {context} - GPU: {current_mb:.1f} MB actual, {peak_mb:.1f} MB pico")
+                        logger = logging.getLogger(
+                            f" {self.__class__.__name__}.GPU_Monitor"
+                        )
+                        logger.info(
+                            f" 📊 {context} - GPU: {current_mb:.1f} MB actual, {peak_mb:.1f} MB pico"
+                        )
             except Exception as e:
                 logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
                 logger.debug(f" Error monitoreando GPU: {e}")
@@ -296,7 +310,9 @@ class EntrenamientoDQN:
             with tf.device(self.device):
                 # Extraer datos directamente como arrays numpy y convertir una sola vez
                 states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
-                next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
+                next_states = np.array(
+                    [ns for _, _, _, ns, _ in minibatch], dtype=np.float32
+                )
                 rewards = np.array([r for _, _, r, _, _ in minibatch], dtype=np.float32)
                 actions = np.array([a for _, a, _, _, _ in minibatch], dtype=np.int32)
                 dones = np.array([d for _, _, _, _, d in minibatch], dtype=bool)
@@ -311,41 +327,45 @@ class EntrenamientoDQN:
                 # Predicciones en lote
                 current_q_values = self.model(batch_states, training=False)
                 next_q_values = self.model(batch_next_states, training=False)
-                
+
                 # Calcular targets
                 max_next_q = tf.reduce_max(next_q_values, axis=1)
                 targets = tf.where(
-                    batch_dones,
-                    batch_rewards,
-                    batch_rewards + self.gamma * max_next_q
+                    batch_dones, batch_rewards, batch_rewards + self.gamma * max_next_q
                 )
-                
+
                 # Actualizar Q-values
                 target_q_values = tf.identity(current_q_values)
                 batch_indices = tf.range(self.batch_size)
                 action_indices = tf.stack([batch_indices, batch_actions], axis=1)
-                
+
                 updated_q_values = tf.tensor_scatter_nd_update(
                     target_q_values, action_indices, targets
                 )
-                
+
                 # Entrenar el modelo
                 self.model.fit(
-                    batch_states, 
+                    batch_states,
                     updated_q_values,
                     epochs=1,
                     verbose=0,
-                    batch_size=self.batch_size
+                    batch_size=self.batch_size,
                 )
         else:
             # Versión CPU optimizada - sin copias innecesarias
             states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
-            next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
-            
+            next_states = np.array(
+                [ns for _, _, _, ns, _ in minibatch], dtype=np.float32
+            )
+
             # Predicciones en lote
-            current_q_values = self.model.predict(states, verbose=0, batch_size=self.batch_size)
-            next_q_values = self.model.predict(next_states, verbose=0, batch_size=self.batch_size)
-            
+            current_q_values = self.model.predict(
+                states, verbose=0, batch_size=self.batch_size
+            )
+            next_q_values = self.model.predict(
+                next_states, verbose=0, batch_size=self.batch_size
+            )
+
             # Preparar targets directamente
             targets = current_q_values.copy()
             for i, (_, action, reward, _, done) in enumerate(minibatch):
@@ -353,14 +373,10 @@ class EntrenamientoDQN:
                     targets[i][action] = reward
                 else:
                     targets[i][action] = reward + self.gamma * np.max(next_q_values[i])
-            
+
             # Entrenar
             self.model.fit(
-                states, 
-                targets,
-                epochs=1,
-                verbose=0,
-                batch_size=self.batch_size
+                states, targets, epochs=1, verbose=0, batch_size=self.batch_size
             )
 
         # Actualizar parámetros - solo epsilon (learning_rate se maneja en el optimizador)
@@ -383,7 +399,7 @@ class EntrenamientoDQN:
 
         for e in range(self.num_epocas):
             logger.info(f" 🏁 Iniciando época {e+1}/{self.num_epocas}")
-            
+
             state = self.__estado()
             done = False
             total_reward = 0.0
@@ -401,7 +417,7 @@ class EntrenamientoDQN:
                 if len(self.memory) > self.batch_size:
                     self.__replay()
                     replay_count += 1
-                    
+
                     # Monitorear GPU cada 500 replays para evitar spam
                     if replay_count % 500 == 0:
                         self._log_gpu_usage(f"Época {e+1} - Replay {replay_count}")
@@ -467,7 +483,7 @@ class EntrenamientoDQN:
         #! Tiempo
         estado = self.__api.getTiemposEspera()["tiempos_espera"]  # type: ignore
         estado = np.array(estado, dtype=np.float32)
-        
+
         # Optimizar normalización
         tiempo_maximo_espera = np.max(estado)
         if tiempo_maximo_espera == 0:
@@ -599,7 +615,9 @@ class EntrenamientoDQN:
             self.__path + "/entrenamiento_data.csv", mode="a", newline=""
         ) as file:
             writer = csv.writer(file)
-            writer.writerow(["-", f"{tiempo_fijo:.2f}", f"{total_reward:.2f}", "-", "-"])
+            writer.writerow(
+                ["-", f"{tiempo_fijo:.2f}", f"{total_reward:.2f}", "-", "-"]
+            )
 
         self.model = self.__build_model()
 
