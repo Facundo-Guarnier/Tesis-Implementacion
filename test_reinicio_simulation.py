@@ -60,13 +60,13 @@ def test_reinicio():
 
         # Avanzar algunos pasos
         logger.info("3/6 Avanzando simulación...")
-        app_test.avanzar(5)
+        app_test.advance(5)
         tiempo_despues_avance = app_test.traci.simulation.getTime()
         logger.info(f"   Tiempo después de avanzar 5 pasos: {tiempo_despues_avance}s")
 
         # Probar el reinicio
         logger.info("4/6 Probando reinicio...")
-        app_test.reiniciar()
+        app_test.reset()
 
         # Verificar que el reinicio funcionó
         tiempo_despues_reinicio = app_test.traci.simulation.getTime()
@@ -86,7 +86,7 @@ def test_reinicio():
 
         # Probar que la simulación sigue funcionando después del reinicio
         logger.info("5/6 Verificando funcionamiento post-reinicio...")
-        app_test.avanzar(3)
+        app_test.advance(3)
         tiempo_final = app_test.traci.simulation.getTime()
         logger.info(f"   Tiempo final después de avanzar 3 pasos: {tiempo_final}s")
 

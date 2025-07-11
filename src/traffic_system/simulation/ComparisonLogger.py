@@ -63,8 +63,8 @@ class ComparisonLogger:
             sync_status = "✅ SINCRONIZADO" if sincronizado else "❌ DESINCRONIZADO"
 
         # --- Tiempos de espera ---
-        t1 = app_s1.getTiemposEsperaTotal()
-        t2 = app_s2.getTiemposEsperaTotal()
+        t1 = app_s1.get_total_wait_time()
+        t2 = app_s2.get_total_wait_time()
         self._stats["s1"]["wait_time"] += t1
         self._stats["s2"]["wait_time"] += t2
 

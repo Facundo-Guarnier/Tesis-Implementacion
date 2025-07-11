@@ -6,7 +6,7 @@ from typing import Any
 import traci
 from traci.exceptions import FatalTraCIError, TraCIException
 
-from src.traffic_system.api.simulation_server import ApiSUMO
+from src.traffic_system.api.simulation_server import SumoAPI
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.simulation.AppSUMO import AppSUMO
 from src.traffic_system.simulation.ComparisonLogger import ComparisonLogger
@@ -31,7 +31,7 @@ def api_service(
     logger.info("Iniciando el servicio API de SUMO...")
 
     try:
-        api = ApiSUMO(
+        api = SumoAPI(
             name="API_SUMO", app_s1=app_s1, app_s2=app_s2, comparison_logger=comp_logger
         )
         api.run(host="0.0.0.0", port=5000, debug=False)
