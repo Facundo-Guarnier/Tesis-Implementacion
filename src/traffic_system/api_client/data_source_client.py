@@ -143,7 +143,7 @@ class ApiDecision:
             if response.status_code == 200:
                 sync_data = response.json()
                 logger.info(f"📊 Sincronización actual: {sync_data}")
-                return True
+                return sync_data.get("sincronizacion", False)
             else:
                 logger.warning("⚠️ No hay simulación de comparación activa")
                 return False
