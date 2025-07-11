@@ -38,7 +38,6 @@ class ComparisonLogger:
         if current_time // self.interval > self._last_log_time // self.interval:
             self._last_log_time = current_time
             self._log_comparison(current_time, app_s1, app_s2)
-            self._log_comparison(current_time, app_s1, app_s2)
 
     def _log_comparison(
         self, sim_time: float, app_s1: AppSUMO, app_s2: AppSUMO

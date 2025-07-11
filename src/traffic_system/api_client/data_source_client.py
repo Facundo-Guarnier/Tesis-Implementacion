@@ -126,7 +126,7 @@ class ApiDecision:
             if response.status_code != 200:
                 logger.error("❌ La API no está disponible")
                 return False
-            return True
+            return response.json().get("simulacion", False)
         except requests.ConnectionError:
             logger.error(
                 "❌ No se puede conectar a la API. ¿Está ejecutándose el servidor?"

@@ -1,10 +1,12 @@
 import csv
 import inspect
+import io
 import logging
 import os
 import random
 import time
 from collections import deque
+from contextlib import redirect_stdout
 
 import numpy as np
 import tensorflow as tf
@@ -254,7 +256,10 @@ class EntrenamientoDQN:
                 jit_compile=False,  # Deshabilitar XLA temporalmente
             )
 
-        logger.info(f" {model.summary()}")
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            model.summary()
+        logger.info(stream.getvalue())
 
         # Mostrar información del dispositivo usado
         try:
