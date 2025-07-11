@@ -4,7 +4,7 @@ import yaml
 from src.traffic_system.detection.zonas.Zona import Zona
 
 
-class ZonaList:
+class ZoneList:
     """
     Clase de tipo "Singleton" que:
     - Se encarga de cargar las zonas desde un archivo YAML.
@@ -34,9 +34,9 @@ class ZonaList:
                 for zona in datos_yaml["Zonas"]
             ]
 
-    def get_cantidades(self) -> dict:
+    def get_all_quantities(self) -> dict:
         """
-        Cantidades de vehículos en todas las zonas.
+        Cantidades de vehículos por cada una de las zonas.
         """
         cantidad_detecciones = {}
         for zona in self.zonas:
@@ -44,7 +44,7 @@ class ZonaList:
 
         return cantidad_detecciones
 
-    def get_cantidad_zona(self, zona_nombre: str) -> int:
+    def get_zone_quantity(self, zona_nombre: str) -> int:
         """
         Cantidad de vehículos en una zona específica.
         """
@@ -54,7 +54,7 @@ class ZonaList:
 
         return -1  #! Retornar -1 si la zona no se encuentra
 
-    def get_tiempos(self) -> list[int]:
+    def get_zone_wait_times(self) -> list[int]:
         """
         Tiempos de detección en todas las zonas.
         """
@@ -65,7 +65,7 @@ class ZonaList:
 
         return tiempos
 
-    def get_tiempos_total(self) -> int:
+    def get_total_wait_time(self) -> int:
         """
         Tiempos de detección en todas las zonas.
         """
@@ -78,7 +78,7 @@ class ZonaList:
         """
         return self.zonas
 
-    def activar_multas(self, zona_nombre: str) -> bool:
+    def activate_fines(self, zona_nombre: str) -> bool:
         """
         Activa/desactiva las multas en las zonas.
 

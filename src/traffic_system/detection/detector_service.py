@@ -10,7 +10,7 @@ import ultralytics as ul
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
 from src.traffic_system.detection.video import Video
-from src.traffic_system.detection.zonas.ZonaList import ZonaList
+from src.traffic_system.detection.zonas.ZonaList import ZoneList
 
 
 class Detector:
@@ -30,7 +30,7 @@ class Detector:
     def __init__(
         self,
         detection_settings: DeteccionSettings | None = None,
-        zonas_instance: ZonaList | None = None,
+        zonas_instance: ZoneList | None = None,
     ) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
@@ -38,7 +38,7 @@ class Detector:
         self.__CLASES_SELECCIONADAS = [2, 3, 5, 7]  # Auto, Moto, Camion, Bus
         self.__CLASES = self.modelo.model.names
 
-        self.zonas = zonas_instance if zonas_instance is not None else ZonaList()
+        self.zonas = zonas_instance if zonas_instance is not None else ZoneList()
 
         self.tiempos_deteccion: dict[int, int] = (
             {}

@@ -4,7 +4,7 @@ from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
 from src.traffic_system.detection.detector_service import Detector
 from src.traffic_system.detection.video import Video
-from src.traffic_system.detection.zonas.ZonaList import ZonaList
+from src.traffic_system.detection.zonas.ZonaList import ZoneList
 
 
 class AppDetection:
@@ -12,7 +12,7 @@ class AppDetection:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
         self.detector = Detector()
-        self.zonas = ZonaList()
+        self.zonas = ZoneList()
 
     def analizar_carpeta_videos(self) -> None:
         """
