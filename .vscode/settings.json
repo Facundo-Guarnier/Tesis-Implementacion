@@ -36,5 +36,31 @@
   "ruff.fixAll": true,
   "mypy-type-checker.preferDaemon": true,
   "mypy-type-checker.reportingScope": "workspace",
-  "mypy-type-checker.importStrategy": "fromEnvironment"
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  // Configuración de GitHub Copilot para el proyecto
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "chat.promptFiles": true,
+
+  // Configuraciones específicas para el proyecto
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    { "text": "Usar Conventional Commits: tipo(ámbito): descripción" },
+    { "text": "Tipos: feat, fix, docs, refactor, test, chore" },
+    { "text": "Incluir contexto del sistema de semáforos cuando aplique" }
+  ],
+
+  "github.copilot.chat.reviewSelection.instructions": [
+    { "text": "Verificar que se siguen las convenciones del proyecto" },
+    { "text": "Comprobar que se usa config.yaml en lugar de hardcoding" },
+    { "text": "Revisar que los imports sean absolutos desde src/" },
+    { "text": "Verificar manejo de errores en APIs REST" }
+  ],
+
+  // Configuración de archivos de instrucciones
+  "chat.instructionsFilesLocations": {
+    ".github/instructions": true
+  },
+
+  "chat.promptFilesLocations": {
+    ".github/prompts": true
+  }
 }
