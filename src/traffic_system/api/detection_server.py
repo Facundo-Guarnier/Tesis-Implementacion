@@ -1,6 +1,6 @@
 from flask import Flask, Response, jsonify
 
-from src.traffic_system.detection.zonas.ZonaList import ZoneList
+from src.traffic_system.detection.zones.zone_list import ZoneList
 
 
 class DetectionAPI(Flask):

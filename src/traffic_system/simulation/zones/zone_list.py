@@ -23,18 +23,18 @@ class ZoneList:
         """
         # TODO: Eliminar las zonas hardcodeadas y permitir que se definan dinámicamente (config.yaml u otro).
         return [
-            Zone(name="Zona A", id="A"),
-            Zone(name="Zona B", id="B"),
-            Zone(name="Zona C", id="C"),
-            Zone(name="Zona D", id="D"),
-            Zone(name="Zona E", id="E"),
-            Zone(name="Zona F", id="F"),
-            Zone(name="Zona G", id="G"),
-            Zone(name="Zona H", id="H"),
-            Zone(name="Zona I", id="I"),
-            Zone(name="Zona J", id="J"),
-            Zone(name="Zona K", id="K"),
-            Zone(name="Zona L", id="L"),
+            Zone(name="Zona A", zone_id="A"),
+            Zone(name="Zona B", zone_id="B"),
+            Zone(name="Zona C", zone_id="C"),
+            Zone(name="Zona D", zone_id="D"),
+            Zone(name="Zona E", zone_id="E"),
+            Zone(name="Zona F", zone_id="F"),
+            Zone(name="Zona G", zone_id="G"),
+            Zone(name="Zona H", zone_id="H"),
+            Zone(name="Zona I", zone_id="I"),
+            Zone(name="Zona J", zone_id="J"),
+            Zone(name="Zona K", zone_id="K"),
+            Zone(name="Zona L", zone_id="L"),
         ]
 
     def get_all_zones(self) -> list[Zone]:

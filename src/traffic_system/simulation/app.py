@@ -24,14 +24,14 @@ class SumoApp:
 
         Args:
             traci_conn: El objeto de conexión Traci ya iniciado.
-            zonas: Una instancia de ZonaList con la definición de las zonas.
+            zonas: Una instancia de ZoneList con la definición de las zonas.
             label: Una etiqueta para identificar esta instancia de simulación (ej. 's1').
             config_file: Ruta al archivo de configuración de SUMO.
             use_gui: Si usar la interfaz gráfica de SUMO.
             restart_callback: Función que puede recrear la conexión traci cuando se necesite reiniciar.
         """
         self.traci = traci_conn
-        self.zonas = zones
+        self.zones = zones
         self.label = label
         self.config_file = config_file
         self.use_gui = use_gui
@@ -107,7 +107,7 @@ class SumoApp:
 
     def get_wait_times(self) -> list[float]:
         """Obtener todos los tiempos de espera por en todas las zonas."""
-        return [self.traci.edge.getWaitingTime(zona.id) for zona in self.zonas.zones]
+        return [self.traci.edge.getWaitingTime(zona.id) for zona in self.zones.zones]
 
     def get_total_wait_time(self) -> float:
         """Obtener el tiempo total de espera de todas las zonas juntas."""
