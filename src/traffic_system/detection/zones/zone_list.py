@@ -1,7 +1,7 @@
 import numpy as np
 import yaml
 
-from src.traffic_system.detection.zonas.Zona import Zona
+from src.traffic_system.detection.zones.zone import Zone
 
 
 class ZoneList:
@@ -19,38 +19,38 @@ class ZoneList:
         return cls._instance
 
     def __init__(self):
-        self.zonas = self.__cargar_zonas()
+        self.zones = self._load_zones()
 
-    def __cargar_zonas(self) -> list[Zona]:
-        with open("Deteccion/App/zonas/zonas.yaml", "r") as archivo:
-            datos_yaml = yaml.safe_load(archivo)
+    def _load_zones(self) -> list[Zone]:
+        with open("Deteccion/App/zonas/zonas.yaml", "r") as file:
+            yaml_data = yaml.safe_load(file)
             return [
-                Zona(
-                    nombre=zona["Nombre"],
-                    resolucion=tuple(zona["Resolucion"]),
-                    puntos_originales=np.array(zona["Puntos"]),
-                    puntos_multa_originales=np.array(zona["Multa"]),
+                Zone(
+                    name=zone["Nombre"],
+                    resolution=tuple(zone["Resolucion"]),
+                    original_points=np.array(zone["Puntos"]),
+                    original_fine_points=np.array(zone["Multa"]),
                 )
-                for zona in datos_yaml["Zonas"]
+                for zone in yaml_data["Zonas"]
             ]
 
     def get_all_quantities(self) -> dict:
         """
         Cantidades de vehículos por cada una de las zonas.
         """
-        cantidad_detecciones = {}
-        for zona in self.zonas:
-            cantidad_detecciones[zona.nombre] = zona.cantidad_detecciones
+        quantities = {}
+        for zone in self.zones:
+            quantities[zone.name] = zone.detection_count
 
-        return cantidad_detecciones
+        return quantities
 
     def get_zone_quantity(self, zona_nombre: str) -> int:
         """
         Cantidad de vehículos en una zona específica.
         """
-        for zona in self.zonas:
-            if zona.nombre == zona_nombre:
-                return zona.cantidad_detecciones
+        for zone in self.zones:
+            if zone.name == zona_nombre:
+                return zone.detection_count
 
         return -1  #! Retornar -1 si la zona no se encuentra
 
@@ -58,27 +58,27 @@ class ZoneList:
         """
         Tiempos de detección en todas las zonas.
         """
-        tiempos = []
-        for zona in self.zonas:
-            if "Zona" in zona.nombre:
-                tiempos.append(zona.tiempo_espera)
+        wait_times: list[int] = []
+        for zone in self.zones:
+            if "Zona" in zone.name:
+                wait_times.append(zone.wait_time)
 
-        return tiempos
+        return wait_times
 
     def get_total_wait_time(self) -> int:
         """
         Tiempos de detección en todas las zonas.
         """
 
-        return sum(zona.tiempo_espera for zona in self.zonas)
+        return sum(zona.wait_time for zona in self.zones)
 
-    def get(self) -> list[Zona]:
+    def get_all_zones(self) -> list[Zone]:
         """
         Devuelve la lista de todas las zonas.
         """
-        return self.zonas
+        return self.zones
 
-    def activate_fines(self, zona_nombre: str) -> bool:
+    def activate_fines(self, zone_name: str) -> bool:
         """
         Activa/desactiva las multas en las zonas.
 
@@ -89,14 +89,14 @@ class ZoneList:
             bool: Estado de las multas de la zona.
         """
 
-        for zona in self.zonas:
-            if zona.nombre == zona_nombre:
-                zona.multas_activadas = not zona.multas_activadas
-                return zona.multas_activadas
+        for zone in self.zones:
+            if zone.name == zone_name:
+                zone.fines_activated = not zone.fines_activated
+                return zone.fines_activated
 
         return False
 
-    def get_zona_by_name(self, zona_nombre: str) -> Zona | None:
+    def get_zone_by_name(self, zone_name: str) -> Zone | None:
         """
         Devuelve una zona por su nombre.
 
@@ -106,8 +106,8 @@ class ZoneList:
         Returns:
             Zona | None: La zona encontrada o None si no se encuentra.
         """
-        for zona in self.zonas:
-            if zona.nombre == zona_nombre:
+        for zona in self.zones:
+            if zona.name == zone_name:
                 return zona
 
         return None

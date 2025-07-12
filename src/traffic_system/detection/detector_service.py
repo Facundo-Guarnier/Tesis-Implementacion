@@ -9,11 +9,11 @@ import ultralytics as ul
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
-from src.traffic_system.detection.video import Video
+from src.traffic_system.detection.video import VideoProcessor
 from src.traffic_system.detection.zonas.ZonaList import ZoneList
 
 
-class Detector:
+class TrafficDetector:
     """
     Clase que procesa los videos, realiza la detección de objetos, dibuja
     los polígonos de zonas y los centros de cada objeto detectado.
@@ -30,21 +30,21 @@ class Detector:
     def __init__(
         self,
         detection_settings: DeteccionSettings | None = None,
-        zonas_instance: ZoneList | None = None,
+        zones_instance: ZoneList | None = None,
     ) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
-        self.modelo = ul.YOLO(f"assets/yolo_models/{self.settings.modelo}")
-        self.__CLASES_SELECCIONADAS = [2, 3, 5, 7]  # Auto, Moto, Camion, Bus
-        self.__CLASES = self.modelo.model.names
+        self.model = ul.YOLO(f"assets/yolo_models/{self.settings.modelo}")
+        self._selected_classes = [2, 3, 5, 7]  # Auto, Moto, Camion, Bus
+        self._class_names = self.model.model.names
 
-        self.zonas = zonas_instance if zonas_instance is not None else ZoneList()
+        self.zones = zones_instance if zones_instance is not None else ZoneList()
 
-        self.tiempos_deteccion: dict[int, int] = (
+        self.detection_times: dict[int, int] = (
             {}
         )  # Diccionario para almacenar tiempos de detección
 
-    def __crear_carpeta_multas(self) -> None:
+    def _create_fines_folder(self) -> None:
         """
         Crea la carpeta de multas si no existe y devuelve la ruta.
         """
@@ -52,13 +52,13 @@ class Detector:
         self.__path_multas = os.path.join(
             "Resultados_multa",
             f"Multa_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
-            self.video.zone.nombre,
+            self.video_processor.zone.name,
         )
         log_dir = os.path.join(self.__path_multas)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-    def __definir_parametros_supervision(self) -> None:
+    def _define_supervision_parameters(self) -> None:
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
         """
@@ -76,17 +76,17 @@ class Detector:
 
         #! Dibujador de box en los objetos.
         self.bounding_box_annotator = sv.BoundingBoxAnnotator(
-            thickness=max(1, int(3 * self.video.factor_escala)),
+            thickness=max(1, int(3 * self.video_processor.scale_factor)),
         )
         self.label_annotator = sv.LabelAnnotator(
-            text_thickness=max(1, int(2 * self.video.factor_escala)),
-            text_scale=max(1, int(1 * self.video.factor_escala)),
+            text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
+            text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
 
         #! Línea de multas
-        self.video.zone.escalar_puntos_multa(self.video.resolution)
+        self.video_processor.zone.escalar_puntos_multa(self.video_processor.resolution)
         self.line_zones: list[sv.LineZone] = []
-        p = self.video.zone.puntos_multa_reescalados
+        p = self.video_processor.zone.puntos_multa_reescalados
         for i in range(len(p) - 1):
             start = sv.Point(p[i][0], p[i][1])
             end = sv.Point(p[i + 1][0], p[i + 1][1])
@@ -98,12 +98,14 @@ class Detector:
 
         #! Anotador de línea de multas
         self.linea_zone_annotator = sv.LineZoneAnnotator(
-            thickness=max(1, int(3 * self.video.factor_escala)),
-            text_thickness=max(1, int(2 * self.video.factor_escala)),
-            text_scale=max(1, int(1 * self.video.factor_escala)),
+            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
+            text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
 
-    def __poligono_cv2(self, frame, detections: sv.Detections) -> np.ndarray:
+    def _draw_detection_polygon_and_centers_cv2(
+        self, frame, detections: sv.Detections
+    ) -> np.ndarray:
         """
         - Dibuja el centro de los objetos y el polígono de detección.
         - Cuenta los objetos que están dentro del polígono.
@@ -112,21 +114,21 @@ class Detector:
         #! Dibujar el polígono de detección
         cv2.polylines(
             img=frame,
-            pts=[self.video.zone.puntos_reescalados],
+            pts=[self.video_processor.zone.rescaled_points],
             isClosed=True,
             color=(0, 0, 255),
-            thickness=max(1, int(10 * self.video.factor_escala)),
+            thickness=max(1, int(10 * self.video_processor.scale_factor)),
         )
 
         #! Lista de IDs de objetos que ya no están en la imagen
-        ids_fuera_imagen = [
-            id for id in self.tiempos_deteccion if id not in detections.tracker_id
+        ids_out_of_frame = [
+            id for id in self.detection_times if id not in detections.tracker_id
         ]
-        for id in ids_fuera_imagen:
-            del self.tiempos_deteccion[id]
+        for id in ids_out_of_frame:
+            del self.detection_times[id]
 
         #! Dibujar el centro de los objetos
-        detecciones_poligono = 0
+        polygon_detections_count = 0
         for box, mask, confianza, class_id, tracker_id, data in detections:
             #! Centros
             #  xmin, ymin, xmax, ymax
@@ -136,74 +138,80 @@ class Detector:
 
             #! Validar el punto dentro del poligono
             color: list[int]  # BGR
-            if mplPath.Path(self.video.zone.puntos_reescalados).contains_point((x, y)):
-                detecciones_poligono += 1
+            if mplPath.Path(self.video_processor.zone.rescaled_points).contains_point(
+                (x, y)
+            ):
+                polygon_detections_count += 1
                 color = [255, 80, 0]
 
                 #! Contar el tiempo de detección
-                if tracker_id in self.tiempos_deteccion:
-                    self.tiempos_deteccion[tracker_id] += 1
+                if tracker_id in self.detection_times:
+                    self.detection_times[tracker_id] += 1
                 else:
-                    self.tiempos_deteccion[tracker_id] = 1
+                    self.detection_times[tracker_id] = 1
 
             else:
                 color = [0, 0, 255]
                 #! Reiniciar el tiempo de detección
-                self.tiempos_deteccion[tracker_id] = 0
+                self.detection_times[tracker_id] = 0
 
             cv2.circle(
                 img=frame,
                 center=(x, y),
-                radius=max(1, int(10 * self.video.factor_escala)),
+                radius=max(1, int(10 * self.video_processor.scale_factor)),
                 color=color,
-                thickness=max(1, int(10 * self.video.factor_escala)),
+                thickness=max(1, int(10 * self.video_processor.scale_factor)),
             )
 
-        frame_total = sum(self.tiempos_deteccion.values())
-        tiempo_total = frame_total // self.video.fps
+        total_frames_in_zone = sum(self.detection_times.values())
+        total_seconds_in_zone = total_frames_in_zone // self.video_processor.fps
 
         #! Escribir la cantidad de detecciones en el frame
         cv2.putText(
             img=frame,
-            text=f"Vehiculos {detecciones_poligono} {tiempo_total}",
+            text=f"Vehiculos {polygon_detections_count} {total_seconds_in_zone}",
             org=(
-                max(1, int(250 * self.video.factor_escala)),
-                max(1, int(1800 * self.video.factor_escala)),
+                max(1, int(250 * self.video_processor.scale_factor)),
+                max(1, int(1800 * self.video_processor.scale_factor)),
             ),
             fontFace=cv2.FONT_HERSHEY_PLAIN,
-            fontScale=max(1, int(6 * self.video.factor_escala)),
+            fontScale=max(1, int(6 * self.video_processor.scale_factor)),
             color=(50, 50, 200),
-            thickness=max(1, int(6 * self.video.factor_escala)),
+            thickness=max(1, int(6 * self.video_processor.scale_factor)),
         )
 
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
         # self.video.zona.cantidad_detecciones = detecciones_poligono
-        zona_actualizada = self.zonas.get_zona_by_name(self.video.zone.nombre)
-        if zona_actualizada:
-            zona_actualizada.cantidad_detecciones = detecciones_poligono
-            zona_actualizada.tiempo_espera = int(tiempo_total)
-        self.video.zone.tiempo_espera = int(tiempo_total)
+        updated_zone = self.zones.get_zona_by_name(self.video_processor.zone.name)
+        if updated_zone:
+            updated_zone.detection_count = polygon_detections_count
+            updated_zone.wait_time = int(total_seconds_in_zone)
+        self.video_processor.zone.wait_time = int(total_seconds_in_zone)
 
         return frame
 
-    def __box_sv(self, frame: np.ndarray, detections: sv.Detections) -> np.ndarray:
+    def _annotate_boxes_sv(
+        self, frame: np.ndarray, detections: sv.Detections
+    ) -> np.ndarray:
         """
         - Dibuja una box por cada objeto.
         - Hace las etiquetas de cada box.
         """
-        etiquetas = []
+        labels = []
         for xyxy, mask, confianza, class_id, tracker_id, data in detections:
-            tiempo_deteccion = self.tiempos_deteccion.get(tracker_id, 0)
-            etiqueta = f"{tiempo_deteccion} frames"
-            etiquetas.append(etiqueta)
+            detection_time_frames = self.detection_times.get(tracker_id, 0)
+            label = f"{detection_time_frames} frames"
+            labels.append(label)
 
         frame = self.bounding_box_annotator.annotate(scene=frame, detections=detections)
         frame = self.label_annotator.annotate(
-            scene=frame, detections=detections, labels=etiquetas
+            scene=frame, detections=detections, labels=labels
         )
         return frame
 
-    def __multas(self, frame: np.ndarray, detections: sv.Detections) -> np.ndarray:
+    def _process_fines(
+        self, frame: np.ndarray, detections: sv.Detections
+    ) -> np.ndarray:
         """
         Realiza la deteccion de multas y guarda la foto de la multa.
 
@@ -226,35 +234,35 @@ class Detector:
                     x1, y1, x2, y2 = map(
                         int, bbox
                     )  #! Convertir las coordenadas a enteros
-                    imagen_recortada = frame[
+                    cropped_image = frame[
                         round(y1 * 0.9) : round(y2 * 1.1),
                         round(x1 * 0.9) : round(x2 * 1.1),
                     ]
 
                     #! Guardar la imagen recortada
-                    nombre_archivo = os.path.join(
+                    file_name = os.path.join(
                         self.__path_multas, f"multa_{time.strftime('%H-%M-%S')}.jpg"
                     )
-                    cv2.imwrite(nombre_archivo, imagen_recortada)
+                    cv2.imwrite(file_name, cropped_image)
 
             frame = self.linea_zone_annotator.annotate(frame, line_zone)
 
         return frame
 
-    def __callback(self, frame: np.ndarray, n_frame: int) -> np.ndarray:
+    def _process_frame_callback(
+        self, frame: np.ndarray, frame_number: int
+    ) -> np.ndarray:
         """
         - Procesamiento de video.
         - Se ejecuta por cada frame del video.
         """
 
         #! Realizar la detección/predicción de objetos
-        results = self.modelo(frame, verbose=False)[0]
-        detections = sv.Detections.from_ultralytics(results)
+        model_results = self.model(frame, verbose=False)[0]
+        detections = sv.Detections.from_ultralytics(model_results)
 
         #! Filtrar las clases que no se necesitan
-        detections = detections[
-            np.isin(detections.class_id, self.__CLASES_SELECCIONADAS)
-        ]
+        detections = detections[np.isin(detections.class_id, self._selected_classes)]
 
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
@@ -262,49 +270,49 @@ class Detector:
         #! Si hay detecciones
         if detections.tracker_id.size > 0:
 
-            frame = self.__poligono_cv2(frame, detections)
+            frame = self._draw_detection_polygon_and_centers_cv2(frame, detections)
 
             frame = self.trace_annotator.annotate(frame, detections=detections)
 
-            frame = self.__box_sv(frame, detections)
+            frame = self._annotate_boxes_sv(frame, detections)
 
-            if self.video.zone.multas_activadas:
-                frame = self.__multas(frame, detections)
+            if self.video_processor.zone.multas_activadas:
+                frame = self._process_fines(frame, detections)
 
         return frame
 
-    def procesar_y_guardar_video(self, video: Video) -> None:
+    def process_and_save_video(self, video_processor: VideoProcessor) -> None:
         """
         Procesa un video y guarda el resultado sin mostrarlo en una ventana en vivo.
         """
 
-        self.video = video
-        self.__crear_carpeta_multas()
-        self.video.zone.escalar_puntos(self.video.resolution)
-        self.__definir_parametros_supervision()
-        print(f"  Factor de escala: {self.video.factor_escala}")
+        self.video_processor = video_processor
+        self._create_fines_folder()
+        self.video_processor.zone.escalar_puntos(self.video_processor.resolution)
+        self._define_supervision_parameters()
+        print(f"  Factor de escala: {self.video_processor.scale_factor}")
 
         sv.process_video(
-            source_path=video.origin_path,
-            target_path=video.result_path,
-            callback=self.__callback,
+            source_path=video_processor.origin_path,
+            target_path=video_processor.result_path,
+            callback=self._process_frame_callback,
         )
 
-    def procesar_y_mostrar_resultado_en_vivo(self, video: Video) -> None:
+    def process_and_show_live_video(self, video_processor: VideoProcessor) -> None:
         """
         Procesa un video y muestra el resultado en vivo.
         """
 
-        self.video = video
-        self.__crear_carpeta_multas()
-        guardar = self.settings.un_video.guardar
-        cap = cv2.VideoCapture(self.video.origin_path)
-        self.video.zone.escalar_puntos(self.video.resolution)
-        self.__definir_parametros_supervision()
+        self.video_processor = video_processor
+        self._create_fines_folder()
+        save_output = self.settings.un_video.guardar
+        cap = cv2.VideoCapture(self.video_processor.origin_path)
+        self.video_processor.zone.escalar_puntos(self.video_processor.resolution)
+        self._define_supervision_parameters()
 
-        if guardar:
-            out_guardar = cv2.VideoWriter(
-                filename=self.video.result_path,
+        if save_output:
+            output_writer = cv2.VideoWriter(
+                filename=self.video_processor.result_path,
                 fourcc=1983148141,  #! mp4v
                 fps=cap.get(cv2.CAP_PROP_FPS),
                 frameSize=(
@@ -314,16 +322,16 @@ class Detector:
             )
 
         fps = 0
-        frame_count = 0
-        start_time = time.time()
-        total_frames = 0
+        frames_in_second = 0
+        second_start_time = time.time()
+        total_frames_processed = 0
 
         cv2.namedWindow("Detectando en un video", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Detectando en un video", 460, 820)
 
         while True:
-            frame_count += 1
-            total_frames += 1
+            frames_in_second += 1
+            total_frames_processed += 1
 
             #! Salir si no hay más frames
             ret, frame = cap.read()
@@ -331,24 +339,24 @@ class Detector:
                 break
 
             #! Procesar el frame
-            frame = self.__callback(frame, total_frames)
+            frame = self._process_frame_callback(frame, total_frames_processed)
 
             #! Guardar el frame sin mostrar los fps.
-            if guardar:
-                out_guardar.write(frame)
+            if save_output:
+                output_writer.write(frame)
 
             #! Mostrar el FPS
-            if time.time() - start_time >= 1:
-                fps = frame_count
-                frame_count = 0
-                start_time = time.time()
+            if time.time() - second_start_time >= 1:
+                fps = frames_in_second
+                frames_in_second = 0
+                second_start_time = time.time()
 
             cv2.putText(
                 frame,
                 f"FPS: {fps}",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1 * self.video.factor_escala,
+                1 * self.video_processor.scale_factor,
                 (0, 255, 0),
                 2,
             )
@@ -362,29 +370,29 @@ class Detector:
 
         cap.release()
         cv2.destroyAllWindows()
-        if guardar:
-            print("Guardado en: ", self.video.result_path)
+        if save_output:
+            print("Guardado en: ", self.video_processor.result_path)
 
-    def procesar_camara(self, video: Video) -> None:
+    def process_camera(self, video_processor: VideoProcessor) -> None:
         """
         Procesa la cámara en vivo y muestra el resultado en tiempo real.
         """
 
         cap = cv2.VideoCapture(0)
-        self.video = video
-        self.__crear_carpeta_multas()
-        self.__definir_parametros_supervision()
+        self.video_processor = video_processor
+        self._create_fines_folder()
+        self._define_supervision_parameters()
 
         fps = 0
-        frame_count = 0
-        start_time = time.time()
-        total_frames = 0
+        frames_in_second = 0
+        second_start_time = time.time()
+        total_frames_processed = 0
 
         cv2.namedWindow("Detectando con camara", cv2.WINDOW_NORMAL)
         cv2.resizeWindow("Detectando con camara", 820, 460)
 
         while True:
-            frame_count += 1
+            frames_in_second += 1
 
             #! Salir si no hay más frames
             ret, frame = cap.read()
@@ -395,13 +403,13 @@ class Detector:
             frame = cv2.resize(frame, (820, 460))
 
             #! Procesar el frame
-            frame = self.__callback(frame, total_frames)
+            frame = self._process_frame_callback(frame, total_frames_processed)
 
             #! Mostrar el FPS
-            if time.time() - start_time >= 1:
-                fps = frame_count
-                frame_count = 0
-                start_time = time.time()
+            if time.time() - second_start_time >= 1:
+                fps = frames_in_second
+                frames_in_second = 0
+                second_start_time = time.time()
 
             cv2.putText(
                 frame,

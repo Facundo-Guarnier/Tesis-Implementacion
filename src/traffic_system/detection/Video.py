@@ -6,7 +6,7 @@ import cv2
 from src.traffic_system.detection.zonas.Zona import Zona
 
 
-class Video:
+class VideoProcessor:
     """
     Inicializa un objeto Video.
 
@@ -54,7 +54,7 @@ class Video:
                 "resolution debe ser una tupla de dos enteros (ancho, alto)"
             )
 
-        self.factor_escala: float = (
+        self.scale_factor: float = (
             self.__calculate_scale_factor() if scale_factor is None else scale_factor
         )
 

@@ -83,15 +83,15 @@ def main() -> None:
 
         #! Procesar toda la carpetas del dataset.
         if settings.deteccion.carpeta_dataset.procesar:
-            app.analizar_carpeta_videos()
+            app.analyze_video_folder()
 
         #! Procesar un video específico del dataset.
         if settings.deteccion.un_video.procesar:
-            app.analizar_un_video()
+            app.analyze_single_video()
 
         #! Deteccion con cámara en vivo.
         if settings.deteccion.procesar_camara:
-            app.analizar_camara()
+            app.analyze_camera()
 
     except Exception as e:
         print("Error:", e)
