@@ -9,8 +9,8 @@ import sys
 import traci
 from traci.exceptions import FatalTraCIError, TraCIException
 
-from src.traffic_system.simulation.AppSUMO import AppSUMO
-from src.traffic_system.simulation.zonas.ZonaList import ZonaList
+from src.traffic_system.simulation.app import SumoApp
+from src.traffic_system.simulation.zones.zone_list import ZoneList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("TestReinicio")
@@ -36,7 +36,7 @@ def test_reinicio():
 
     try:
         # Cargar configuración (solo necesitamos las zonas)
-        zonas = ZonaList()
+        zonas = ZoneList()
         config_file_path = "assets/sumo_maps/MapaDe0/mapa.sumocfg"
 
         # Crear simulación de prueba
@@ -44,7 +44,7 @@ def test_reinicio():
         traci_conn = start_traci_connection(
             "test", config_file_path, False
         )  # Sin GUI para prueba
-        app_test = AppSUMO(
+        app_test = SumoApp(
             traci_conn,
             zonas,
             "test",

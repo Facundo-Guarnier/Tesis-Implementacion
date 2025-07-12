@@ -49,7 +49,7 @@ def test_configuracion_real():
         # Importar y patch la configuración
         # Patch del load_app_settings
         import src.traffic_system.core.config_loader as config_loader
-        from src.traffic_system.decision.DQN.EntrenamientoDQN import DQNTrainer
+        from src.traffic_system.decision.DQN.dqn_trainer import DQNTrainer
 
         original_load = config_loader.load_app_settings
 

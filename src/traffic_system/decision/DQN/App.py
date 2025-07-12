@@ -7,8 +7,8 @@ import requests
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DecisionSettings
-from src.traffic_system.decision.DQN.DQN import DQNModel
-from src.traffic_system.decision.DQN.EntrenamientoDQN import DQNTrainer
+from src.traffic_system.decision.DQN.dqn_model import DQNModel
+from src.traffic_system.decision.DQN.dqn_trainer import DQNTrainer
 
 
 class DecisionApp:

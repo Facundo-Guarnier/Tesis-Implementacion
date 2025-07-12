@@ -2,16 +2,16 @@ import os
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
-from src.traffic_system.detection.detector_service import TrafficDetector
-from src.traffic_system.detection.video import VideoProcessor
+from src.traffic_system.detection.detector_service import DetectorService
+from src.traffic_system.detection.video_processor import VideoProcessor
 from src.traffic_system.detection.zones.zone_list import ZoneList
 
 
-class AppDetection:
+class DetectionApp:
     def __init__(self, detection_settings: DeteccionSettings | None = None) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
-        self.detector = TrafficDetector()
+        self.detector = DetectorService()
         self.zones = ZoneList()
 
     def analyze_video_folder(self) -> None:

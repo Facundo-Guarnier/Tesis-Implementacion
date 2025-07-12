@@ -2,15 +2,15 @@ import logging
 
 from flask import Flask, Response, jsonify, request
 
-from src.traffic_system.simulation.AppSUMO import AppSUMO
+from src.traffic_system.simulation.app import SumoApp
 
 
 class SumoAPI(Flask):
     def __init__(
         self,
         name: str,
-        app_s1: AppSUMO,
-        app_s2: AppSUMO | None = None,
+        app_s1: SumoApp,
+        app_s2: SumoApp | None = None,
         comparison_logger=None,
     ) -> None:
         super().__init__(name)
@@ -212,7 +212,7 @@ class SumoAPI(Flask):
     def get_zone_wait_time(self, zona_id: str) -> tuple[Response, int]:
         """Obtener tiempo de espera de una zona en S1."""
         return (
-            jsonify({"tiempo_espera": self.app_s1.get_zone_wait_time(zona_id=zona_id)}),
+            jsonify({"tiempo_espera": self.app_s1.get_zone_wait_time(zone_id=zona_id)}),
             200,
         )
 

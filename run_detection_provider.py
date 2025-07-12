@@ -12,7 +12,7 @@ from src.traffic_system.core.config_loader import load_app_settings
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
 from src.traffic_system.api.detection_server import DetectionAPI
-from src.traffic_system.detection.app import AppDetection
+from src.traffic_system.detection.app import DetectionApp
 from src.traffic_system.detection.zonas.ZonaList import ZoneList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
@@ -79,7 +79,7 @@ def main() -> None:
     """
     try:
         settings = load_app_settings()
-        app = AppDetection()
+        app = DetectionApp()
 
         #! Procesar toda la carpetas del dataset.
         if settings.deteccion.carpeta_dataset.procesar:

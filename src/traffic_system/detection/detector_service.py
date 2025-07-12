@@ -9,11 +9,11 @@ import ultralytics as ul
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
-from src.traffic_system.detection.video import VideoProcessor
-from src.traffic_system.detection.zonas.ZonaList import ZoneList
+from src.traffic_system.detection.video_processor import VideoProcessor
+from src.traffic_system.detection.zones.zone_list import ZoneList
 
 
-class TrafficDetector:
+class DetectorService:
     """
     Clase que procesa los videos, realiza la detección de objetos, dibuja
     los polígonos de zonas y los centros de cada objeto detectado.
@@ -84,9 +84,9 @@ class TrafficDetector:
         )
 
         #! Línea de multas
-        self.video_processor.zone.escalar_puntos_multa(self.video_processor.resolution)
+        self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self.line_zones: list[sv.LineZone] = []
-        p = self.video_processor.zone.puntos_multa_reescalados
+        p = self.video_processor.zone.rescaled_fine_points
         for i in range(len(p) - 1):
             start = sv.Point(p[i][0], p[i][1])
             end = sv.Point(p[i + 1][0], p[i + 1][1])
@@ -136,7 +136,7 @@ class TrafficDetector:
             x = int((box[0] + box[2]) // 2)
             y = int((box[1] + box[3]) // 2)
 
-            #! Validar el punto dentro del poligono
+            #! Validar el punto dentro del polígono
             color: list[int]  # BGR
             if mplPath.Path(self.video_processor.zone.rescaled_points).contains_point(
                 (x, y)
@@ -182,7 +182,7 @@ class TrafficDetector:
 
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
         # self.video.zona.cantidad_detecciones = detecciones_poligono
-        updated_zone = self.zones.get_zona_by_name(self.video_processor.zone.name)
+        updated_zone = self.zones.get_zone_by_name(self.video_processor.zone.name)
         if updated_zone:
             updated_zone.detection_count = polygon_detections_count
             updated_zone.wait_time = int(total_seconds_in_zone)
@@ -276,7 +276,7 @@ class TrafficDetector:
 
             frame = self._annotate_boxes_sv(frame, detections)
 
-            if self.video_processor.zone.multas_activadas:
+            if self.video_processor.zone.fines_activated:
                 frame = self._process_fines(frame, detections)
 
         return frame
@@ -288,7 +288,7 @@ class TrafficDetector:
 
         self.video_processor = video_processor
         self._create_fines_folder()
-        self.video_processor.zone.escalar_puntos(self.video_processor.resolution)
+        self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self._define_supervision_parameters()
         print(f"  Factor de escala: {self.video_processor.scale_factor}")
 
@@ -307,7 +307,7 @@ class TrafficDetector:
         self._create_fines_folder()
         save_output = self.settings.un_video.guardar
         cap = cv2.VideoCapture(self.video_processor.origin_path)
-        self.video_processor.zone.escalar_puntos(self.video_processor.resolution)
+        self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self._define_supervision_parameters()
 
         if save_output:

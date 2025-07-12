@@ -3,7 +3,7 @@ import os
 
 import cv2
 
-from src.traffic_system.detection.zonas.Zona import Zona
+from src.traffic_system.detection.zones.zone import Zone
 
 
 class VideoProcessor:
@@ -22,7 +22,7 @@ class VideoProcessor:
     def __init__(
         self,
         origin_path: str,
-        zone: Zona,
+        zone: Zone,
         result_path: str | None = None,
         fps: float | None = None,
         resolution: tuple[int, int] | None = None,

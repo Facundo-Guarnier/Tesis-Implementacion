@@ -8,9 +8,9 @@ from traci.exceptions import FatalTraCIError, TraCIException
 
 from src.traffic_system.api.simulation_server import SumoAPI
 from src.traffic_system.core.config_loader import load_app_settings
-from src.traffic_system.simulation.AppSUMO import AppSUMO
-from src.traffic_system.simulation.ComparisonLogger import ComparisonLogger
-from src.traffic_system.simulation.zonas.ZonaList import ZonaList
+from src.traffic_system.simulation.app import SumoApp
+from src.traffic_system.simulation.comparison_logger import ComparisonLogger
+from src.traffic_system.simulation.zones.zone_list import ZoneList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("SimulationProvider")
@@ -26,7 +26,7 @@ def start_traci_connection(
 
 
 def api_service(
-    app_s1: AppSUMO, app_s2: AppSUMO | None, comp_logger: ComparisonLogger | None
+    app_s1: SumoApp, app_s2: SumoApp | None, comp_logger: ComparisonLogger | None
 ) -> None:
     logger.info("Iniciando el servicio API de SUMO...")
 
@@ -60,12 +60,12 @@ if __name__ == "__main__":
     comparison_logger = None
 
     try:
-        zonas = ZonaList()
+        zonas = ZoneList()
         config_file_path = "assets/sumo_maps/MapaDe0/mapa.sumocfg"
 
         logger.info("Iniciando conexión Traci para la simulación principal (s1)...")
         traci_s1 = start_traci_connection("s1", config_file_path, settings.sumo.gui)
-        app_s1 = AppSUMO(
+        app_s1 = SumoApp(
             traci_s1,
             zonas,
             "s1",
@@ -80,7 +80,7 @@ if __name__ == "__main__":
                 "Iniciando conexión Traci para la simulación de comparación (s2)..."
             )
             traci_s2 = start_traci_connection("s2", config_file_path, settings.sumo.gui)
-            app_s2 = AppSUMO(
+            app_s2 = SumoApp(
                 traci_s2,
                 zonas,
                 "s2",
