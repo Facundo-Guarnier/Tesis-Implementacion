@@ -49,7 +49,7 @@ def test_configuracion_real():
         # Importar y patch la configuración
         # Patch del load_app_settings
         import src.traffic_system.core.config_loader as config_loader
-        from src.traffic_system.decision.DQN.EntrenamientoDQN import EntrenamientoDQN
+        from src.traffic_system.decision.DQN.EntrenamientoDQN import DQNTrainer
 
         original_load = config_loader.load_app_settings
 
@@ -60,7 +60,7 @@ def test_configuracion_real():
             logger.info("🧪 Creando instancia real de EntrenamientoDQN...")
 
             # Crear instancia (esto debería ejecutar __configure_gpu)
-            trainer = EntrenamientoDQN()
+            trainer = DQNTrainer()
 
             logger.info("✅ Instancia creada exitosamente")
             logger.info(f"🎯 Dispositivo configurado: {trainer.device}")

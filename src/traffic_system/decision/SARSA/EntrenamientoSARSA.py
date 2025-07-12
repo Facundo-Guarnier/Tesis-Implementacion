@@ -34,12 +34,12 @@ import time
 
 import numpy as np
 
-from src.traffic_system.api_client.data_source_client import ApiDecision
+from src.traffic_system.api_client.data_source_client import DecisionAPI
 
 
 class EntrenamientoSARSA:
     def __init__(self):
-        self.__api = ApiDecision("http://127.0.0.1:5000")
+        self.__api = DecisionAPI("http://127.0.0.1:5000")
         self.__setEspacioAcciones()
         self.__setPath()
 
@@ -214,7 +214,7 @@ class EntrenamientoSARSA:
         # estado = tuple([cantidad for cantidad in self.__api.getCantidades().values()])
 
         #! Tiempo
-        estado = tuple(self.__api.getTiemposEspera()["tiempos_espera"])
+        estado = tuple(self.__api.get_wait_times()["tiempos_espera"])
         tiempo_maximo_espera = max(estado)
 
         #! Normalizar los tiempos de espera
@@ -230,7 +230,7 @@ class EntrenamientoSARSA:
         - (0%) El tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
         - (0%) La cantidad de vehículos en cada calle/zona.
         """
-        tiempo = self.__api.getTiemposEspera()["tiempo_espera_total"]
+        tiempo = self.__api.get_wait_times()["tiempo_espera_total"]
         return 100 / ((tiempo) + 100)
 
     # def __reiniciar(self) -> tuple:
@@ -248,10 +248,10 @@ class EntrenamientoSARSA:
         """
 
         #! Cambiar el estado de los semáforos en SUMO
-        self.__api.putEstados(accion=action.split("-"))
+        self.__api.set_traffic_light_states(states=action.split("-"))
 
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=15)
+        respuesta = self.__api.advance_simulation(steps=15)
 
         done: bool = respuesta["done"]  #! Si la simulación ha terminado
 
@@ -288,7 +288,7 @@ class EntrenamientoSARSA:
         print("Calculando recompensa con semaforos con tiempo fijo.")
         while not done:
             total_reward += self.__recompensa()
-            done = self.__api.putAvanzar(steps=10)["done"]
+            done = self.__api.advance_simulation(steps=10)["done"]
 
         self.__guardar_metricas(
             epoca=-1,

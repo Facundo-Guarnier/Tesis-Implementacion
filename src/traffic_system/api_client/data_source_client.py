@@ -4,12 +4,12 @@ import logging
 import requests  # type: ignore
 
 
-class ApiDecision:
+class DecisionAPI:
     def __init__(self, base_url):
         logging.basicConfig(level=logging.DEBUG)
         self.base_url = base_url
 
-    def getCantidades(self) -> dict[str, int] | None:
+    def get_quantities(self) -> dict[str, int] | None:
         """
         Obtener la cantidad de vehículos en cada una de las zonas.
 
@@ -24,7 +24,7 @@ class ApiDecision:
         else:
             return None
 
-    def getCantidadZona(self, zona_name: str) -> dict | None:
+    def get_zone_quantity(self, zona_name: str) -> dict | None:
         """
         Obtener la cantidad de vehículos en una zona específica.
         """
@@ -35,7 +35,7 @@ class ApiDecision:
         else:
             return None
 
-    def getEstados(self) -> dict | None:
+    def get_all_traffic_light_states(self) -> dict | None:
         """
         Obtener el estado de todos los semáforos.
 
@@ -50,29 +50,29 @@ class ApiDecision:
         else:
             return None
 
-    def getEstado(self, id: int) -> dict | None:
+    def get_traffic_light_state(self, light_id: int) -> dict | None:
         """
         Obtener el estado de un semáforo.
         """
-        endpoint = f"/semaforo/{id}"
+        endpoint = f"/semaforo/{light_id}"
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return response.json()
         else:
             return None
 
-    def getTiempoEspera(self, zona_id) -> dict | None:
+    def get_zone_wait_time(self, zone_id) -> dict | None:
         """
         Obtener el tiempo total de espera de una zona en la simulación.
         """
-        endpoint = f"/espera/{zona_id}"
+        endpoint = f"/espera/{zone_id}"
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return response.json()
         else:
             return None
 
-    def getTiemposEspera(self) -> dict | None:
+    def get_wait_times(self) -> dict | None:
         """
         Obtener el tiempo total de espera de todas las zonas en la simulación.
 
@@ -86,7 +86,7 @@ class ApiDecision:
         else:
             return None
 
-    def putAvanzar(self, steps: int) -> dict | None:
+    def advance_simulation(self, steps: int) -> dict | None:
         """
         Avanzar la simulación un número de pasos.
         """
@@ -98,24 +98,24 @@ class ApiDecision:
         else:
             return None
 
-    def putEstados(self, accion: list) -> dict | None:
+    def set_traffic_light_states(self, states: list[str]) -> dict | None:
         """
         Cambiar el estado de un semáforo.
         """
         endpoint = "/semaforo"
 
-        data = []
-        for semaforo_id in range(len(accion)):
-            data.append({"id": str(semaforo_id + 1), "estado": accion[semaforo_id]})
+        data_payload = []
+        for light_id in range(len(states)):
+            data_payload.append({"id": str(light_id + 1), "estado": states[light_id]})
 
-        response = requests.put(self.base_url + endpoint, json={"data": data})
+        response = requests.put(self.base_url + endpoint, json={"data": data_payload})
 
         if response.status_code == 200:
             return response.json()
         else:
             return None
 
-    def isSimulationOk(self) -> bool:
+    def is_simulation_running(self) -> bool:
         """
         Verificar si la simulación está en ejecución.
         """
@@ -133,7 +133,7 @@ class ApiDecision:
             )
             return False
 
-    def isSimulationSync(self) -> bool:
+    def is_simulation_synchronized(self) -> bool:
         """
         Verificar si la simulación está sincronizada.
         """

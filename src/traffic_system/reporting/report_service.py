@@ -4,7 +4,7 @@ import os
 import sqlite3
 import time
 
-from src.traffic_system.api_client.reporting_client import ApiReporte
+from src.traffic_system.api_client.reporting_client import ReportAPI
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import ReporteSettings
 
@@ -15,7 +15,7 @@ class ReportService:
         self.settings = load_app_settings().reporte
 
         logging.basicConfig(level=logging.DEBUG)
-        self.__client_api_report = ApiReporte()
+        self.__client_api_report = ReportAPI()
         self.__path_report = os.path.join(
             self.settings.path_reporte,
             f"report_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
@@ -34,7 +34,7 @@ class ReportService:
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
         #! Verificar si la simulación fue exitosa
-        while not self.__client_api_report.getSimulacionOK():
+        while not self.__client_api_report.is_simulation_running():
             time.sleep(1)
 
         self.__connect_db()
@@ -109,11 +109,11 @@ class ReportService:
             }
         """
 
-        if not self.__client_api_report.getSimulacionOK():
+        if not self.__client_api_report.is_simulation_running():
             return {}
 
         #! Obtener los datos de la simulación
-        datos = self.__client_api_report.getReporte()
+        datos = self.__client_api_report.get_report()
 
         #! Calcular el tiempo de espera total
         total = sum(datos["tiempos_espera"])

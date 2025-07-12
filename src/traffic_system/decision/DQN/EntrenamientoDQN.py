@@ -12,12 +12,12 @@ import numpy as np
 import tensorflow as tf
 from numpy import ndarray as NDArray
 
-from src.traffic_system.api_client.data_source_client import ApiDecision
+from src.traffic_system.api_client.data_source_client import DecisionAPI
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DecisionSettings
 
 
-class EntrenamientoDQN:
+class DQNTrainer:
     """
     Entrenamiento de un agente utilizando el algoritmo DQN (Deep Q-Learning).
 
@@ -48,16 +48,16 @@ class EntrenamientoDQN:
         self.decision_settings = load_app_settings().decision
 
         # Configurar GPU para entrenamiento óptimo
-        self.__configure_gpu()
+        self._configure_gpu()
 
         logging.basicConfig(level=logging.DEBUG)
         self.memory: deque = deque(
             maxlen=self.decision_settings.entrenamiento.memory
         )  #! Memoria de reproducción
-        self.__api = ApiDecision(self.settings.base_url)
+        self._api = DecisionAPI(self.settings.base_url)
 
-        self.__setEspacioAcciones()
-        self.__setPath()
+        self._set_action_space()
+        self._set_save_path()
         self.state_size = 12
 
         #! Hiperparámetros
@@ -87,7 +87,7 @@ class EntrenamientoDQN:
             # Modelo mucho más grande para testing de GPU
             self.hidden_layers = [512, 512, 256, 256, 128, 128, 64]
 
-    def __configure_gpu(self) -> None:
+    def _configure_gpu(self) -> None:
         """
         Configura la GPU para entrenamiento óptimo, o CPU como fallback.
         Incluye monitoreo detallado de GPU.
@@ -190,37 +190,37 @@ class EntrenamientoDQN:
                 logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
                 logger.debug(f" Error monitoreando GPU: {e}")
 
-    def __setEspacioAcciones(self) -> None:
+    def _set_action_space(self) -> None:
         """
         Establece el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos.
         - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), (...), ...]
         """
 
-        semaforo_1 = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
-        semaforo_2 = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
-        semaforo_3 = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
-        semaforo_4 = ["GGGrrrrGGg", "rrrGGGGrrr"]
+        traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
+        traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
+        traffic_light_3_phases = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
+        traffic_light_4_phases = ["GGGrrrrGGg", "rrrGGGGrrr"]
 
-        self.__espacio_acciones = [
+        self._action_space = [
             f"{s1}-{s2}-{s3}-{s4}"
-            for s1 in semaforo_1
-            for s2 in semaforo_2
-            for s3 in semaforo_3
-            for s4 in semaforo_4
+            for s1 in traffic_light_1_phases
+            for s2 in traffic_light_2_phases
+            for s3 in traffic_light_3_phases
+            for s4 in traffic_light_4_phases
         ]
 
-    def __setPath(self) -> None:
+    def _set_save_path(self) -> None:
         """
         Establece la ruta donde se guardarán los archivos.
         """
-        self.__path = os.path.join(
+        self._save_path = os.path.join(
             self.decision_settings.entrenamiento.path_resultado,
             f'DQN_{time.strftime("%Y-%m-%d_%H-%M")}',
         )
-        if not os.path.exists(self.__path):
-            os.makedirs(self.__path)
+        if not os.path.exists(self._save_path):
+            os.makedirs(self._save_path)
 
-    def __build_model(self) -> tf.keras.Model:
+    def _build_model(self) -> tf.keras.Model:
         """
         Define la arquitectura de la red neuronal utilizando TensorFlow.
 
@@ -245,7 +245,7 @@ class EntrenamientoDQN:
                 )
 
             model.add(
-                tf.keras.layers.Dense(len(self.__espacio_acciones), activation="linear")
+                tf.keras.layers.Dense(len(self._action_space), activation="linear")
             )
 
             # Usar learning_rate en lugar de lr (deprecado)
@@ -274,7 +274,7 @@ class EntrenamientoDQN:
 
         return model
 
-    def __remember(
+    def _remember(
         self,
         state: NDArray,
         action: int,
@@ -287,7 +287,7 @@ class EntrenamientoDQN:
         """
         self.memory.append((state, action, reward, next_state, done))
 
-    def __politica(self, state: NDArray) -> int:
+    def _select_action(self, state: NDArray) -> int:
         """
         Elige una acción basada en el estado actual del agente, utilizando una política ε-greedy para el control de la exploración.
         Optimizado para el dispositivo configurado (GPU/CPU) con monitoreo.
@@ -296,14 +296,14 @@ class EntrenamientoDQN:
             int: Índice de la acción seleccionada.
         """
         if np.random.rand() <= self.epsilon:
-            return np.random.choice(len(self.__espacio_acciones))
+            return np.random.choice(len(self._action_space))
         else:
             # Reshape para predicción en lote (más eficiente)
             state_batch = np.expand_dims(state, axis=0)  # (12,) -> (1, 12)
             act_values = self.model.predict(state_batch, verbose=0)
             return int(np.argmax(act_values[0]))
 
-    def __replay(self) -> None:
+    def _replay(self) -> None:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
         Optimizado para reducir conversiones y cálculos redundantes.
@@ -388,7 +388,7 @@ class EntrenamientoDQN:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def __train(self) -> None:
+    def _train_agent(self) -> None:
         """
         Entrena el agente utilizando el algoritmo DQN.
         Por cada epoca, el agente realiza una serie de acciones en el entorno, almacenando la
@@ -405,22 +405,24 @@ class EntrenamientoDQN:
         for e in range(self.num_epocas):
             logger.info(f" 🏁 Iniciando época {e+1}/{self.num_epocas}")
 
-            state = self.__estado()
+            state = self._get_current_state()
             done = False
             total_reward = 0.0
             replay_count = 0
 
             t1 = time.time()
             while not done:
-                id_action = self.__politica(state)
-                next_state, reward, done = self.__avanzar(id_action)
+                action_index = self._select_action(state)
+                next_state, reward, done = self._execute_action_and_advance(
+                    action_index
+                )
 
                 total_reward += reward
-                self.__remember(state, id_action, reward, next_state, done)
+                self._remember(state, action_index, reward, next_state, done)
 
                 state = next_state
                 if len(self.memory) > self.batch_size:
-                    self.__replay()
+                    self._replay()
                     replay_count += 1
 
                     # Monitorear GPU cada 500 replays para evitar spam
@@ -428,19 +430,19 @@ class EntrenamientoDQN:
                         self._log_gpu_usage(f"Época {e+1} - Replay {replay_count}")
 
             #! Guardar los datos de entrenamiento por epoca en formato Keras moderno
-            self.model.save(self.__path + f"/epoca_{e+1}.h5")
-            self.model.save(self.__path + f"/epoca_{e+1}.keras")
+            self.model.save(self._save_path + f"/epoca_{e+1}.h5")
+            self.model.save(self._save_path + f"/epoca_{e+1}.keras")
 
             #! Guardar métricas de entrenamiento en un archivo CSV
-            duracion_epoca = time.time() - t1
+            epoch_duration = time.time() - t1
             with open(
-                self.__path + "/entrenamiento_data.csv", mode="a", newline=""
+                self._save_path + "/entrenamiento_data.csv", mode="a", newline=""
             ) as file:
                 writer = csv.writer(file)
                 writer.writerow(
                     [
                         e + 1,
-                        f"{duracion_epoca:.2f}",
+                        f"{epoch_duration:.2f}",
                         f"{total_reward:.2f}",
                         f"{self.epsilon:.5f}",
                         "-",  # Ya no actualizamos learning_rate en cada replay
@@ -448,7 +450,7 @@ class EntrenamientoDQN:
                 )
 
             logger.info(
-                f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {duracion_epoca:.2f}s - Replays: {replay_count}"
+                f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {epoch_duration:.2f}s - Replays: {replay_count}"
             )
 
         logger.info(" Entrenamiento finalizado.")
@@ -478,7 +480,7 @@ class EntrenamientoDQN:
             except ImportError:
                 logger.debug(" psutil no disponible para mostrar uso de RAM")
 
-    def __estado(self) -> NDArray:
+    def _get_current_state(self) -> NDArray:
         """
         Define el estado (El tiempo de espera de los vehículos en las intersecciones) normalizado en un rango de 0 a 1.
         Optimizado para reducir conversiones innecesarias.
@@ -486,18 +488,20 @@ class EntrenamientoDQN:
             NDArray: Estado normalizado como (12,) en lugar de (1,12)
         """
         #! Tiempo
-        estado = self.__api.getTiemposEspera()["tiempos_espera"]  # type: ignore
-        estado = np.array(estado, dtype=np.float32)
+        state_raw = self._api.get_wait_times()["tiempos_espera"]  # type: ignore
+        state_raw = np.array(state_raw, dtype=np.float32)
 
         # Optimizar normalización
-        tiempo_maximo_espera = np.max(estado)
-        if tiempo_maximo_espera == 0:
-            return estado
+        max_wait_time = np.max(state_raw)
+        if max_wait_time == 0:
+            return state_raw
         else:
             # Normalización simple sin conversiones innecesarias
-            return estado / tiempo_maximo_espera
+            return state_raw / max_wait_time
 
-    def __avanzar(self, id_action: int) -> tuple[NDArray, float, bool]:
+    def _execute_action_and_advance(
+        self, id_action: int
+    ) -> tuple[NDArray, float, bool]:
         """
         Realiza las siguientes tareas:
         1. Ejecuta la acción en SUMO.
@@ -510,28 +514,29 @@ class EntrenamientoDQN:
             bool: Si la simulación ha terminado.
         """
 
-        action = self.__espacio_acciones[id_action]
+        action_phases_str = self._action_space[id_action]
+        action_phases_list = action_phases_str.split("-")
 
         #! Cambiar el estado de los semáforos en SUMO
-        self.__api.putEstados(accion=action.split("-"))
+        self._api.set_traffic_light_states(states=action_phases_list)
 
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=self.steps)
+        response = self._api.advance_simulation(steps=self.steps)
 
-        done: bool = respuesta["done"]  # type: ignore #! Si la simulación ha terminado
+        done: bool = response["done"]  # type: ignore #! Si la simulación ha terminado
 
-        return self.__estado(), self.__recompensa(), done
+        return self._get_current_state(), self._calculate_reward(), done
 
-    def __recompensa(self) -> float:
+    def _calculate_reward(self) -> float:
         """
         Calcula la recompensa en función del estado actual.
         La inversa del tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
         - 100 / (tiempo_espera_total + 100)
         """
-        tiempo = self.__api.getTiemposEspera()["tiempo_espera_total"]  # type: ignore
-        return 100 / ((tiempo) + 100)
+        wait_time = self._api.get_wait_times()["tiempo_espera_total"]  # type: ignore
+        return 100 / ((wait_time) + 100)
 
-    def main(self) -> None:
+    def start_training_process(self) -> None:
         """
         Inicia el proceso de entrenamiento del agente.
         1. Espera a que la simulación esté lista.
@@ -544,15 +549,15 @@ class EntrenamientoDQN:
         logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
 
         #! Esperar a que la simulación esté lista
-        while not self.__api.isSimulationOk():
+        while not self._api.is_simulation_running():
             logger.info(" Esperando a que la simulación esté lista...")
             time.sleep(1)
         logger.info(" La simulación está lista")
 
         #! Verificar si el archivo ya existe
-        if not os.path.isfile(self.__path + "/entrenamiento_data.csv"):
+        if not os.path.isfile(self._save_path + "/entrenamiento_data.csv"):
             with open(
-                self.__path + "/entrenamiento_data.csv", mode="w", newline=""
+                self._save_path + "/entrenamiento_data.csv", mode="w", newline=""
             ) as file:
                 writer = csv.writer(file)
                 writer.writerow(
@@ -566,7 +571,9 @@ class EntrenamientoDQN:
                 )
 
         #! Guardar hiperparámetros
-        with open(self.__path + "/hiperparametros.csv", mode="w", newline="") as file:
+        with open(
+            self._save_path + "/hiperparametros.csv", mode="w", newline=""
+        ) as file:
             writer = csv.writer(file)
             writer.writerow(
                 [
@@ -587,7 +594,7 @@ class EntrenamientoDQN:
             layers = f"{self.state_size} | "
             for i in range(len(self.hidden_layers)):
                 layers += f"{self.hidden_layers[i]} | "
-            layers += f"{len(self.__espacio_acciones)}"
+            layers += f"{len(self._action_space)}"
             writer.writerow(
                 [
                     self.num_epocas,
@@ -609,21 +616,21 @@ class EntrenamientoDQN:
         total_reward = 0.0
         done = False
         logger.info(" Calculando recompensa con semaforos con tiempo fijo.")
-        t_fijo_inicio = time.time()
+        fixed_time_start = time.time()
         while not done:
-            total_reward += self.__recompensa()
-            done = self.__api.putAvanzar(steps=self.steps)["done"]  # type: ignore
-        tiempo_fijo = time.time() - t_fijo_inicio
+            total_reward += self._calculate_reward()
+            done = self._api.advance_simulation(steps=self.steps)["done"]  # type: ignore
+        fixed_time_duration = time.time() - fixed_time_start
 
         #! Guardar los datos de los semaforos con tiempo fijo
         with open(
-            self.__path + "/entrenamiento_data.csv", mode="a", newline=""
+            self._save_path + "/entrenamiento_data.csv", mode="a", newline=""
         ) as file:
             writer = csv.writer(file)
             writer.writerow(
-                ["-", f"{tiempo_fijo:.2f}", f"{total_reward:.2f}", "-", "-"]
+                ["-", f"{fixed_time_duration:.2f}", f"{total_reward:.2f}", "-", "-"]
             )
 
-        self.model = self.__build_model()
+        self.model = self._build_model()
 
-        self.__train()
+        self._train_agent()
