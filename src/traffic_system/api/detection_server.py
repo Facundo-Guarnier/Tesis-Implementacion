@@ -1,37 +1,36 @@
 from flask import Flask, Response, jsonify
 
-from src.traffic_system.detection.zonas.ZonaList import ZonaList
+from src.traffic_system.detection.zones.zone_list import ZoneList
 
 
-class ApiDeteccion(Flask):
+class DetectionAPI(Flask):
     """
     La "lógica o toma de decisiones" consultará a la API para saber la cantidad de
     vehículos que hay en cada zona.
     """
 
-    def __init__(self, name: str, zonas_instance: ZonaList | None = None) -> None:
+    def __init__(self, name: str, instance_zones: ZoneList | None = None) -> None:
         super().__init__(name)
 
-        # self.zonas = ZonaList()
-        self.zonas = zonas_instance if zonas_instance is not None else ZonaList()
+        self.zones = instance_zones if instance_zones is not None else ZoneList()
 
         #! Cantidades
-        self.route("/cantidad", methods=["GET"])(self.cantidades)
-        self.route("/cantidad/<zona_name>", methods=["GET"])(self.cantidad_zona)
+        self.route("/cantidad", methods=["GET"])(self.get_all_quantities)
+        self.route("/cantidad/<zona_name>", methods=["GET"])(self.get_zone_quantity)
 
         #! Tiempos
-        self.route("/espera", methods=["GET"])(self.tiempos)
+        self.route("/espera", methods=["GET"])(self.get_wait_times)
 
         #! Multas
-        self.route("/multas/<zona_name>", methods=["POST"])(self.activar_multas)
+        self.route("/multas/<zona_name>", methods=["POST"])(self.activate_fines)
 
-    def cantidades(self) -> tuple[Response, int]:
+    def get_all_quantities(self) -> tuple[Response, int]:
         """
-        Cantidades de vehículos en todas las zonas.
+        Cantidades de vehículos por cada una de las zonas.
         """
-        return jsonify(self.zonas.get_cantidades()), 200
+        return jsonify(self.zones.get_all_quantities()), 200
 
-    def cantidad_zona(self, zona_name: str) -> tuple[Response, int]:
+    def get_zone_quantity(self, zona_name: str) -> tuple[Response, int]:
         """
         Cantidad de vehículos en una zona específica.
         """
@@ -39,13 +38,13 @@ class ApiDeteccion(Flask):
             jsonify(
                 {
                     "zona": zona_name,
-                    "cantidad_detecciones": self.zonas.get_cantidad_zona(zona_name),
+                    "cantidad_detecciones": self.zones.get_zone_quantity(zona_name),
                 }
             ),
             200,
         )
 
-    def tiempos(self) -> tuple[Response, int]:
+    def get_wait_times(self) -> tuple[Response, int]:
         """
         Devuelve los tiempos de espera en cada zona.
 
@@ -55,14 +54,14 @@ class ApiDeteccion(Flask):
         return (
             jsonify(
                 {
-                    "tiempo_espera_total": self.zonas.get_tiempos_total(),
-                    "tiempos_espera": self.zonas.get_tiempos(),
+                    "tiempo_espera_total": self.zones.get_total_wait_time(),
+                    "tiempos_espera": self.zones.get_zone_wait_times(),
                 }
             ),
             200,
         )
 
-    def activar_multas(self, zona_name: str) -> tuple[Response, int]:
+    def activate_fines(self, zona_name: str) -> tuple[Response, int]:
         """
         Activa las multas en las zonas.
         """
@@ -70,7 +69,7 @@ class ApiDeteccion(Flask):
         return (
             jsonify(
                 {
-                    "mensaje": f"Multas {zona_name}: {self.zonas.activar_multas(zona_name)}"
+                    "mensaje": f"Multas {zona_name}: {self.zones.activate_fines(zona_name)}"
                 }
             ),
             200,

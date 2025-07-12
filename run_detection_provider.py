@@ -11,15 +11,15 @@ from src.traffic_system.core.config_loader import load_app_settings
 # Añadir la raíz al path para que las importaciones funcionen desde cualquier lugar
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
-from src.traffic_system.api.detection_server import ApiDeteccion
-from src.traffic_system.detection.app import AppDetection
-from src.traffic_system.detection.zonas.ZonaList import ZonaList
+from src.traffic_system.api.detection_server import DetectionAPI
+from src.traffic_system.detection.app import DetectionApp
+from src.traffic_system.detection.zonas.ZonaList import ZoneList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("DetectionProvider")
 
 # Objeto compartido que el hilo de procesamiento y la API usarán para comunicarse.
-shared_zones = ZonaList()
+shared_zones = ZoneList()
 
 
 # def video_processing_worker(settings, detector):
@@ -79,19 +79,19 @@ def main() -> None:
     """
     try:
         settings = load_app_settings()
-        app = AppDetection()
+        app = DetectionApp()
 
         #! Procesar toda la carpetas del dataset.
         if settings.deteccion.carpeta_dataset.procesar:
-            app.analizar_carpeta_videos()
+            app.analyze_video_folder()
 
         #! Procesar un video específico del dataset.
         if settings.deteccion.un_video.procesar:
-            app.analizar_un_video()
+            app.analyze_single_video()
 
         #! Deteccion con cámara en vivo.
         if settings.deteccion.procesar_camara:
-            app.analizar_camara()
+            app.analyze_camera()
 
     except Exception as e:
         print("Error:", e)
@@ -102,7 +102,7 @@ def api_client() -> None:
     """
     Inicia la API de detección de vehículos.
     """
-    api = ApiDeteccion(name="API Deteccion")
+    api = DetectionAPI(name="API Deteccion")
     api.run(host="0.0.0.0", port=5000, debug=False)
 
 

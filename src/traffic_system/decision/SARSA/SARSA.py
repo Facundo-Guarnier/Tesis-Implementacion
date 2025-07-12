@@ -1,13 +1,13 @@
 import pickle
 
-from src.traffic_system.api_client.data_source_client import ApiDecision
+from src.traffic_system.api_client.data_source_client import DecisionAPI
 
 
 class SARSA:
     def __init__(self, path_Q: str):
         self.__setEspacioAcciones()
         self.__Q = self.__inicializar_Q(path_Q)
-        self.__api = ApiDecision("http://127.0.0.1:5000")
+        self.__api = DecisionAPI("http://127.0.0.1:5000")
 
     def __setEspacioAcciones(self) -> None:
         """
@@ -55,7 +55,7 @@ class SARSA:
         - No incluye el color de los semáforos porque estaría duplicando datos con respecto a la accion.
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
-        vehiculos = tuple([cantidad for cantidad in self.__api.getCantidades().values()])  # type: ignore
+        vehiculos = tuple([cantidad for cantidad in self.__api.get_quantities().values()])  # type: ignore
 
         return vehiculos
 
@@ -68,10 +68,10 @@ class SARSA:
 
         #! Cambiar el estado de los semáforos en SUMO
         action = action.split("-")  # type: ignore
-        self.__api.putEstados(accion=action)
+        self.__api.set_traffic_light_states(states=action)
 
         #! Avanzar en SUMO con la acción seleccionada
-        respuesta = self.__api.putAvanzar(steps=10)
+        respuesta = self.__api.advance_simulation(steps=10)
         done: bool = respuesta["done"]  # type: ignore
 
         return done

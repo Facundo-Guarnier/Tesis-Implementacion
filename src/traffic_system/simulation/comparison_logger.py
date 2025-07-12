@@ -1,6 +1,6 @@
 import logging
 
-from src.traffic_system.simulation.AppSUMO import AppSUMO
+from src.traffic_system.simulation.app import SumoApp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("ComparisonLogger")
@@ -27,7 +27,7 @@ class ComparisonLogger:
             f"Logger de comparación inicializado. Registrará métricas cada {self.interval} segundos de simulación."
         )
 
-    def log_if_needed(self, app_s1: AppSUMO, app_s2: AppSUMO) -> None:
+    def log_if_needed(self, app_s1: SumoApp, app_s2: SumoApp) -> None:
         """
         Verifica si ha pasado suficiente tiempo de simulación para registrar
         un nuevo punto de comparación.
@@ -40,37 +40,37 @@ class ComparisonLogger:
             self._log_comparison(current_time, app_s1, app_s2)
 
     def _log_comparison(
-        self, sim_time: float, app_s1: AppSUMO, app_s2: AppSUMO
+        self, sim_time: float, app_s1: SumoApp, app_s2: SumoApp
     ) -> None:
         """Recopila y registra las métricas comparativas."""
         self._report_count += 1
 
         # --- Verificar sincronización ---
-        tiempo_s1 = app_s1.traci.simulation.getTime()
-        tiempo_s2 = app_s2.traci.simulation.getTime()
-        diferencia_tiempo = abs(tiempo_s1 - tiempo_s2)
+        time_s1 = app_s1.traci.simulation.getTime()
+        time_s2 = app_s2.traci.simulation.getTime()
+        time_difference = abs(time_s1 - time_s2)
 
         # Aplicar la misma lógica de sincronización que en la API
-        if max(tiempo_s1, tiempo_s2) < 5.0:
-            sincronizado = diferencia_tiempo <= 2.0
+        if max(time_s1, time_s2) < 5.0:
+            is_synchronized = time_difference <= 2.0
             sync_status = (
                 "✅ SINCRONIZADO (fase inicial)"
-                if sincronizado
+                if is_synchronized
                 else "❌ DESINCRONIZADO"
             )
         else:
-            sincronizado = diferencia_tiempo <= 1.0
-            sync_status = "✅ SINCRONIZADO" if sincronizado else "❌ DESINCRONIZADO"
+            is_synchronized = time_difference <= 1.0
+            sync_status = "✅ SINCRONIZADO" if is_synchronized else "❌ DESINCRONIZADO"
 
         # --- Tiempos de espera ---
-        t1 = app_s1.getTiemposEsperaTotal()
-        t2 = app_s2.getTiemposEsperaTotal()
+        t1 = app_s1.get_total_wait_time()
+        t2 = app_s2.get_total_wait_time()
         self._stats["s1"]["wait_time"] += t1
         self._stats["s2"]["wait_time"] += t2
 
         # --- Cantidad de vehículos ---
-        v1 = app_s1.getCantidadVehiculos()
-        v2 = app_s2.getCantidadVehiculos()
+        v1 = app_s1.get_vehicle_count()
+        v2 = app_s2.get_vehicle_count()
         self._stats["s1"]["vehicles"] += v1
         self._stats["s2"]["vehicles"] += v2
 
@@ -83,7 +83,7 @@ class ComparisonLogger:
             "----------------------- Estado de sincronización --------------------------"
         )
         self.logger.info(
-            f" S1: {tiempo_s1:.1f}s | S2: {tiempo_s2:.1f}s | Diff: {diferencia_tiempo:.1f}s | {sync_status}"
+            f" S1: {time_s1:.1f}s | S2: {time_s2:.1f}s | Diff: {time_difference:.1f}s | {sync_status}"
         )
         self.logger.info(
             "----------------------- Tiempo de espera total ----------------------------"

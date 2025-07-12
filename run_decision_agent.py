@@ -6,7 +6,7 @@ import signal
 import sys
 
 from src.traffic_system.core.config_loader import load_app_settings
-from src.traffic_system.decision.DQN.App import AppDecision
+from src.traffic_system.decision.DQN.App import DecisionApp
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
@@ -52,13 +52,13 @@ def main() -> None:
     - Utilizar un modelo ya entrenado.
     """
     settings = load_app_settings()
-    app = AppDecision()
+    app = DecisionApp()
     if settings.decision.entrenamiento.entrenar:
-        app.entrenar()
+        app.train_model()
         shutdown_handler(0, 0)
 
     else:
-        app.usar()
+        app.run_model_inference()
 
 
 def shutdown_handler(sig_num, frame):

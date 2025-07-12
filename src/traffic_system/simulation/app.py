@@ -3,14 +3,14 @@ from typing import Callable
 
 import traci
 
-from src.traffic_system.simulation.zonas.ZonaList import ZonaList
+from src.traffic_system.simulation.zones.zone_list import ZoneList
 
 
-class AppSUMO:
+class SumoApp:
     def __init__(
         self,
         traci_conn: traci.connection.Connection,
-        zonas: ZonaList,
+        zones: ZoneList,
         label: str,
         config_file: str,
         use_gui: bool,
@@ -24,126 +24,133 @@ class AppSUMO:
 
         Args:
             traci_conn: El objeto de conexión Traci ya iniciado.
-            zonas: Una instancia de ZonaList con la definición de las zonas.
+            zonas: Una instancia de ZoneList con la definición de las zonas.
             label: Una etiqueta para identificar esta instancia de simulación (ej. 's1').
             config_file: Ruta al archivo de configuración de SUMO.
             use_gui: Si usar la interfaz gráfica de SUMO.
             restart_callback: Función que puede recrear la conexión traci cuando se necesite reiniciar.
         """
         self.traci = traci_conn
-        self.zonas = zonas
+        self.zones = zones
         self.label = label
         self.config_file = config_file
         self.use_gui = use_gui
         self.restart_callback = restart_callback
         self.logger = logging.getLogger(f" {self.__class__.__name__}[{self.label}]")
 
-    def setSemaforoEstado(self, semaforo: str, estado_nuevo: str) -> None:
+    def set_traffic_light_state(self, traffic_light_id: str, new_state: str) -> None:
         """
         Cambiar el color del semáforo (ejemplo: ponerlo en verde).
         """
-        estado_actual = self.getSemaforoEstado(semaforo)
-        if estado_nuevo != estado_actual:
-            estado_amarillo = estado_actual.replace("g", "y").replace("G", "y")
+        current_state = self.get_traffic_light_state(traffic_light_id)
+        if new_state != current_state:
+            yellow_state = current_state.replace("g", "y").replace("G", "y")
 
-            self.traci.trafficlight.setRedYellowGreenState(semaforo, estado_amarillo)
-            self.avanzar(3)  # Avanza 3 segundos para el amarillo
+            self.traci.trafficlight.setRedYellowGreenState(
+                traffic_light_id, yellow_state
+            )
+            self.advance(3)  # Avanza 3 segundos para el amarillo
 
-            self.traci.trafficlight.setRedYellowGreenState(semaforo, estado_nuevo)
+            self.traci.trafficlight.setRedYellowGreenState(traffic_light_id, new_state)
 
-    def setSemaforosEstados(self, estados_nuevos: list[dict]) -> None:
+    def set_traffic_light_states(self, new_states: list[dict]) -> None:
         """
         Cambiar el color de varios semáforos de forma coordinada.
 
         Args:
             estados_nuevos: [{'id': '1', 'estado': 'GGGrrr...'}, ...]
         """
-        estados_amarillos: list[dict] = []
+        yellow_states_list: list[dict] = []
 
         # Calcular estados amarillos solo para los que cambian
-        for semaforo_data in estados_nuevos:
-            semaforo_id = semaforo_data["id"]
-            estado_nuevo = semaforo_data["estado"]
-            estado_actual = self.getSemaforoEstado(semaforo_id)
+        for traffic_light_data in new_states:
+            traffic_light_id = traffic_light_data["id"]
+            new_state = traffic_light_data["estado"]
+            current_state = self.get_traffic_light_state(traffic_light_id)
 
-            if estado_nuevo != estado_actual:
-                estado_amarillo = estado_actual.replace("g", "y").replace("G", "y")
-                estados_amarillos.append({"id": semaforo_id, "estado": estado_amarillo})
+            if new_state != current_state:
+                yellow_state = current_state.replace("g", "y").replace("G", "y")
+                yellow_states_list.append(
+                    {"id": traffic_light_id, "estado": yellow_state}
+                )
 
         # Poner todos los semáforos que cambian en amarillo
-        for semaforo_data in estados_amarillos:
+        for traffic_light_data in yellow_states_list:
             self.traci.trafficlight.setRedYellowGreenState(
-                semaforo_data["id"], semaforo_data["estado"]
+                traffic_light_data["id"], traffic_light_data["estado"]
             )
 
         # Si hubo cambios, avanzar para que el amarillo sea visible
-        if estados_amarillos:
-            self.avanzar(3)
+        if yellow_states_list:
+            self.advance(3)
 
         # Poner todos los semáforos en su estado verde/rojo final
-        for semaforo_data in estados_nuevos:
+        for traffic_light_data in new_states:
             self.traci.trafficlight.setRedYellowGreenState(
-                semaforo_data["id"], semaforo_data["estado"]
+                traffic_light_data["id"], traffic_light_data["estado"]
             )
 
-    def getSemaforoEstado(self, semaforo: str) -> str:
+    def get_traffic_light_state(self, traffic_light_id: str) -> str:
         """Obtener el estado actual de un semáforo."""
-        return self.traci.trafficlight.getRedYellowGreenState(semaforo)
+        return self.traci.trafficlight.getRedYellowGreenState(traffic_light_id)
 
-    def getSemaforosEstados(self) -> list[str]:
+    def get_traffic_light_states(self) -> list[str]:
         """Obtener el estado actual de todos los semáforos principales."""
-        return [self.getSemaforoEstado(semaforo) for semaforo in ["1", "2", "3", "4"]]
+        return [
+            self.get_traffic_light_state(traffic_light_id)
+            for traffic_light_id in ["1", "2", "3", "4"]
+        ]
 
-    def getTiempoEspera(self, zona_id: str) -> float:
+    def get_zone_wait_time(self, zone_id: str) -> float:
         """Obtener el tiempo de espera en una zona."""
-        return self.traci.edge.getWaitingTime(zona_id)
+        return self.traci.edge.getWaitingTime(zone_id)
 
-    def getTiemposEspera(self) -> list[float]:
+    def get_wait_times(self) -> list[float]:
         """Obtener todos los tiempos de espera por en todas las zonas."""
-        return [self.traci.edge.getWaitingTime(zona.id) for zona in self.zonas.zonas]
+        return [self.traci.edge.getWaitingTime(zone.id) for zone in self.zones.zones]
 
-    def getTiemposEsperaTotal(self) -> float:
+    def get_total_wait_time(self) -> float:
         """Obtener el tiempo total de espera de todas las zonas juntas."""
-        return sum(self.getTiemposEspera())
+        return sum(self.get_wait_times())
 
-    def getCantidadVehiculos(self) -> int:
+    def get_vehicle_count(self) -> int:
         """Obtener la cantidad de vehículos en la simulación."""
         return self.traci.simulation.getMinExpectedNumber()
 
-    def avanzar(self, steps: int) -> bool:
+    def advance(self, steps: int) -> bool:
         """
         Avanzar la cantidad de steps especificada.
         Devuelve True si la simulación terminó durante el avance.
         """
-        tiempo_inicial = self.traci.simulation.getTime()
-        self.logger.debug(f"Avanzando {steps} pasos desde t={tiempo_inicial:.1f}s...")
+        initial_time = self.traci.simulation.getTime()
+        self.logger.debug(f"Avanzando {steps} pasos desde t={initial_time:.1f}s...")
 
         done = False
-        pasos_ejecutados = 0
+        steps_executed = 0
 
         for i in range(steps):
-            if self.puedo_seguir():
+            if self.can_continue():
                 try:
                     self.traci.simulationStep()
-                    pasos_ejecutados += 1
+                    steps_executed += 1
                 except Exception as e:
                     self.logger.error(f"Error ejecutando paso {i+1}: {e}")
                     done = False
                     break
             else:
                 done = True
-                self.reiniciar()
+                self.reset()
                 break
 
-        tiempo_final = self.traci.simulation.getTime()
+        final_time = self.traci.simulation.getTime()
         self.logger.debug(
-            f"Simulación {self.label}: {pasos_ejecutados}/{steps} pasos ejecutados, "
-            f"t={tiempo_inicial:.1f}s -> {tiempo_final:.1f}s, done={done}"
+            f"Simulación {self.label}: {steps_executed}/{steps} pasos ejecutados, "
+            f"t={initial_time:.1f}s -> {final_time:.1f}s, done={done}"
         )
 
         return done
 
-    def reiniciar(self) -> None:
+    def reset(self) -> None:
         """
         Reiniciar la simulación.
         """
@@ -173,7 +180,7 @@ class AppSUMO:
                 "No se puede reiniciar la simulación: callback no disponible"
             )
 
-    def puedo_seguir(self) -> bool:
+    def can_continue(self) -> bool:
         """
         Verificar si la simulación puede continuar.
         - Si está por debajo del tiempo/steps 19500.
@@ -185,7 +192,7 @@ class AppSUMO:
             and self.traci.simulation.getMinExpectedNumber() > 0
         )
 
-    def getSimulacionOK(self) -> bool:
+    def is_simulation_active(self) -> bool:
         """
         Verificar si la conexión con la simulación está activa.
         """

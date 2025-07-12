@@ -2,119 +2,130 @@ import os
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
-from src.traffic_system.detection.detector_service import Detector
-from src.traffic_system.detection.video import Video
-from src.traffic_system.detection.zonas.ZonaList import ZonaList
+from src.traffic_system.detection.detector_service import DetectorService
+from src.traffic_system.detection.video_processor import VideoProcessor
+from src.traffic_system.detection.zones.zone_list import ZoneList
 
 
-class AppDetection:
+class DetectionApp:
     def __init__(self, detection_settings: DeteccionSettings | None = None) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
-        self.detector = Detector()
-        self.zonas = ZonaList()
+        self.detector = DetectorService()
+        self.zones = ZoneList()
 
-    def analizar_carpeta_videos(self) -> None:
+    def analyze_video_folder(self) -> None:
         """
         Procesa todos los videos en la carpeta de origen y guarda los resultados en la carpeta de destino.
         """
         print("Procesando videos...")
-        i = 0
-        origen = self.settings.carpeta_dataset.path_origen
-        destino = self.settings.carpeta_dataset.path_destino
+        video_count = 0
+        origin_folder = self.settings.carpeta_dataset.path_origen
+        destination_folder = self.settings.carpeta_dataset.path_destino
 
         #! Crear la carpeta de resultados si no existe
-        if not os.path.exists(destino):
-            os.makedirs(destino)
+        if not os.path.exists(destination_folder):
+            os.makedirs(destination_folder)
 
         try:
             #! Recorrer todas las carpetas en la carpeta de entrada
-            for carpeta_video in os.listdir(origen):
-                carpeta_video_ruta = os.path.join(origen, carpeta_video)
+            for video_subfolder in os.listdir(origin_folder):
+                video_subfolder_path = os.path.join(origin_folder, video_subfolder)
 
                 #! Verificar si es una carpeta
-                if os.path.isdir(carpeta_video_ruta):
-                    print(f"\nProcesando carpeta: {carpeta_video}")
+                if os.path.isdir(video_subfolder_path):
+                    print(f"\nProcesando carpeta: {video_subfolder}")
 
                     #! Crear la carpeta de salida espejo
-                    carpeta_salida_ruta = os.path.join(destino, carpeta_video)
-                    if not os.path.exists(carpeta_salida_ruta):
-                        os.makedirs(carpeta_salida_ruta)
+                    output_subfolder_path = os.path.join(
+                        destination_folder, video_subfolder
+                    )
+                    if not os.path.exists(output_subfolder_path):
+                        os.makedirs(output_subfolder_path)
 
                     #! Procesar todos los archivos en la carpeta de video
-                    for archivo_video in os.listdir(carpeta_video_ruta):
-                        archivo_video_ruta_entrada = os.path.join(
-                            carpeta_video_ruta, archivo_video
+                    for video_file in os.listdir(video_subfolder_path):
+                        input_video_path = os.path.join(
+                            video_subfolder_path, video_file
                         )
-                        archivo_video_ruta_salida = os.path.join(
-                            carpeta_salida_ruta, archivo_video
+                        output_video_path = os.path.join(
+                            output_subfolder_path, video_file
                         )
 
                         #! Verificar si es un archivo y tiene una extensión de video
                         if os.path.isfile(
-                            archivo_video_ruta_entrada
-                        ) and archivo_video_ruta_entrada.lower().endswith(
+                            input_video_path
+                        ) and input_video_path.lower().endswith(
                             (".mp4", ".avi", ".mkv")
                         ):
-                            video = Video(
-                                origin_path=archivo_video_ruta_entrada,
-                                result_path=archivo_video_ruta_salida,
+                            video_processor_instance = VideoProcessor(
+                                origin_path=input_video_path,
+                                result_path=output_video_path,
                                 zone=next(
                                     (
-                                        zona
-                                        for zona in self.zonas.get()
-                                        if zona.nombre == carpeta_video
+                                        zone_obj
+                                        for zone_obj in self.zones.get_all_zones()
+                                        if zone_obj.name == video_subfolder
                                     ),
-                                    self.zonas.get()[0],
+                                    self.zones.get_all_zones()[0],
                                 ),  #! Busca la clase correspondiente a la zona actual, sino devuelve la primera zona (Default).
                             )
 
-                            print(f" -Video N°{i}: {archivo_video}")
-                            self.detector.procesar_y_guardar_video(video=video)
+                            print(f" -Video N°{video_count}: {video_file}")
+                            self.detector.process_and_save_video(
+                                video_processor=video_processor_instance
+                            )
                             print("  Videos procesado\n")
+                            video_count += 1
 
             print("\nVideos procesados con éxito.")
 
         except Exception as e:
             print(
-                f"[ERROR Deteccion.App.App]: Error al procesar la carpeta: {origen} \n{e}"
+                f"[ERROR Deteccion.App.App]: Error al procesar la carpeta: {origin_folder} \n{e}"
             )
 
-    def analizar_un_video(self) -> None:
+    def analyze_single_video(self) -> None:
         """
         Ejecuta el modelo y realiza la detección de objetos en el video mostrando el resultado en tiempo real.
         """
 
-        video = Video(
+        video_processor_instance = VideoProcessor(
             origin_path=self.settings.un_video.path_origen,
             zone=next(
                 (
-                    zona
-                    for zona in self.zonas.get()
-                    if zona.nombre == self.settings.un_video.zona
+                    zone_obj
+                    for zone_obj in self.zones.get_all_zones()
+                    if zone_obj.name == self.settings.un_video.zona
                 ),
-                self.zonas.get()[0],
+                self.zones.get_all_zones()[0],
             ),
         )
 
         print("Procesando video...")
-        self.detector.procesar_y_mostrar_resultado_en_vivo(video=video)
+        self.detector.process_and_show_live_video(
+            video_processor=video_processor_instance
+        )
         print("Video procesado.")
 
-    def analizar_camara(self) -> None:
+    def analyze_camera(self) -> None:
         """
         Ejecuta el modelo y realiza la detección de objetos en tiempo real.
         """
 
-        video = Video(
+        video_processor_instance = VideoProcessor(
             origin_path="",
             scale_factor=0.2,
             zone=next(
-                (zona for zona in self.zonas.get() if zona.nombre == "Camara"),
-                self.zonas.get()[0],
+                (
+                    zone_obj
+                    for zone_obj in self.zones.get_all_zones()
+                    if zone_obj.name == "Camara"
+                ),
+                self.zones.get_all_zones()[0],
             ),
         )
 
         print("Procesando cámara...")
-        self.detector.procesar_camara(video=video)
+        self.detector.process_camera(video_processor=video_processor_instance)
         print("Cámara procesada.")

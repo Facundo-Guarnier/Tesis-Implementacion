@@ -16,7 +16,7 @@ from src.traffic_system.reporting.report_service import ReportService
 class ReportApp:
     def __init__(self):
         logging.basicConfig(level=logging.DEBUG)
-        self.reporte = ReportService()
+        self.report_service = ReportService()
 
     def generate_report(self) -> None:
         """
@@ -26,4 +26,4 @@ class ReportApp:
             f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
         )
         logger.info("📄 Iniciando generación de reporte...")
-        self.reporte.main()
+        self.report_service.generate_report()

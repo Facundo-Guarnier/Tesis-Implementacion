@@ -3,10 +3,10 @@ import os
 
 import cv2
 
-from src.traffic_system.detection.zonas.Zona import Zona
+from src.traffic_system.detection.zones.zone import Zone
 
 
-class Video:
+class VideoProcessor:
     """
     Inicializa un objeto Video.
 
@@ -22,7 +22,7 @@ class Video:
     def __init__(
         self,
         origin_path: str,
-        zone: Zona,
+        zone: Zone,
         result_path: str | None = None,
         fps: float | None = None,
         resolution: tuple[int, int] | None = None,
@@ -30,8 +30,8 @@ class Video:
     ):
         self.zone = zone
         self.origin_path = origin_path
-        self.fps = self.__get_fps() if fps is None else fps
-        self.resolution = self.__get_resolution() if resolution is None else resolution
+        self.fps = self._get_fps() if fps is None else fps
+        self.resolution = self._get_resolution() if resolution is None else resolution
 
         if result_path is None:
             #! Crear la carpeta de resultados si no existe
@@ -54,32 +54,32 @@ class Video:
                 "resolution debe ser una tupla de dos enteros (ancho, alto)"
             )
 
-        self.factor_escala: float = (
-            self.__calculate_scale_factor() if scale_factor is None else scale_factor
+        self.scale_factor: float = (
+            self._calculate_scale_factor() if scale_factor is None else scale_factor
         )
 
-    def __get_resolution(self) -> tuple[int, int]:
+    def _get_resolution(self) -> tuple[int, int]:
         cap = cv2.VideoCapture(self.origin_path)
-        ancho = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        alto = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
-        return (ancho, alto)
+        return (width, height)
 
-    def __get_fps(self) -> float:
+    def _get_fps(self) -> float:
         cap = cv2.VideoCapture(self.origin_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
         cap.release()
         return fps
 
-    def __calculate_scale_factor(self) -> float:
+    def _calculate_scale_factor(self) -> float:
         """
         Escala los distintos elementos (letras y lineas) en base a la resolución del video.
         Lo elementos fueron diseñados para una resolución de 1080x1920.
         """
-        ancho_original = 1080
-        # alto_original = 1920  # No se usa, solo ancho_original
+        original_width = 1080
+        # original_height = 1920  # No se usa, solo original_width
         (
-            ancho_actual,
-            alto_actual,
+            current_width,
+            current_height,
         ) = self.resolution
-        return ancho_actual / ancho_original
+        return current_width / original_width

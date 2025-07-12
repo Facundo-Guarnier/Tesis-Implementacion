@@ -9,8 +9,8 @@ import sys
 import traci
 from traci.exceptions import FatalTraCIError, TraCIException
 
-from src.traffic_system.simulation.AppSUMO import AppSUMO
-from src.traffic_system.simulation.zonas.ZonaList import ZonaList
+from src.traffic_system.simulation.app import SumoApp
+from src.traffic_system.simulation.zones.zone_list import ZoneList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("TestReinicio")
@@ -36,7 +36,7 @@ def test_reinicio():
 
     try:
         # Cargar configuración (solo necesitamos las zonas)
-        zonas = ZonaList()
+        zonas = ZoneList()
         config_file_path = "assets/sumo_maps/MapaDe0/mapa.sumocfg"
 
         # Crear simulación de prueba
@@ -44,7 +44,7 @@ def test_reinicio():
         traci_conn = start_traci_connection(
             "test", config_file_path, False
         )  # Sin GUI para prueba
-        app_test = AppSUMO(
+        app_test = SumoApp(
             traci_conn,
             zonas,
             "test",
@@ -60,13 +60,13 @@ def test_reinicio():
 
         # Avanzar algunos pasos
         logger.info("3/6 Avanzando simulación...")
-        app_test.avanzar(5)
+        app_test.advance(5)
         tiempo_despues_avance = app_test.traci.simulation.getTime()
         logger.info(f"   Tiempo después de avanzar 5 pasos: {tiempo_despues_avance}s")
 
         # Probar el reinicio
         logger.info("4/6 Probando reinicio...")
-        app_test.reiniciar()
+        app_test.reset()
 
         # Verificar que el reinicio funcionó
         tiempo_despues_reinicio = app_test.traci.simulation.getTime()
@@ -86,7 +86,7 @@ def test_reinicio():
 
         # Probar que la simulación sigue funcionando después del reinicio
         logger.info("5/6 Verificando funcionamiento post-reinicio...")
-        app_test.avanzar(3)
+        app_test.advance(3)
         tiempo_final = app_test.traci.simulation.getTime()
         logger.info(f"   Tiempo final después de avanzar 3 pasos: {tiempo_final}s")
 
