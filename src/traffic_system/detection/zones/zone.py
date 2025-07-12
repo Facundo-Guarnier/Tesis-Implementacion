@@ -50,12 +50,12 @@ class Zone:
             for point in self.original_points:
                 original_x, original_y = point
 
-                original_width, alto_original = self._resolution
-                target_width, alto_objetivo = target_resolution
+                original_width, original_height = self._resolution
+                target_width, target_height = target_resolution
 
                 #! Calcular las proporciones de escala en x e y
                 scale_x = target_width / original_width
-                scale_y = alto_objetivo / alto_original
+                scale_y = target_height / original_height
 
                 #! Aplicar la escala al punto
                 target_x = int(original_x * scale_x)

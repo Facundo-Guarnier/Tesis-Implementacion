@@ -49,12 +49,12 @@ class DetectorService:
         Crea la carpeta de multas si no existe y devuelve la ruta.
         """
 
-        self.__path_multas = os.path.join(
+        self.__fines_path = os.path.join(
             "Resultados_multa",
             f"Multa_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
             self.video_processor.zone.name,
         )
-        log_dir = os.path.join(self.__path_multas)
+        log_dir = os.path.join(self.__fines_path)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
@@ -97,7 +97,7 @@ class DetectorService:
             )  #! Crear la línea de multa y cuenta los objetos cuando su centro cruzan la linea.
 
         #! Anotador de línea de multas
-        self.linea_zone_annotator = sv.LineZoneAnnotator(
+        self.line_zone_annotator = sv.LineZoneAnnotator(
             thickness=max(1, int(3 * self.video_processor.scale_factor)),
             text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
@@ -129,7 +129,7 @@ class DetectorService:
 
         #! Dibujar el centro de los objetos
         polygon_detections_count = 0
-        for box, mask, confianza, class_id, tracker_id, data in detections:
+        for box, mask, confidence, class_id, tracker_id, data in detections:
             #! Centros
             #  xmin, ymin, xmax, ymax
             #   0     1     2     3
@@ -241,11 +241,11 @@ class DetectorService:
 
                     #! Guardar la imagen recortada
                     file_name = os.path.join(
-                        self.__path_multas, f"multa_{time.strftime('%H-%M-%S')}.jpg"
+                        self.__fines_path, f"multa_{time.strftime('%H-%M-%S')}.jpg"
                     )
                     cv2.imwrite(file_name, cropped_image)
 
-            frame = self.linea_zone_annotator.annotate(frame, line_zone)
+            frame = self.line_zone_annotator.annotate(frame, line_zone)
 
         return frame
 

@@ -107,7 +107,7 @@ class SumoApp:
 
     def get_wait_times(self) -> list[float]:
         """Obtener todos los tiempos de espera por en todas las zonas."""
-        return [self.traci.edge.getWaitingTime(zona.id) for zona in self.zones.zones]
+        return [self.traci.edge.getWaitingTime(zone.id) for zone in self.zones.zones]
 
     def get_total_wait_time(self) -> float:
         """Obtener el tiempo total de espera de todas las zonas juntas."""
@@ -142,10 +142,10 @@ class SumoApp:
                 self.reset()
                 break
 
-        tiempo_final = self.traci.simulation.getTime()
+        final_time = self.traci.simulation.getTime()
         self.logger.debug(
             f"Simulación {self.label}: {steps_executed}/{steps} pasos ejecutados, "
-            f"t={initial_time:.1f}s -> {tiempo_final:.1f}s, done={done}"
+            f"t={initial_time:.1f}s -> {final_time:.1f}s, done={done}"
         )
 
         return done
