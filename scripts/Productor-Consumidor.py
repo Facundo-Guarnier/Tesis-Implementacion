@@ -1,5 +1,5 @@
-import _queue
 import multiprocessing
+import queue
 import time
 
 
@@ -12,7 +12,7 @@ class Notificado:
         # Intenta retirar una notificación existente antes de poner la nueva
         try:
             self.__notificaciones.get_nowait()
-        except _queue.Empty:
+        except queue.Empty:
             pass
         self.__notificaciones.put(notificacion)
 

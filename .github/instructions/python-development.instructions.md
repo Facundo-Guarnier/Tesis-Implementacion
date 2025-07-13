@@ -23,7 +23,7 @@ applyTo: "**/*.py"
 
 ## Imports
 
-- Orden automático con **isort** via pre-commit
+- Orden automático con **ruff** (reemplaza isort) via pre-commit
 - Usar imports absolutos desde `src/`
 - Ejemplo correcto: `from src.traffic_system.core.config_loader import load_app_settings`
 
@@ -31,7 +31,6 @@ applyTo: "**/*.py"
 
 - **Black**: Formateo automático de código
 - **Ruff**: Linting rápido y correcciones automáticas
-- **isort**: Organización automática de imports
 - **Mypy**: Verificación de tipos estáticos
 - **Pre-commit**: Ejecuta todas las herramientas antes de cada commit
 

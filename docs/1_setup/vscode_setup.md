@@ -8,7 +8,6 @@ Instala las siguientes extensiones desde el Marketplace de VS Code para activar 
 
 - **Python** (`ms-python.python`): Extensión fundamental para el desarrollo con Python.
 - **Black Formatter** (`ms-python.black-formatter`): Formateador de código que se activa automáticamente al guardar.
-- **Ruff** (`charliermarsh.ruff`): Linter rápido con import sorting integrado (reemplaza isort).
 - **Mypy Type Checker** (`ms-python.mypy-type-checker`): Verificador de tipos estáticos para detectar errores antes de la ejecución.
 - **Code Spell Checker** (`streetsidesoftware.code-spell-checker`): Ayuda a detectar errores ortográficos en el código.
 

@@ -131,8 +131,7 @@ pre-commit run --all-files
 
 El proyecto utiliza **pre-commit** para mantener automáticamente la calidad del código:
 
-- **isort**: Organiza imports automáticamente
-- **Ruff**: Linter rápido que reemplaza flake8/pylint, con correcciones automáticas
+- **Ruff**: Linter rápido que reemplaza flake8/pylint/isort, con correcciones automáticas
 - **Black**: Formateo automático de código (88 caracteres por línea)
 - **Mypy**: Verificación de tipos estáticos
 
@@ -180,6 +179,6 @@ Para información más detallada, consulta estos documentos específicos:
 
 - **[Guía de Inicio Rápido](../docs/quickstart.md)**: Configuración y comandos esenciales con Poetry
 - **[Gestión de Dependencias](../docs/1_setup/dependencies.md)**: Poetry y entornos virtuales
-- **[Herramientas de Desarrollo](../docs/2_guides/tooling.md)**: Pre-commit, Black, Ruff, isort, Mypy
+- **[Herramientas de Desarrollo](../docs/2_guides/tooling.md)**: Pre-commit, Black, Ruff, Mypy
 - **[Estructura del Proyecto](../docs/1_setup/project_structure.md)**: Arquitectura del código
 - **[Guía de Contribución](../docs/2_guides/contributing.md)**: Estándares de desarrollo

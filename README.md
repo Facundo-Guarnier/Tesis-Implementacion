@@ -31,7 +31,7 @@ El sistema se basa en una arquitectura que integra la detección de vehículos c
 - **OpenCV**: Biblioteca para procesamiento de imágenes y video.
 - **Git**: Control de versiones para gestionar el código fuente.
 - **Visual Studio Code**: Entorno de desarrollo integrado (IDE) utilizado para el desarrollo del proyecto.
-- **Pre-commit**: Hooks automáticos para mantener la calidad del código con Black, Ruff, isort y Mypy.
+- **Pre-commit**: Hooks automáticos para mantener la calidad del código con Black, Ruff y Mypy.
 
 ## 🚀 Inicio Rápido
 

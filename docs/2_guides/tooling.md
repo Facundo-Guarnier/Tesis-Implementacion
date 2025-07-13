@@ -76,7 +76,6 @@ Para usar estas herramientas en VSCode con Poetry:
 2. **Extensiones recomendadas**:
    - Python (Microsoft)
    - Black Formatter
-   - isort
    - Ruff
 
 **💾 Al guardar archivos en VSCode:**
@@ -101,7 +100,6 @@ Para usar estas herramientas en VSCode con Poetry:
 - Mucho más rápido que `flake8`, `pylint` e `isort`
 - Elimina imports no usados, variables innecesarias, etc.
 - Configuración de imports en `[tool.ruff.lint.isort]`
-- Sustituye: `flake8`, `pylint` e `isort`
 
 ### **Mypy**
 

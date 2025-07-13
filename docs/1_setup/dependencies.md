@@ -57,7 +57,7 @@ poetry update
 poetry show
 ```
 
-## � Dependencias del Proyecto
+## 📦 Dependencias del Proyecto
 
 ### Producción
 
