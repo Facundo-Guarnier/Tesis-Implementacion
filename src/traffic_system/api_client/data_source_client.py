@@ -147,7 +147,7 @@ class DecisionAPI:
             if response.status_code == 200:
                 sync_data = response.json()
                 logger.info(f"📊 Sincronización actual: {sync_data}")
-                return sync_data.get("sincronizacion", False)
+                return sync_data.get("sincronizado", False)
             else:
                 logger.warning("⚠️ No hay simulación de comparación activa")
                 return False
