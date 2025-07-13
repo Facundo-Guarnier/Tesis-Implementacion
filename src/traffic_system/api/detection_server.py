@@ -16,13 +16,13 @@ class DetectionAPI(Flask):
 
         #! Cantidades
         self.route("/cantidad", methods=["GET"])(self.get_all_quantities)
-        self.route("/cantidad/<zona_name>", methods=["GET"])(self.get_zone_quantity)
+        self.route("/cantidad/<zone_name>", methods=["GET"])(self.get_zone_quantity)
 
         #! Tiempos
         self.route("/espera", methods=["GET"])(self.get_wait_times)
 
         #! Multas
-        self.route("/multas/<zona_name>", methods=["POST"])(self.activate_fines)
+        self.route("/multas/<zone_name>", methods=["POST"])(self.activate_fines)
 
     def get_all_quantities(self) -> tuple[Response, int]:
         """
@@ -30,15 +30,15 @@ class DetectionAPI(Flask):
         """
         return jsonify(self.zones.get_all_quantities()), 200
 
-    def get_zone_quantity(self, zona_name: str) -> tuple[Response, int]:
+    def get_zone_quantity(self, zone_name: str) -> tuple[Response, int]:
         """
         Cantidad de vehículos en una zona específica.
         """
         return (
             jsonify(
                 {
-                    "zona": zona_name,
-                    "cantidad_detecciones": self.zones.get_zone_quantity(zona_name),
+                    "zona": zone_name,
+                    "cantidad_detecciones": self.zones.get_zone_quantity(zone_name),
                 }
             ),
             200,
@@ -61,7 +61,7 @@ class DetectionAPI(Flask):
             200,
         )
 
-    def activate_fines(self, zona_name: str) -> tuple[Response, int]:
+    def activate_fines(self, zone_name: str) -> tuple[Response, int]:
         """
         Activa las multas en las zonas.
         """
@@ -69,7 +69,7 @@ class DetectionAPI(Flask):
         return (
             jsonify(
                 {
-                    "mensaje": f"Multas {zona_name}: {self.zones.activate_fines(zona_name)}"
+                    "mensaje": f"Multas {zone_name}: {self.zones.activate_fines(zone_name)}"
                 }
             ),
             200,

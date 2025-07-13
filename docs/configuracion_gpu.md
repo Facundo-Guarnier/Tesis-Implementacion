@@ -67,7 +67,7 @@ python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU')
 Ejecuta el script de verificación incluido:
 
 ```bash
-python verificar_gpu.py
+python test_verificar_gpu.py
 ```
 
 Este script verificará:

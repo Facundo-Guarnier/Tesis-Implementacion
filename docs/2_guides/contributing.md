@@ -40,11 +40,11 @@ tipo(ámbito): descripción corta en imperativo
 
 | Tipo       | Descripción                                                                              |
 | ---------- | ---------------------------------------------------------------------------------------- |
-| `Feat`     | Una nueva funcionalidad (ej. `feat(api): agregar endpoint de reportes`)                  |
+| `Feature`  | Una nueva funcionalidad (ej. `feature(api): agregar endpoint de reportes`)               |
 | `Fix`      | Una corrección de un error (ej. `fix(detector): corregir conteo duplicado`)              |
 | `Docs`     | Cambios exclusivos en la documentación (ej. `docs: añadir guía de vscode`)               |
 | `Style`    | Cambios de formato que no afectan la lógica (ej. `style: aplicar black`)                 |
-| `Refactor` | Cambios en el código que no son ni `fix` ni `feat` (ej. `refactor: optimizar bucle`)     |
+| `Refactor` | Cambios en el código que no son ni `fix` ni `feature` (ej. `refactor: optimizar bucle`)  |
 | `Test`     | Añadir o corregir tests (ej. `test: crear prueba para la lógica de semáforos`)           |
 | `Chore`    | Tareas de mantenimiento (ej. `chore: actualizar dependencias en pip`)                    |
 | `WIP`      | Trabajo en progreso, no listo para producción (ej. `wip: empezar implementación de API`) |

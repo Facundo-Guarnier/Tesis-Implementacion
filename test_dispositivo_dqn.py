@@ -30,7 +30,7 @@ def test_configuracion_dispositivo():
         logger.info("✅ Clase EntrenamientoDQN importada exitosamente")
 
         # Simular diferentes escenarios
-        logger.info("\n🔍 Verificando dispositivos disponibles...")
+        logger.info("🔍 Verificando dispositivos disponibles...")
 
         # Verificar GPUs
         gpus = tf.config.experimental.list_physical_devices("GPU")
@@ -42,14 +42,14 @@ def test_configuracion_dispositivo():
         cpus = tf.config.experimental.list_physical_devices("CPU")
         logger.info(f"   CPUs detectadas: {len(cpus)}")
 
-        logger.info("\n🧪 Creando instancia de EntrenamientoDQN...")
+        logger.info("🧪 Creando instancia de EntrenamientoDQN...")
 
         # Nota: Solo creamos la instancia, no ejecutamos main() para evitar
         # la dependencia de la API de simulación
         # trainer = EntrenamientoDQN()
 
         logger.info("✅ Test de configuración de dispositivo completado")
-        logger.info("\n💡 Para entrenar:")
+        logger.info("💡 Para entrenar:")
         logger.info("   1. Con GPU: El código usará automáticamente la GPU disponible")
         logger.info("   2. Sin GPU: El código fallará a CPU automáticamente")
         logger.info("   3. Error GPU: Si hay error en GPU, cambiará a CPU")
@@ -65,7 +65,7 @@ def test_dispositivo_manual():
     """
     Test manual de selección de dispositivo.
     """
-    logger.info("\n🔧 Test manual de selección de dispositivo...")
+    logger.info("🔧 Test manual de selección de dispositivo...")
 
     # Simular configuración sin GPU
     logger.info("   Probando configuración sin GPU...")
@@ -106,12 +106,12 @@ if __name__ == "__main__":
 
         if test1_ok:
             logger.info(
-                "\n🎯 RESUMEN: Configuración automática de dispositivo funcionando"
+                "🎯 RESUMEN: Configuración automática de dispositivo funcionando"
             )
             logger.info("🚀 El código DQN puede usar GPU o CPU según disponibilidad")
             sys.exit(0)
         else:
-            logger.error("\n💥 RESUMEN: Hay problemas en la configuración")
+            logger.error("💥 RESUMEN: Hay problemas en la configuración")
             sys.exit(1)
 
     except Exception as e:
