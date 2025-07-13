@@ -31,7 +31,6 @@
     },
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "isort.args": ["--profile", "black"],
   "ruff.enable": true,
   "ruff.fixAll": true,
   "mypy-type-checker.preferDaemon": true,

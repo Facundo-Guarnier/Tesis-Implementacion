@@ -65,7 +65,9 @@ class DQNModel:
         """
         Utilizar el modelo entrenado.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         logger.info("🔄 Verificando que la simulación esté lista...")
         while not self._service.is_simulation_running():

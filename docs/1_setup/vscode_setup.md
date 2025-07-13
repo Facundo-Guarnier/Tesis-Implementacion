@@ -8,20 +8,19 @@ Instala las siguientes extensiones desde el Marketplace de VS Code para activar 
 
 - **Python** (`ms-python.python`): Extensión fundamental para el desarrollo con Python.
 - **Black Formatter** (`ms-python.black-formatter`): Formateador de código que se activa automáticamente al guardar.
-- **isort** (`ms-python.isort`): Organiza los `import` de manera automática y consistente.
-- **Ruff** (`charliermarsh.ruff`): Linter y auto-corrector de código extremadamente rápido.
+- **Ruff** (`charliermarsh.ruff`): Linter rápido con import sorting integrado (reemplaza isort).
 - **Mypy Type Checker** (`ms-python.mypy-type-checker`): Verificador de tipos estáticos para detectar errores antes de la ejecución.
 - **Code Spell Checker** (`streetsidesoftware.code-spell-checker`): Ayuda a detectar errores ortográficos en el código.
 
 ## 📁 Archivo de Configuración (`.vscode/settings.json`)
 
-Este archivo activa y configura las extensiones mencionadas para que funcionen automáticamente al guardar los archivos Python.
+Este archivo activa y configura las extensiones mencionadas para que funcionen automáticamente al guardar los archivos Python con **Poetry** como gestor de entorno.
 
 ### Pasos para Aplicar la Configuración
 
-1.  Crea una carpeta llamada `.vscode` en la raíz de tu proyecto (si no existe).
-2.  Dentro de la carpeta `.vscode`, crea un archivo llamado `settings.json`.
-3.  Copia y pega el siguiente contenido en el archivo `settings.json`:
+1. Crea una carpeta llamada `.vscode` en la raíz de tu proyecto (si no existe).
+2. Dentro de la carpeta `.vscode`, crea un archivo llamado `settings.json`.
+3. Copia y pega el siguiente contenido en el archivo `settings.json`:
 
 ```json
 {
@@ -34,34 +33,32 @@ Este archivo activa y configura las extensiones mencionadas para que funcionen a
     },
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "isort.args": ["--profile", "black"],
   "ruff.enable": true,
   "ruff.fixAll": true,
-  "mypy.enabled": true,
-  "mypy.runUsingActiveInterpreter": true
+  "mypy-type-checker.preferDaemon": true,
+  "mypy-type-checker.reportingScope": "workspace",
+  "mypy-type-checker.importStrategy": "fromEnvironment"
 }
 ```
 
-4.  Reinicia VS Code para asegurarte de que todas las configuraciones se apliquen correctamente.
+4. **Seleccionar intérprete de Poetry**: `Ctrl+Shift+P` → "Python: Select Interpreter" → Elegir el entorno virtual de Poetry
+5. Reinicia VS Code para asegurarte de que todas las configuraciones se apliquen correctamente.
 
 ## 🛡️ Configuración de Pre-commit
 
-Para asegurar que el código cumple con los estándares de calidad antes de cada commit, se utiliza un hook de pre-commit. Esto garantiza que las herramientas de formateo y chequeo se ejecuten automáticamente.
+Para asegurar que el código cumple con los estándares de calidad antes de cada commit, se utiliza **pre-commit framework** con Poetry:
 
 ```bash
-git config core.hooksPath .githooks
+# Instalar hooks (solo primera vez)
+poetry run pre-commit install
 ```
 
-### 🚀 Ejecutar Pre-commit manualmente:Ejecutar Pre-commit manualmente:
-
-**Windows PowerShell:**
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .githooks/pre-commit.ps1
-```
-
-**Linux/macOS/WSL:**
+### 🚀 Ejecutar Pre-commit manualmente:
 
 ```bash
-bash .githooks/pre-commit
+# Ejecutar en todo el proyecto
+poetry run pre-commit run --all-files
+
+# Ejecutar en archivos específicos
+poetry run pre-commit run --files src/archivo.py
 ```

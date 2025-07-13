@@ -1,0 +1,59 @@
+# Configuración de pre-commit para el proyecto de Semáforos Inteligentes
+# Ver: https://pre-commit.com/
+
+repos:
+  # Hooks básicos de pre-commit
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: ✂️  Eliminar espacios al final de línea
+      - id: end-of-file-fixer
+        name: 📄 Asegurar nueva línea al final de archivos
+      - id: check-yaml
+        name: 🔍 Validar archivos YAML
+      - id: check-added-large-files
+        name: 📦 Verificar archivos grandes
+        args: ["--maxkb=1000"]
+      - id: check-merge-conflict
+        name: 🔀 Verificar marcadores de merge conflict
+      - id: debug-statements
+        name: 🐛 Detectar declaraciones de debug en Python
+
+  # Ruff - Linter rápido con import sorting integrado
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        name: ⚡ Ruff - Linter + Import sorting
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Black - Formateo de código
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        name: ⚫ Black - Formateo de código
+        args: [--line-length=88]
+
+  # MyPy - Verificación de tipos
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        name: 🔍 MyPy - Verificación de tipos
+        args: [--config-file=mypy.ini]
+        additional_dependencies: [types-PyYAML, types-requests, types-Pillow]
+
+# Configuración global
+default_language_version:
+  python: python3
+
+# Archivos a excluir globalmente
+exclude: |
+  (?x)^(
+    __pycache__/.*|
+    .*\.pyc$|
+    assets/.*|
+    docs/.*\.md$
+  )$

@@ -65,7 +65,7 @@ git checkout -b tipo/tu-descripcion
 
 ## 🎨 Estilo y Calidad de Código
 
-Antes de hacer un commit, asegúrate de que tu código cumple con las guías de estilo y calidad definidas en el proyecto. Las herramientas (`ruff`, `black`, `isort`) configuradas en VS Code deberían ayudarte con esto automáticamente.
+Antes de hacer un commit, asegúrate de que tu código cumple con las guías de estilo y calidad definidas en el proyecto. Las herramientas (`ruff`, `black`) configuradas en VS Code deberían ayudarte con esto automáticamente.
 
 - **Guía de estilo de código:** [`./code_style.md`](./code_style.md)
 - **Herramientas de calidad:** [`./tooling.md`](./tooling.md)

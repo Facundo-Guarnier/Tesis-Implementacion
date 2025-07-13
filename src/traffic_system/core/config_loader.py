@@ -11,7 +11,7 @@ def load_app_settings(config_path: str = "config.yaml") -> AppSettings:
     Lanza ConfigValidationError si hay un problema.
     """
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config_data = yaml.safe_load(f)
 
         # ¡La magia de Pydantic! Parsea y valida el diccionario.
@@ -19,15 +19,15 @@ def load_app_settings(config_path: str = "config.yaml") -> AppSettings:
         settings = AppSettings(**config_data)
         return settings
 
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         # Lanzamos nuestra excepción con un mensaje claro
         raise ConfigValidationError(
             f"Error: El archivo de configuración en la ruta '{config_path}' no fue encontrado."
-        )
+        ) from e
 
     except ValidationError as e:
         # Lanzamos nuestra excepción, pero con el mensaje formateado que ya creamos.
-        raise ConfigValidationError(_format_pydantic_error(e))
+        raise ConfigValidationError(_format_pydantic_error(e)) from e
 
 
 def _format_pydantic_error(error: ValidationError) -> str:

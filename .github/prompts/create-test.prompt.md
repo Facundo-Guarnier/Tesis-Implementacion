@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("Test[NOMBRE]")
 
 
-def test_[funcionalidad](base_url: str = "http://127.0.0.1:5000"):
+def test_funcionalidad(base_url: str = "http://127.0.0.1:5000"):
     """
     Prueba [DESCRIPCIÓN_DETALLADA].
     """
@@ -106,6 +106,6 @@ Revisa estos archivos para patrones:
 
 - `test_sync.py` - Sincronización
 - `test_reinicio_api.py` - Reinicio
-- `test_entrenamientodqn_completo.py` - Entrenamiento
+- `test_entrenamiento_dqn_completo.py` - Entrenamiento
 
 ¿Qué funcionalidad necesitas probar?

@@ -1,7 +1,6 @@
+import _queue
 import multiprocessing
 import time
-
-import _queue
 
 
 class Notificado:

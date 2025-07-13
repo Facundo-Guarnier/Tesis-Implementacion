@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
 - `test_sync.py`: Verificar sincronización entre simulaciones
 - `test_reinicio_api.py`: Probar reinicio de simulaciones
-- `test_entrenamientodqn_completo.py`: Entrenamiento completo
+- `test_entrenamiento_dqn_completo.py`: Entrenamiento completo
 - `test_verificar_gpu.py`: Verificar configuración GPU
 
 ## APIs de Testing

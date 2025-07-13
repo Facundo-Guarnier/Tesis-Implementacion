@@ -55,7 +55,7 @@ class SARSA:
         - No incluye el color de los semáforos porque estaría duplicando datos con respecto a la accion.
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
-        vehiculos = tuple([cantidad for cantidad in self.__api.get_quantities().values()])  # type: ignore
+        vehiculos = tuple(self.__api.get_quantities().values())  # type: ignore
 
         return vehiculos
 

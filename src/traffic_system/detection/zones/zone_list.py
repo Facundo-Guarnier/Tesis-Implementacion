@@ -22,7 +22,7 @@ class ZoneList:
         self.zones = self._load_zones()
 
     def _load_zones(self) -> list[Zone]:
-        with open("Deteccion/App/zonas/zonas.yaml", "r") as file:
+        with open("Deteccion/App/zonas/zonas.yaml") as file:
             yaml_data = yaml.safe_load(file)
             return [
                 Zone(

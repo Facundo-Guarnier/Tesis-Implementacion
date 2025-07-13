@@ -33,7 +33,9 @@ class ReportService:
         - Verifica si la simulación está en curso.
         - Genera el reporte de la simulación.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         #! Verificar si la simulación fue exitosa
         while not self._client_api_report.is_simulation_running():
@@ -173,17 +175,19 @@ class ReportService:
         try:
             sql = """
                 INSERT INTO reporte (
-                    Steps, 
-                    Semaforo1, 
-                    Semaforo2, 
-                    Semaforo3, 
-                    Semaforo4, 
-                    TiempoTotal, 
+                    Steps,
+                    Semaforo1,
+                    Semaforo2,
+                    Semaforo3,
+                    Semaforo4,
+                    TiempoTotal,
                     ZonaA, ZonaB, ZonaC, ZonaD, ZonaE, ZonaF, ZonaG, ZonaH, ZonaI, ZonaJ, ZonaK, ZonaL
-                ) 
+                )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
-            logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+            logger = logging.getLogger(
+                f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+            )
             if not self._cursor:
                 return False
             else:

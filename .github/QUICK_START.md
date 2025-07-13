@@ -39,7 +39,7 @@ python test_sync.py
 python test_reinicio_api.py
 
 # Entrenamiento completo
-python test_entrenamientodqn_completo.py
+python test_entrenamiento_dqn_completo.py
 ```
 
 ## 🎯 Flujos de Trabajo Comunes

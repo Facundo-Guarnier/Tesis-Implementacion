@@ -24,7 +24,7 @@ function Print-Tree {
         -not ($_.Attributes -band [IO.FileAttributes]::Hidden) -and
         -not ($_.Attributes -band [IO.FileAttributes]::System) -and
         # No carpetas de caché de Python u otras que quieras omitir
-        $_.Name -notin ".mypy_cache", "__pycache__", ".ruff_cache" 
+        $_.Name -notin ".mypy_cache", "__pycache__", ".ruff_cache"
     } | ForEach-Object {
         # Imprimimos con prefijo visual
         Write-Output ("{0}|-- {1}" -f $Prefix, $_.Name)

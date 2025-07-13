@@ -129,7 +129,7 @@ class DetectorService:
 
         #! Dibujar el centro de los objetos
         polygon_detections_count = 0
-        for box, mask, confidence, class_id, tracker_id, data in detections:
+        for box, _mask, _confidence, _class_id, tracker_id, _data in detections:
             #! Centros
             #  xmin, ymin, xmax, ymax
             #   0     1     2     3
@@ -198,7 +198,15 @@ class DetectorService:
         - Hace las etiquetas de cada box.
         """
         labels = []
-        for xyxy, mask, confianza, class_id, tracker_id, data in detections:
+
+        for (
+            _xyxy,
+            _mask,
+            _confianza,
+            _class_id,
+            tracker_id,
+            _data,
+        ) in detections:
             detection_time_frames = self.detection_times.get(tracker_id, 0)
             label = f"{detection_time_frames} frames"
             labels.append(label)
@@ -269,7 +277,6 @@ class DetectorService:
 
         #! Si hay detecciones
         if detections.tracker_id.size > 0:
-
             frame = self._draw_detection_polygon_and_centers_cv2(frame, detections)
 
             frame = self.trace_annotator.annotate(frame, detections=detections)

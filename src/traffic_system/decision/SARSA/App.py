@@ -10,7 +10,6 @@ from src.traffic_system.decision.SARSA.SARSA import SARSA
 # print(f"Cantidad de vehículos en la zona: {cliente_api.obtener_cantidad_vehiculos_zona('Zona B')}")
 
 if __name__ == "__main__":
-
     entrenar = True
 
     if entrenar:

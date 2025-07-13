@@ -12,7 +12,6 @@ from src.traffic_system.decision.DQN.dqn_trainer import DQNTrainer
 
 
 class DecisionApp:
-
     def __init__(self, decision_settings: DecisionSettings | None = None) -> None:
         logging.basicConfig(level=logging.DEBUG)
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
@@ -22,7 +21,9 @@ class DecisionApp:
         """
         Entrenar el modelo.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         logger.info("Entrenar DQN")
 
@@ -46,7 +47,9 @@ class DecisionApp:
         """
         Usar el modelo entrenado.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         logger.info("Usar DQN")
         model_path = self.settings.path_modelo_entrenado
@@ -70,7 +73,6 @@ class DecisionApp:
         is_connected = False
 
         while not is_connected:
-
             try:
                 dqn_model.run_inference()
                 is_connected = True

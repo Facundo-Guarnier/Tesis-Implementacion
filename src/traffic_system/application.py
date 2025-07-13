@@ -2,7 +2,6 @@ from src.traffic_system.core.config_loader import AppSettings, load_app_settings
 
 
 class Application:
-
     # Cargas la configuración una vez al inicio
     settings: AppSettings = load_app_settings()
 

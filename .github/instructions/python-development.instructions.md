@@ -5,8 +5,16 @@ applyTo: "**/*.py"
 
 # Instrucciones para Desarrollo en Python
 
+## Entorno de Desarrollo
+
+- **Usar Poetry** para gestión de dependencias y entorno virtual
+- **Activar entorno Poetry**: `poetry shell` o usar `poetry run <comando>`
+- **Instalar dependencias**: `poetry install` (incluye dev dependencies)
+- **Agregar nueva dependencia**: `poetry add <paquete>` o `poetry add --group dev <paquete>` para dev
+
 ## Estilo y Convenciones
 
+- **Pre-commit automático**: configurado con hooks de calidad de código
 - Usar **snake_case** para variables y funciones
 - Usar **PascalCase** para clases
 - Máximo 88 caracteres por línea (configuración de Black)
@@ -15,9 +23,17 @@ applyTo: "**/*.py"
 
 ## Imports
 
-- Orden: stdlib, third-party, local imports
+- Orden automático con **isort** via pre-commit
 - Usar imports absolutos desde `src/`
 - Ejemplo correcto: `from src.traffic_system.core.config_loader import load_app_settings`
+
+## Herramientas de Calidad
+
+- **Black**: Formateo automático de código
+- **Ruff**: Linting rápido y correcciones automáticas
+- **isort**: Organización automática de imports
+- **Mypy**: Verificación de tipos estáticos
+- **Pre-commit**: Ejecuta todas las herramientas antes de cada commit
 
 ## Logging
 
