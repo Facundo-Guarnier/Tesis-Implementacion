@@ -50,7 +50,6 @@ def verificar_gpu():
     except ImportError as e:
         logger.error("❌ Error importando TensorFlow")
         logger.error(f"   {e}")
-        logger.error("💡 Instala TensorFlow con: pip install tensorflow")
         return False
 
     # Verificar compatibilidad CUDA

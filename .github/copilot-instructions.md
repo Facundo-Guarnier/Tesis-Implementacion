@@ -69,6 +69,12 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
   - Dependencias no utilizadas al optimizar el stack tecnológico
 - **Principio**: Mantener el proyecto limpio y enfocado solo en lo que se usa activamente.
 
+### 9. Gestión de Logs vs Prints
+
+- **NUNCA usar `print()` en código de producción**. Los prints no proporcionan control de niveles, formato uniforme, ni gestión de salida.
+- **SIEMPRE usar el sistema de logging estándar** de Python con la configuración del proyecto.
+- **Formato estándar**: Usar emojis para identificación visual rápida y formato consistente.
+
 ## Arquitectura de Microservicios
 
 **Componentes principales:**

@@ -49,25 +49,30 @@ nvidia-smi
 3. Descargar cuDNN compatible con tu versión de CUDA
 4. Extraer y copiar archivos a directorio CUDA
 
-### Paso 4: Instalar TensorFlow con soporte GPU
+### Paso 4: Configurar TensorFlow con soporte GPU
 
 ```bash
-# Opción 1: TensorFlow con CUDA (recomendado)
-pip install tensorflow[and-cuda]
+# El proyecto ya incluye TensorFlow con soporte GPU configurado automáticamente por Poetry
+# según tu plataforma (Windows/Linux). Solo necesitas instalar las dependencias:
 
-# Opción 2: Versión específica
-pip install tensorflow-gpu==2.13.0
+poetry install
 
-# Verificar instalación
-python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+# Verificar instalación GPU
+poetry run python test_verificar_gpu.py
+
+# O verificar manualmente:
+poetry run python -c "import tensorflow as tf; print('GPUs disponibles:', tf.config.list_physical_devices('GPU'))"
 ```
+
+**Nota importante**: Este proyecto usa Poetry para gestión de dependencias, que automáticamente
+instala la versión correcta de TensorFlow según tu plataforma y configuración.
 
 ## 🧪 Verificación de configuración
 
 Ejecuta el script de verificación incluido:
 
 ```bash
-python test_verificar_gpu.py
+poetry run python test_verificar_gpu.py
 ```
 
 Este script verificará:
@@ -122,9 +127,11 @@ def __setup_gpu(self) -> None:
 # Verificar drivers
 nvidia-smi
 
-# Reinstalar TensorFlow
-pip uninstall tensorflow
-pip install tensorflow[and-cuda]
+# Reinstalar dependencias (Poetry maneja TensorFlow automáticamente)
+poetry install --sync
+
+# Verificar instalación
+poetry run python test_verificar_gpu.py
 ```
 
 ### Error de memoria GPU
@@ -146,10 +153,13 @@ decision:
 ### Conflictos con otras versiones de CUDA
 
 ```bash
-# Usar entorno virtual
-python -m venv gpu_env
-gpu_env\Scripts\activate  # Windows
-pip install tensorflow[and-cuda]
+# Poetry maneja automáticamente las versiones de TensorFlow y CUDA
+# Si hay conflictos, limpiar y reinstalar:
+poetry env remove python
+poetry install
+
+# Verificar que se use el entorno correcto:
+poetry env info
 ```
 
 ## 🎮 Configuración específica por GPU

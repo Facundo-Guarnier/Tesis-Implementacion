@@ -57,6 +57,31 @@ poetry update
 poetry show
 ```
 
+### 🌐 Dependencias Multiplataforma
+
+El proyecto está configurado para funcionar automáticamente en **Windows** (Python 3.11.9) y **Linux** (Python 3.12.3) con diferentes versiones de TensorFlow. Poetry maneja esto automáticamente usando environment markers.
+
+**📖 Para detalles completos:** Ver [`multiplatform_dependencies.md`](./multiplatform_dependencies.md)
+
+```bash
+# Verificar que las dependencias correctas están instaladas
+poetry run python test_verify_dependencies.py
+```
+
+### 🔧 Configuración de Herramientas
+
+**MyPy**: Configurado en `pyproject.toml` (no usar `mypy.ini` duplicado)
+
+- **📖 Detalles:** Ver [`mypy_configuration.md`](../2_guides/mypy_configuration.md)
+
+**VSCode**: Configurado para aplicar automáticamente el mismo formateo que pre-commit
+
+- **📖 Configuración:** Ver [`vscode_setup.md`](./vscode_setup.md)
+
+**Logging**: Usar sistema de logging estándar con emojis, NO usar `print()`
+
+- **📖 Guía completa:** Ver [`code_style.md`](../2_guides/code_style.md#-logging-vs-print-statements)
+
 ## 📦 Dependencias del Proyecto
 
 ### Producción

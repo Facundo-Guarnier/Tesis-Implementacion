@@ -42,7 +42,7 @@ repos:
     hooks:
       - id: mypy
         name: 🔍 MyPy - Verificación de tipos
-        args: [--config-file=mypy.ini]
+        args: [--config-file=pyproject.toml]
         additional_dependencies: [types-PyYAML, types-requests, types-Pillow]
 
 # Configuración global

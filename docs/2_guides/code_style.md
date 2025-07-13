@@ -53,3 +53,29 @@ from src.traffic_system.core.config_loader import load_app_settings
 ```
 
 > 🔄 **Automático**: Ruff organiza imports automáticamente al guardar archivos en VSCode y en cada pre-commit.
+
+---
+
+## 📝 Logging vs Print Statements
+
+### ❌ NO usar print() en código de producción
+
+```python
+# ❌ Evitar
+print("Iniciando simulación...")
+print(f"Error: {error}")
+```
+
+### ✅ Usar sistema de logging estándar
+
+```python
+# ✅ Correcto
+import logging
+
+logger = logging.getLogger(__name__)
+
+logger.info("✅ Iniciando simulación...")
+logger.error("❌ Error durante procesamiento: %s", error)
+logger.warning("⚠️ Configuración no optimizada detectada")
+logger.debug("🧪 Datos de debug: %s", debug_data)
+```
