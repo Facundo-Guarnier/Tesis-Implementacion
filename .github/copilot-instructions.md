@@ -1,6 +1,6 @@
 # Instrucciones para GitHub Copilot
 
-Este proyecto es un "Sistema de Semáforos Inteligentes" que usa aprendizaje por refuerzo (DQN) para optimizar el control de tráfico.
+Este proyecto es un "Sistema de Semáforos Inteligentes" que usa aprendizaje por refuerzo (DQN) para optimizar el control de tráfico implementando el simulador SUMO, con **Poetry** como gestor de dependencias y **pre-commit** para calidad automática de código.
 
 ## Directrices Fundamentales para Agentes de IA
 
@@ -10,6 +10,7 @@ Como Agente de Código AI, mi objetivo primordial es asistir en la creación de 
 
 - Ante cualquier modificación, adición o eliminación de archivos considerados _críticos_ para la funcionalidad, estructura o configuración del proyecto, es **imperativo** que se actualice de forma simultánea la documentación relevante en la carpeta `docs/` y cualquier archivo de configuración o automatización específico para el comportamiento de la AI en `.github/`.
 - La documentación debe ser siempre el reflejo fiel del estado actual del código.
+- **Especial atención**: Cuando se modifiquen dependencias o configuraciones de entorno (Poetry, pre-commit), actualizar inmediatamente `docs/1_setup/dependencies.md` y `docs/2_guides/tooling.md`.
 
 ### 2. Resolución de Conflictos: La Documentación es la Verdad
 
@@ -39,6 +40,35 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
 - Ser **completamente objetivo, analítico y crítico**.
 - Identificar y proponer la mejor solución técnica, indicar posibles errores, ineficiencias o riesgos, incluso si esto implica contradecir una idea inicial.
 - La honestidad y la calidad técnica son primordiales.
+
+### 6. Gestión de Dependencias y Versiones
+
+- **NUNCA instalar dependencias directamente** con `pip install <librería>` sin antes verificar versiones.
+- **Proceso obligatorio para nuevas dependencias**:
+  1. Verificar la versión actual instalada: `pip show <librería>`
+  2. Buscar la última versión disponible: `pip index versions <librería>`
+  3. Añadir a `requirements.txt` o `requirements-dev.txt` con versión específica
+  4. Instalar desde requirements: `pip install -r requirements.txt`
+- **Para versiones existentes**: siempre consultar la versión ya instalada antes de especificar rangos.
+- **Versiones específicas vs rangos**: usar versiones específicas (`==x.y.z`) para herramientas críticas, rangos (`>=x.y.z`) solo para dependencias estables.
+
+### 7. Gestión de Documentación
+
+- **NO crear documentación temporal** o de "migración" que no aporte valor a largo plazo.
+- **Actualizar documentación existente** en lugar de crear archivos nuevos para cambios.
+- **Eliminar documentación obsoleta** cuando se implementen cambios.
+- **Documentación debe reflejar el estado actual**, no historial de cambios.
+
+### 8. Política de Limpieza de Archivos Obsoletos
+
+- **Eliminar inmediatamente** archivos, carpetas y configuraciones obsoletas cuando se migre a nuevas herramientas o enfoques.
+- **NO mantener "residuos"** como archivos comentados, carpetas backup, o configuraciones "por si acaso".
+- **NO dejar historial** en el código base - usar el historial de Git para recuperar versiones anteriores.
+- **Ejemplos de eliminación inmediata**:
+  - Scripts manuales al migrar a herramientas automatizadas
+  - Configuraciones deprecated al actualizar sintaxis
+  - Dependencias no utilizadas al optimizar el stack tecnológico
+- **Principio**: Mantener el proyecto limpio y enfocado solo en lo que se usa activamente.
 
 ## Arquitectura de Microservicios
 
@@ -74,7 +104,7 @@ assets/{dqn_models,sumo_maps,yolo_models}/  # Activos del proyecto
 
 ## Comandos Esenciales
 
-```powershell
+```bash
 # Iniciar sistema
 python run_simulation_provider.py  # Terminal 1
 python run_decision_agent.py       # Terminal 2
@@ -84,7 +114,7 @@ python test_sync.py                 # Verificar sincronización
 python test_reinicio_api.py         # Probar reinicio
 
 # Calidad de código
-powershell -ExecutionPolicy Bypass -File .githooks/pre-commit.ps1
+pre-commit run --all-files
 ```
 
 - La lógica de la aplicación para cada componente se encuentra en `src/traffic_system/<nombre_componente>/app.py`.
@@ -99,14 +129,13 @@ powershell -ExecutionPolicy Bypass -File .githooks/pre-commit.ps1
 
 ### Calidad de Código y Herramientas
 
-El proyecto utiliza herramientas automáticas para mantener la calidad del código:
+El proyecto utiliza **pre-commit** para mantener automáticamente la calidad del código:
 
-- **isort**: Organiza imports automáticamente al guardar
-- **Ruff**: Linter rápido que reemplaza flake8/pylint, con correcciones automáticas
+- **Ruff**: Linter rápido que reemplaza flake8/pylint/isort, con correcciones automáticas
 - **Black**: Formateo automático de código (88 caracteres por línea)
-- **Mypy**: Verificación de tipos estáticos en pre-commit
+- **Mypy**: Verificación de tipos estáticos
 
-Pre-commit hooks están configurados para ejecutar todas las herramientas antes de cada commit. Si fallan, el commit se cancela automáticamente.
+Los hooks de pre-commit se ejecutan automáticamente en cada commit. Si detectan problemas, el commit se pausa hasta que se corrijan.
 
 ## Flujo de Trabajo del Desarrollador
 
@@ -115,7 +144,7 @@ Pre-commit hooks están configurados para ejecutar todas las herramientas antes 
 1. Crea un entorno virtual de Python
 2. Instala las dependencias: `pip install -r requirements.txt`
 3. Para dependencias de desarrollo: `pip install -r requirements-dev.txt`
-4. Configura pre-commit hooks: `git config core.hooksPath .githooks`
+4. Configura pre-commit hooks: `pre-commit install`
 
 ### Ejecución del Sistema
 
@@ -140,17 +169,16 @@ python run_decision_agent.py
 
 ### Pruebas (Testing)
 
-- El proyecto contiene varios scripts de prueba en la raíz, como `test_sync.py` o `test_entrenamientodqn_completo.py`.
-- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `python test_sync.py`.
+- El proyecto contiene varios scripts de prueba en la raíz, como `test_sync.py` o `test_entrenamiento_dqn_completo.py`.
+- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `poetry run python test_sync.py`.
 - Al añadir nuevas funcionalidades, considera crear un script de prueba similar para validar la integración de los componentes.
 
 ## Documentos de Referencia Adicionales
 
 Para información más detallada, consulta estos documentos específicos:
 
-- **[Quick Start Guide](.github/QUICK_START.md)**: Comandos esenciales para comenzar inmediatamente
-- **[API Reference](.github/API_REFERENCE.md)**: Documentación completa de endpoints REST
-- **[Testing Guide](.github/TESTING.md)**: Guía de los scripts de prueba y validación
-- **[Data Flow Diagram](.github/DATA_FLOW.md)**: Flujo de datos entre componentes
-- **[Architecture Decisions](.github/ADR.md)**: Decisiones arquitectónicas y su justificación
-- **[Troubleshooting](.github/TROUBLESHOOTING.md)**: Soluciones a problemas comunes
+- **[Guía de Inicio Rápido](../docs/quickstart.md)**: Configuración y comandos esenciales con Poetry
+- **[Gestión de Dependencias](../docs/1_setup/dependencies.md)**: Poetry y entornos virtuales
+- **[Herramientas de Desarrollo](../docs/2_guides/tooling.md)**: Pre-commit, Black, Ruff, Mypy
+- **[Estructura del Proyecto](../docs/1_setup/project_structure.md)**: Arquitectura del código
+- **[Guía de Contribución](../docs/2_guides/contributing.md)**: Estándares de desarrollo

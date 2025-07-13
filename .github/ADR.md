@@ -4,7 +4,7 @@ Documentación de decisiones arquitectónicas importantes del proyecto.
 
 ## ADR-001: Arquitectura de Microservicios
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto
@@ -27,7 +27,7 @@ Implementar arquitectura de microservicios con APIs REST para comunicación entr
 
 ## ADR-002: Configuración Centralizada con Pydantic
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto
@@ -50,7 +50,7 @@ Usar `config.yaml` como fuente única de verdad, validado por modelos Pydantic e
 
 ## ADR-003: Simulaciones Paralelas para Comparación
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto
@@ -72,7 +72,7 @@ Ejecutar dos simulaciones SUMO simultáneas (S1 controlada por IA, S2 con contro
 
 ## ADR-004: DQN para Toma de Decisiones
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto
@@ -95,7 +95,7 @@ Implementar Deep Q-Network con TensorFlow/Keras para el agente de decisión.
 
 ## ADR-005: Scripts de Prueba como Tests de Integración
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto
@@ -118,7 +118,7 @@ Crear scripts ejecutables (`test_*.py`) que prueban flujos completos del sistema
 
 ## ADR-006: Detección como Componente Opcional
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto
@@ -141,7 +141,7 @@ El agente de decisión consume datos de la simulación, no de detección en tiem
 
 ## ADR-007: Flask para APIs REST
 
-**Estado**: Aceptado  
+**Estado**: Aceptado
 **Fecha**: 2025
 
 ### Contexto

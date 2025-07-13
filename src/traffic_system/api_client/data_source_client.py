@@ -119,7 +119,9 @@ class DecisionAPI:
         """
         Verificar si la simulación está en ejecución.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         try:
             response = requests.get(f"{self.base_url}/simulacion")
@@ -137,7 +139,9 @@ class DecisionAPI:
         """
         Verificar si la simulación está sincronizada.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
         try:
             response = requests.get(f"{self.base_url}/sincronizacion")
             if response.status_code == 200:

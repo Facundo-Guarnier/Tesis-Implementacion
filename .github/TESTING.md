@@ -29,10 +29,10 @@ Estos scripts validan la integración entre componentes:
   4. Verificar que vuelve a tiempo 0
   5. Comprobar funcionamiento post-reinicio
 
-#### `test_entrenamientodqn_completo.py`
+#### `test_entrenamiento_dqn_completo.py`
 
 - **Propósito**: Entrenamiento completo del modelo DQN
-- **Uso**: `python test_entrenamientodqn_completo.py`
+- **Uso**: `python test_entrenamiento_dqn_completo.py`
 - **Incluye**: Configuración automatizada, entrenamiento y validación
 
 ### Pruebas de Componentes

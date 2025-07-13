@@ -20,7 +20,7 @@ Reglas y buenas prácticas que deben seguirse durante el desarrollo.
 
 - **[`code_style.md`](./2_guides/code_style.md)**: Convenciones sobre el estilo del código Python, incluyendo nombres de variables (snake_case, CamelCase) y formato general.
 - **[`contributing.md`](./2_guides/contributing.md)**: Flujo de trabajo con Git, formato de commits (Conventional Commits) y el proceso para crear Pull Requests.
-- **[`tooling.md`](./2_guides/tooling.md)**: Detalles sobre las herramientas automáticas de calidad de código (`ruff`, `black`, `mypy`, `isort`) y cómo funcionan.
+- **[`tooling.md`](./2_guides/tooling.md)**: Detalles sobre las herramientas automáticas de calidad de código (`ruff`, `black`, `mypy`) y cómo funcionan.
 
 ### 3️⃣ Información de Referencia (`/3_reference`)
 

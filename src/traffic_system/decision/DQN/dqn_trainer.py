@@ -92,8 +92,9 @@ class DQNTrainer:
         Configura la GPU para entrenamiento óptimo, o CPU como fallback.
         Incluye monitoreo detallado de GPU.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
-
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
         # Verificar GPUs disponibles
         gpus = tf.config.experimental.list_physical_devices("GPU")
         self.use_gpu = False
@@ -227,7 +228,9 @@ class DQNTrainer:
         Returns:
             tf.keras.Model: Modelo de la red neuronal.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         # Usar el dispositivo detectado (GPU o CPU)
         with tf.device(self.device):
@@ -398,7 +401,9 @@ class DQNTrainer:
         Incluye monitoreo detallado de GPU.
         - 19500 segundos / 15 steps  = 1300 repeticiones por epoca
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         self._log_gpu_usage("Inicio entrenamiento")
 
@@ -546,7 +551,9 @@ class DQNTrainer:
         5. Inicializa la red neuronal.
         6. Inicia el entrenamiento del agente.
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}")  # type: ignore
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         #! Esperar a que la simulación esté lista
         while not self._api.is_simulation_running():

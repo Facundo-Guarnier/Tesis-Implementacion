@@ -33,7 +33,7 @@ Este documento define las **convenciones de codificación** utilizadas en el pro
 
 ## 🧼 Organización de imports
 
-Los imports se deben organizar con [`isort`](https://pycqa.github.io/isort/) usando el perfil de Black. El orden recomendado es:
+Los imports se organizan automáticamente con **Ruff** (que reemplaza a isort) usando configuración compatible con Black. El orden es:
 
 ```python
 # 1. Librerías estándar
@@ -47,9 +47,9 @@ import numpy as np
 import requests
 
 # 3. Módulos locales del proyecto
-from Decision.DQN.DQN import DQN
-from Deteccion.App.Detector import Detector
-from .utils import calcular_puntaje
+from src.traffic_system.decision.DQN.dqn_model import DQNModel
+from src.traffic_system.detection.detector_service import DetectorService
+from src.traffic_system.core.config_loader import load_app_settings
 ```
 
-> 🔄 **Automático**: isort se ejecuta automáticamente al guardar archivos en VSCode y en cada pre-commit.
+> 🔄 **Automático**: Ruff organiza imports automáticamente al guardar archivos en VSCode y en cada pre-commit.
