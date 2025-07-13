@@ -41,23 +41,23 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
 - Identificar y proponer la mejor solución técnica, indicar posibles errores, ineficiencias o riesgos, incluso si esto implica contradecir una idea inicial.
 - La honestidad y la calidad técnica son primordiales.
 
-### 6. Gestión de Dependencias y Versiones
+### 6. Gestión de Dependencias (Poetry) y Versiones
 
-- **NUNCA instalar dependencias directamente** con `pip install <librería>` sin antes verificar versiones.
+- **NUNCA instalar dependencias directamente** con `pip install <librería>`. El gestor de dependencias principal es **Poetry**.
 - **Proceso obligatorio para nuevas dependencias**:
-  1. Verificar la versión actual instalada: `pip show <librería>`
-  2. Buscar la última versión disponible: `pip index versions <librería>`
-  3. Añadir a `requirements.txt` o `requirements-dev.txt` con versión específica
-  4. Instalar desde requirements: `pip install -r requirements.txt`
-- **Para versiones existentes**: siempre consultar la versión ya instalada antes de especificar rangos.
-- **Versiones específicas vs rangos**: usar versiones específicas (`==x.y.z`) para herramientas críticas, rangos (`>=x.y.z`) solo para dependencias estables.
+  1. Utilizar `poetry add <librería>` para añadir dependencias de ejecución.
+  2. Utilizar `poetry add <librería> --group dev` o `poetry add <librería> --dev` (según tu configuración) para añadir dependencias de desarrollo.
+  3. Poetry actualizará automáticamente `pyproject.toml` y `poetry.lock`.
+- **Para versiones existentes**: Siempre verificar la versión actual en `pyproject.toml` o `poetry.lock` antes de especificar rangos.
+- **Versiones específicas vs rangos**: Usar versiones específicas (`^x.y.z`, `~x.y.z`, `==x.y.z`) según la política definida en `pyproject.toml` y las guías del proyecto. Para herramientas críticas, priorizar la exactitud.
 
-### 7. Gestión de Documentación
+### 7. Gestión del Ciclo de Vida de la Documentación
 
 - **NO crear documentación temporal** o de "migración" que no aporte valor a largo plazo.
-- **Actualizar documentación existente** en lugar de crear archivos nuevos para cambios.
-- **Eliminar documentación obsoleta** cuando se implementen cambios.
-- **Documentación debe reflejar el estado actual**, no historial de cambios.
+- **Actualizar documentación existente** en lugar de crear archivos nuevos para los cambios.
+- **Eliminar documentación obsoleta** o irrelevante cuando se implementen cambios que la dejen desactualizada.
+- **No duplicar información**: Evitar la redundancia de contenido entre diferentes documentos o entre la documentación y el código base.
+- **No crear documentación de solución de error**: No crear documentación que describa el proceso de solución de un problema planteado por el usuario.
 
 ### 8. Política de Limpieza de Archivos Obsoletos
 
@@ -69,6 +69,12 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
   - Configuraciones deprecated al actualizar sintaxis
   - Dependencias no utilizadas al optimizar el stack tecnológico
 - **Principio**: Mantener el proyecto limpio y enfocado solo en lo que se usa activamente.
+
+### 9. Gestión de Logs vs Prints
+
+- **NUNCA usar `print()` en código de producción**. Los prints no proporcionan control de niveles, formato uniforme, ni gestión de salida.
+- **SIEMPRE usar el sistema de logging estándar** de Python con la configuración del proyecto.
+- **Formato estándar**: Usar emojis para identificación visual rápida y formato consistente.
 
 ## Arquitectura de Microservicios
 
@@ -83,7 +89,7 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
 
 ## Reglas Críticas
 
-- **Configuración:** TODO viene de `config.yaml` validado por Pydantic en `config_models.py`
+- **Configuración:** **Todo** viene de `config.yaml` validado por Pydantic en `config_models.py`
 - **Para cambiar config:** actualizar `config_models.py` PRIMERO, luego `config.yaml`
 - **APIs:** Flask, retornar `return jsonify(data), status_code`
 - **Imports:** absolutos desde `src/` - ej: `from src.traffic_system.core.config_loader import load_app_settings`
@@ -106,12 +112,12 @@ assets/{dqn_models,sumo_maps,yolo_models}/  # Activos del proyecto
 
 ```bash
 # Iniciar sistema
-python run_simulation_provider.py  # Terminal 1
-python run_decision_agent.py       # Terminal 2
+poetry run python run_simulation_provider.py  # Terminal 1
+poetry run python run_decision_agent.py       # Terminal 2
 
 # Testing
-python test_sync.py                 # Verificar sincronización
-python test_reinicio_api.py         # Probar reinicio
+poetry run python test_sincronizacion_completo.py                 # Verificar sincronización
+poetry run python test_reinicio_api.py         # Probar reinicio
 
 # Calidad de código
 pre-commit run --all-files
@@ -141,21 +147,21 @@ Los hooks de pre-commit se ejecutan automáticamente en cada commit. Si detectan
 
 ### Instalación
 
-1. Crea un entorno virtual de Python
-2. Instala las dependencias: `pip install -r requirements.txt`
-3. Para dependencias de desarrollo: `pip install -r requirements-dev.txt`
-4. Configura pre-commit hooks: `pre-commit install`
+1.  Asegurar que Poetry esté instalado (`pip install poetry`).
+2.  Clonar el repositorio y navegar a la raíz del proyecto.
+3.  Instalar las dependencias del proyecto y crear el entorno virtual con Poetry: `poetry install`
+4.  Configurar pre-commit hooks: `pre-commit install`
 
 ### Ejecución del Sistema
 
-Para ejecutar el sistema completo, necesitas iniciar cada servicio en un terminal separado:
+Para ejecutar el sistema completo, necesitas iniciar cada servicio en un terminal separado (usando `poetry run` para asegurar que se ejecuten en el entorno virtual de Poetry):
 
 ```bash
 # Terminal 1: Iniciar el proveedor de simulación
-python run_simulation_provider.py
+poetry run python run_simulation_provider.py
 
 # Terminal 2: Iniciar el agente de decisión
-python run_decision_agent.py
+poetry run python run_decision_agent.py
 ```
 
 **Nota**: El comportamiento de cada script (ej. entrenar vs. inferir, usar video vs. cámara) se controla a través de `config.yaml`.
@@ -169,8 +175,8 @@ python run_decision_agent.py
 
 ### Pruebas (Testing)
 
-- El proyecto contiene varios scripts de prueba en la raíz, como `test_sync.py` o `test_entrenamiento_dqn_completo.py`.
-- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `poetry run python test_sync.py`.
+- El proyecto contiene varios scripts de prueba en la raíz, como `test_sincronizacion_completo.py` o `test_entrenamiento_dqn_completo.py`.
+- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `poetry run python test_sincronizacion_completo.py`.
 - Al añadir nuevas funcionalidades, considera crear un script de prueba similar para validar la integración de los componentes.
 
 ## Documentos de Referencia Adicionales

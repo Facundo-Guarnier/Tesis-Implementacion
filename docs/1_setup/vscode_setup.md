@@ -1,47 +1,37 @@
-# ⚙️ Configuración de Visual Studio Code
+# ⚙️ Configuración de VSCode para Formateo Automático
 
-Para asegurar un estilo de código consistente y aprovechar las herramientas de calidad, se recomienda la siguiente configuración en Visual Studio Code para este proyecto.
+Esta guía asegura que VSCode aplique automáticamente el mismo formateo que pre-commit, eliminando discrepancias entre el guardado en el editor y las verificaciones automáticas.
 
-## 🧩 Extensiones Recomendadas
+## 🧩 Extensiones Requeridas
 
-Instala las siguientes extensiones desde el Marketplace de VS Code para activar el formateo, linting y chequeo de tipos automáticos.
+El archivo `.vscode/extensions.json` especifica automáticamente las extensiones necesarias:
 
-- **Python** (`ms-python.python`): Extensión fundamental para el desarrollo con Python.
-- **Black Formatter** (`ms-python.black-formatter`): Formateador de código que se activa automáticamente al guardar.
-- **Mypy Type Checker** (`ms-python.mypy-type-checker`): Verificador de tipos estáticos para detectar errores antes de la ejecución.
-- **Code Spell Checker** (`streetsidesoftware.code-spell-checker`): Ayuda a detectar errores ortográficos en el código.
+- **Python** (`ms-python.python`): Soporte básico de Python
+- **Black Formatter** (`ms-python.black-formatter`): Formateo automático de código
+- **Ruff** (`charliermarsh.ruff`): Linting e import sorting (reemplaza isort)
+- **Mypy Type Checker** (`ms-python.mypy-type-checker`): Verificación de tipos estáticos
 
-## 📁 Archivo de Configuración (`.vscode/settings.json`)
+## ⚙️ Configuración Automática (`.vscode/settings.json`)
 
-Este archivo activa y configura las extensiones mencionadas para que funcionen automáticamente al guardar los archivos Python con **Poetry** como gestor de entorno.
+La configuración actual aplica automáticamente.
 
-### Pasos para Aplicar la Configuración
+### 🔄 Flujo Automático al Guardar (Ctrl+S)
 
-1. Crea una carpeta llamada `.vscode` en la raíz de tu proyecto (si no existe).
-2. Dentro de la carpeta `.vscode`, crea un archivo llamado `settings.json`.
-3. Copia y pega el siguiente contenido en el archivo `settings.json`:
+1. **Ruff**: Organiza imports + aplica correcciones automáticas
+2. **Black**: Formatea código con 88 caracteres por línea
+3. **MyPy**: Verifica tipos en background
 
-```json
-{
-  "cSpell.words": ["palabras"],
-  "[python]": {
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit",
-      "source.fixAll.ruff": "explicit"
-    },
-    "editor.defaultFormatter": "ms-python.black-formatter"
-  },
-  "ruff.enable": true,
-  "ruff.fixAll": true,
-  "mypy-type-checker.preferDaemon": true,
-  "mypy-type-checker.reportingScope": "workspace",
-  "mypy-type-checker.importStrategy": "fromEnvironment"
-}
-```
+## 🧪 Verificación
 
-4. **Seleccionar intérprete de Poetry**: `Ctrl+Shift+P` → "Python: Select Interpreter" → Elegir el entorno virtual de Poetry
-5. Reinicia VS Code para asegurarte de que todas las configuraciones se apliquen correctamente.
+### 1. Instalar extensiones recomendadas:
+
+- VSCode mostrará automáticamente una notificación
+- O ejecutar: `Ctrl+Shift+P` → "Extensions: Show Recommended Extensions"
+
+### 2. Seleccionar intérprete de Poetry:
+
+- `Ctrl+Shift+P` → "Python: Select Interpreter"
+- Elegir el entorno de Poetry (termina en `traffic-system-xxx`)
 
 ## 🛡️ Configuración de Pre-commit
 
@@ -61,3 +51,22 @@ poetry run pre-commit run --all-files
 # Ejecutar en archivos específicos
 poetry run pre-commit run --files src/archivo.py
 ```
+
+## 🚨 Solución de Problemas
+
+### Pre-commit encuentra errores después de guardar:
+
+1. **Regenerar configuración**:
+   ```bash
+   poetry run pre-commit clean
+   poetry run pre-commit install --install-hooks
+   ```
+
+## ✅ Resultado
+
+Con esta configuración:
+
+- ✅ **Formateo consistente**: VSCode aplica exactamente las mismas reglas que pre-commit
+- ✅ **Imports organizados**: Ruff los ordena automáticamente al guardar
+- ✅ **Flujo eficiente**: Sin errores de pre-commit después de guardar
+- ✅ **Type checking**: MyPy verifica tipos en tiempo real

@@ -240,7 +240,7 @@ Antes de reportar un problema, verificar:
 - [ ] Puerto 5000 disponible
 - [ ] `config.yaml` válido
 - [ ] Archivos de simulación en `assets/sumo_maps/MapaDe0/`
-- [ ] Dependencias instaladas: `pip install -r requirements.txt`
+- [ ] Dependencias instaladas: `poetry install`
 - [ ] Ejecutando desde directorio raíz del proyecto
 - [ ] Logs del servidor para errores específicos
 

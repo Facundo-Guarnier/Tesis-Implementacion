@@ -26,14 +26,18 @@ class SumoAPI(Flask):
 
         self.route("/espera", methods=["GET"])(self.get_wait_times)
         self.route("/espera2", methods=["GET"])(self.get_wait_times_s2)
-        self.route("/espera/<zona_id>", methods=["GET"])(self.get_zone_wait_time)
+        self.route("/espera/<zone_id>", methods=["GET"])(self.get_zone_wait_time)
         self.route("/sincronizacion", methods=["GET"])(self.get_synchronization_status)
 
         self.route("/avanzar", methods=["PUT"])(self.step_simulation)
         self.route("/semaforo", methods=["GET"])(self.get_all_traffic_light_states)
         self.route("/semaforo", methods=["PUT"])(self.set_all_traffic_light_states)
-        self.route("/semaforo/<id>", methods=["GET"])(self.get_traffic_light_state)
-        self.route("/semaforo/<id>", methods=["PUT"])(self.set_traffic_light_state)
+        self.route("/semaforo/<light_id>", methods=["GET"])(
+            self.get_traffic_light_state
+        )
+        self.route("/semaforo/<light_id>", methods=["PUT"])(
+            self.set_traffic_light_state
+        )
         self.route("/simulacion", methods=["GET"])(self.get_simulation_status)
         self.route("/simulacion/reiniciar", methods=["POST"])(self.reset_simulations)
         self.route("/reporte", methods=["GET"])(self.get_report)
@@ -209,10 +213,10 @@ class SumoAPI(Flask):
             )
         return jsonify({"error": "Simulación de comparación no disponible."}), 404
 
-    def get_zone_wait_time(self, zona_id: str) -> tuple[Response, int]:
+    def get_zone_wait_time(self, zone_id: str) -> tuple[Response, int]:
         """Obtener tiempo de espera de una zona en S1."""
         return (
-            jsonify({"tiempo_espera": self.app_s1.get_zone_wait_time(zone_id=zona_id)}),
+            jsonify({"tiempo_espera": self.app_s1.get_zone_wait_time(zone_id=zone_id)}),
             200,
         )
 

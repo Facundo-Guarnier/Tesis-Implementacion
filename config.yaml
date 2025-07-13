@@ -64,7 +64,7 @@ decision:
 sumo:
   simular: True #* Iniciar la simulación en SUMO
   gui: True #! Mostrar la interfaz gráfica de SUMO
-  comparar: False #! Comparar la simulación con la detección de objetos
+  comparar: True #! Comparar la simulación con la detección de objetos
   path_sumo: "/usr/share/sumo" #! Path de la instalación de SUMO
 
 reporte:

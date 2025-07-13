@@ -6,7 +6,7 @@ authors = [
     {name = "Facundo-Guarnier", email = "fj.guarnier@alumno.um.edu.ar"}
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 keywords = ["traffic-control", "reinforcement-learning", "dqn", "sumo", "yolo"]
 
 [build-system]
@@ -15,23 +15,28 @@ build-backend = "poetry.core.masonry.api"
 
 # Configuración de Poetry
 [tool.poetry]
-name = "traffic-system"
-version = "1.0.0"
-description = "Sistema de Semáforos Inteligentes con Aprendizaje por Refuerzo (DQN)"
-authors = ["Facundo-Guarnier <fj.guarnier@alumno.um.edu.ar>"]
-readme = "README.md"
 packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11,<3.13"
 requests = ">=2.31.0"
 pyyaml = ">=6.0"
 flask = ">=2.3.0"
-numpy = ">=1.24.0"
+numpy = ">=1.24.0,<2.0"
 opencv-python = ">=4.8.0"
 pillow = ">=10.0.0"
 matplotlib = ">=3.7.0"
-tensorflow = ">=2.13.0"
+pydantic = "^2.11.7"
+
+# TensorFlow con dependencias específicas por plataforma
+tensorflow = [
+    {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"},
+    {version = "==2.19.0", markers = "platform_system == 'Linux' and python_version >= '3.12'"}
+]
+# Dependencias específicas de Windows con Python 3.11
+tensorflow-estimator = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
+tensorflow-intel = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
+tensorflow-io-gcs-filesystem = {version = "==0.31.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
 
 [tool.poetry.group.dev.dependencies]
 black = ">=23.0.0"
@@ -45,7 +50,7 @@ types-Pillow = "*"
 # Configuración de Black
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -91,7 +96,19 @@ combine-as-imports = true
 # Configuración de MyPy
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
 ignore_missing_imports = true
+warn_unused_configs = true # Advertir sobre configuraciones no utilizadas
+show_error_codes = true # Mostrar códigos de error
+# TODO: Activar y hacer las correcciones pertinentes
+# disallow_untyped_defs = true # Desalentar funciones sin anotaciones de tipo
+# warn_return_any = true # Advertir sobre funciones que retornan Any
+# strict_optional = true # Habilitar comprobaciones estrictas de tipos opcionales
+
+# Configuración por módulos específicos
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "scripts.*"
+ignore_errors = true

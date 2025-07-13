@@ -19,7 +19,7 @@ def verificar_gpu():
     logger.info("=" * 60)
 
     # Verificar entorno WSL2
-    logger.info("\n🐧 Verificando entorno...")
+    logger.info("🐧 Verificando entorno...")
     try:
         import os
         import platform
@@ -50,11 +50,10 @@ def verificar_gpu():
     except ImportError as e:
         logger.error("❌ Error importando TensorFlow")
         logger.error(f"   {e}")
-        logger.error("💡 Instala TensorFlow con: pip install tensorflow")
         return False
 
     # Verificar compatibilidad CUDA
-    logger.info("\n🔍 Verificando compatibilidad CUDA...")
+    logger.info("🔍 Verificando compatibilidad CUDA...")
     cuda_available = tf.test.is_built_with_cuda()
     logger.info(f"   TensorFlow compilado con CUDA: {cuda_available}")
 
@@ -67,34 +66,30 @@ def verificar_gpu():
         logger.info(f"   Versión cuDNN: {cudnn_version}")
 
     # Listar dispositivos físicos
-    logger.info("\n🖥️  Dispositivos físicos disponibles:")
+    logger.info("🖥️  Dispositivos físicos disponibles:")
     physical_devices = tf.config.list_physical_devices()
     for device in physical_devices:
         logger.info(f"   {device}")
 
     # Verificar GPUs específicamente
-    logger.info("\n🚀 Verificando GPUs...")
+    logger.info("🚀 Verificando GPUs...")
     gpu_devices = tf.config.list_physical_devices("GPU")
 
     if not gpu_devices:
         logger.warning("⚠️ No se encontraron GPUs disponibles")
-        logger.info("\n💡 Para usar GPU, necesitas:")
+        logger.info("💡 Para usar GPU, necesitas:")
         logger.info("   1. 🎮 GPU NVIDIA compatible (GTX/RTX series)")
         logger.info(
             "   2. 🔧 CUDA Toolkit (https://developer.nvidia.com/cuda-downloads)"
         )
         logger.info("   3. 📚 cuDNN (https://developer.nvidia.com/cudnn)")
         logger.info("   4. 🐍 TensorFlow con soporte GPU")
-        logger.info("\n📦 Comandos de instalación recomendados:")
-        logger.info("   pip install tensorflow[and-cuda]")
-        logger.info("   # o para versiones específicas:")
-        logger.info("   pip install tensorflow-gpu")
         return False
 
     logger.info(f"✅ {len(gpu_devices)} GPU(s) encontrada(s):")
 
     for i, gpu in enumerate(gpu_devices):
-        logger.info(f"\n   GPU {i}: {gpu}")
+        logger.info(f"   GPU {i}: {gpu}")
 
         # Obtener detalles de la GPU
         try:
@@ -117,7 +112,7 @@ def verificar_gpu():
             logger.warning(f"      ⚠️ Error configurando memoria: {e}")
 
     # Test de funcionamiento
-    logger.info("\n🧪 Ejecutando test de GPU...")
+    logger.info("🧪 Ejecutando test de GPU...")
     try:
         with tf.device("/GPU:0"):
             # Crear tensores de prueba
@@ -134,7 +129,7 @@ def verificar_gpu():
         return False
 
     # Test de entrenamiento simple
-    logger.info("\n🧠 Test de entrenamiento en GPU...")
+    logger.info("🧠 Test de entrenamiento en GPU...")
     try:
         with tf.device("/GPU:0"):
             # Crear un modelo simple
@@ -164,7 +159,7 @@ def verificar_gpu():
         return False
 
     # Verificar memoria GPU
-    logger.info("\n💾 Información de memoria GPU:")
+    logger.info("💾 Información de memoria GPU:")
     try:
         # Obtener información de memoria (si está disponible)
         gpus = tf.config.experimental.list_physical_devices("GPU")
@@ -181,7 +176,7 @@ def verificar_gpu():
     except Exception as e:
         logger.info(f"   ℹ️ Información de memoria no disponible: {e}")
 
-    logger.info("\n🎉 ¡GPU configurada correctamente para DQN!")
+    logger.info("🎉 ¡GPU configurada correctamente para DQN!")
     logger.info("💡 El entrenamiento debería ser significativamente más rápido")
 
     return True
@@ -191,7 +186,7 @@ def verificar_dependencias():
     """
     Verifica las dependencias necesarias para el entrenamiento.
     """
-    logger.info("\n📦 Verificando dependencias adicionales...")
+    logger.info("📦 Verificando dependencias adicionales...")
 
     dependencias = [
         ("numpy", "NumPy"),
@@ -208,7 +203,7 @@ def verificar_dependencias():
             missing.append(name)
 
     if missing:
-        logger.error(f"\n❌ Dependencias faltantes: {', '.join(missing)}")
+        logger.error(f"❌ Dependencias faltantes: {', '.join(missing)}")
         return False
 
     logger.info("   ✅ Todas las dependencias están disponibles")
@@ -227,13 +222,12 @@ if __name__ == "__main__":
 
         if deps_ok and gpu_ok:
             logger.info(
-                "\n🎯 RESUMEN: Sistema configurado correctamente para entrenamiento DQN en GPU"
+                "🎯 RESUMEN: Sistema configurado correctamente para entrenamiento DQN en GPU"
             )
             logger.info("🚀 Puedes proceder con el entrenamiento usando GPU")
             sys.exit(0)
         else:
-            logger.error("\n💥 RESUMEN: Hay problemas en la configuración")
-            logger.error("🔧 Revisa los mensajes anteriores para más detalles")
+            logger.error("💥 Verificación de GPU fallida")
             sys.exit(1)
 
     except Exception as e:

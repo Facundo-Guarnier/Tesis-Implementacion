@@ -33,6 +33,20 @@
   },
   "ruff.enable": true,
   "ruff.fixAll": true,
+  "ruff.organizeImports": true,
+  "ruff.codeAction.fixViolation": {
+    "enable": true
+  },
+
+  // Configuración adicional del editor
+  "editor.rulers": [88],
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  // Configuración de Black
+  "black-formatter.args": ["--line-length=88"],
+
   "mypy-type-checker.preferDaemon": true,
   "mypy-type-checker.reportingScope": "workspace",
   "mypy-type-checker.importStrategy": "fromEnvironment",
