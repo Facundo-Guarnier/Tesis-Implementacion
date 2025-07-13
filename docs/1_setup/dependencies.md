@@ -72,8 +72,6 @@ poetry run python test_verify_dependencies.py
 
 **MyPy**: Configurado en `pyproject.toml` (no usar `mypy.ini` duplicado)
 
-- **📖 Detalles:** Ver [`mypy_configuration.md`](../2_guides/mypy_configuration.md)
-
 **VSCode**: Configurado para aplicar automáticamente el mismo formateo que pre-commit
 
 - **📖 Configuración:** Ver [`vscode_setup.md`](./vscode_setup.md)

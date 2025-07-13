@@ -70,30 +70,30 @@ def test_endpoints():
     return True
 
 
+def verificar_sync(momento, spacing="   "):
+    try:
+        response = requests.get(f"{API_BASE_URL}/sincronizacion", timeout=5)
+        if response.status_code == 200:
+            sync_data = response.json()
+            sync_status = "✅" if sync_data["sincronizado"] else "❌"
+            fase_info = f" ({sync_data.get('fase', 'normal')})"
+            logger.info(
+                f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['tiempo_s1']:.1f}s, "
+                f"S2={sync_data['tiempo_s2']:.1f}s, diff={sync_data['diferencia']:.1f}s "
+                f"(max: {sync_data['max_diferencia_permitida']:.1f}s)"
+            )
+            return sync_data["sincronizado"]
+        else:
+            logger.warning(f"{spacing}⚠️  No hay simulación de comparación activa")
+            return True
+    except Exception as e:
+        logger.error(f"{spacing}❌ Error verificando sincronización: {e}")
+        return False
+
+
 def test_basic_sync():
     """Prueba la sincronización básica sin cambios de semáforos."""
     logger.info("⚡ 2/3 Probando sincronización básica...")
-
-    # Función helper para verificar sincronización
-    def verificar_sync(momento, spacing="   "):
-        try:
-            response = requests.get(f"{API_BASE_URL}/sincronizacion", timeout=5)
-            if response.status_code == 200:
-                sync_data = response.json()
-                sync_status = "✅" if sync_data["sincronizado"] else "❌"
-                fase_info = f" ({sync_data.get('fase', 'normal')})"
-                logger.info(
-                    f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['tiempo_s1']:.1f}s, "
-                    f"S2={sync_data['tiempo_s2']:.1f}s, diff={sync_data['diferencia']:.1f}s "
-                    f"(max: {sync_data['max_diferencia_permitida']:.1f}s)"
-                )
-                return sync_data["sincronizado"]
-            else:
-                logger.warning(f"{spacing}⚠️  No hay simulación de comparación activa")
-                return True
-        except Exception as e:
-            logger.error(f"{spacing}❌ Error verificando sincronización: {e}")
-            return False
 
     # Verificar sincronización inicial
     if not verificar_sync("Sincronización inicial"):

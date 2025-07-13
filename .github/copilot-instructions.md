@@ -57,6 +57,7 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
 - **Actualizar documentación existente** en lugar de crear archivos nuevos para los cambios.
 - **Eliminar documentación obsoleta** o irrelevante cuando se implementen cambios que la dejen desactualizada.
 - **No duplicar información**: Evitar la redundancia de contenido entre diferentes documentos o entre la documentación y el código base.
+- **No crear documentación de solución de error**: No crear documentación que describa el proceso de solución de un problema planteado por el usuario.
 
 ### 8. Política de Limpieza de Archivos Obsoletos
 
@@ -115,7 +116,7 @@ poetry run python run_simulation_provider.py  # Terminal 1
 poetry run python run_decision_agent.py       # Terminal 2
 
 # Testing
-poetry run python test_sync.py                 # Verificar sincronización
+poetry run python test_sincronizacion_completo.py                 # Verificar sincronización
 poetry run python test_reinicio_api.py         # Probar reinicio
 
 # Calidad de código
@@ -174,8 +175,8 @@ poetry run python run_decision_agent.py
 
 ### Pruebas (Testing)
 
-- El proyecto contiene varios scripts de prueba en la raíz, como `test_sync.py` o `test_entrenamiento_dqn_completo.py`.
-- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `poetry run python test_sync.py`.
+- El proyecto contiene varios scripts de prueba en la raíz, como `test_sincronizacion_completo.py` o `test_entrenamiento_dqn_completo.py`.
+- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `poetry run python test_sincronizacion_completo.py`.
 - Al añadir nuevas funcionalidades, considera crear un script de prueba similar para validar la integración de los componentes.
 
 ## Documentos de Referencia Adicionales

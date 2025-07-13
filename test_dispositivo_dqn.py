@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test para verificar que EntrenamientoDQN puede usar GPU o CPU automáticamente.
+Test para verificar que DQNTrainer puede usar GPU o CPU automáticamente.
 """
 
 import logging
@@ -18,7 +18,7 @@ logger = logging.getLogger("TestDQN")
 
 def test_configuracion_dispositivo():
     """
-    Prueba la configuración automática de dispositivo en EntrenamientoDQN.
+    Prueba la configuración automática de dispositivo en DQNTrainer.
     """
     logger.info("=" * 60)
     logger.info("TEST: CONFIGURACIÓN AUTOMÁTICA DE DISPOSITIVO DQN")
@@ -27,7 +27,7 @@ def test_configuracion_dispositivo():
     try:
         # Importar la clase (sin ejecutar entrenamiento completo)
 
-        logger.info("✅ Clase EntrenamientoDQN importada exitosamente")
+        logger.info("✅ Clase DQNTrainer importada exitosamente")
 
         # Simular diferentes escenarios
         logger.info("🔍 Verificando dispositivos disponibles...")
@@ -42,11 +42,11 @@ def test_configuracion_dispositivo():
         cpus = tf.config.experimental.list_physical_devices("CPU")
         logger.info(f"   CPUs detectadas: {len(cpus)}")
 
-        logger.info("🧪 Creando instancia de EntrenamientoDQN...")
+        logger.info("🧪 Creando instancia de DQNTrainer...")
 
         # Nota: Solo creamos la instancia, no ejecutamos main() para evitar
         # la dependencia de la API de simulación
-        # trainer = EntrenamientoDQN()
+        # trainer = DQNTrainer()
 
         logger.info("✅ Test de configuración de dispositivo completado")
         logger.info("💡 Para entrenar:")

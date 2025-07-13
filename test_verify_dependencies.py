@@ -11,7 +11,7 @@ import sys
 from typing import Any
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
-logger = logging.getLogger("VerificacionDependencias")
+logger = logging.getLogger("TestVerifyDependencies")
 
 
 def get_system_info() -> dict[str, Any]:
