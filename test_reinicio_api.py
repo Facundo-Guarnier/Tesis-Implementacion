@@ -45,7 +45,7 @@ def test_api_reinicio(base_url: str = "http://127.0.0.1:5000"):
         response = requests.get(f"{base_url}/reporte", timeout=5)
         if response.status_code == 200:
             reporte_inicial = response.json()
-            steps_inicial = reporte_inicial.get("steps", "N/A")
+            steps_inicial = reporte_inicial.get("report_data", {}).get("steps", "N/A")
             logger.info(f"   📈 Steps inicial: {steps_inicial}")
         else:
             logger.warning("   ⚠️ No se pudo obtener el reporte inicial")
@@ -63,7 +63,7 @@ def test_api_reinicio(base_url: str = "http://127.0.0.1:5000"):
         response = requests.get(f"{base_url}/reporte", timeout=5)
         if response.status_code == 200:
             reporte_avanzado = response.json()
-            steps_avanzado = reporte_avanzado.get("steps", "N/A")
+            steps_avanzado = reporte_avanzado.get("report_data", {}).get("steps", "N/A")
             logger.info(f"   📈 Steps después del avance: {steps_avanzado}")
         else:
             steps_avanzado = "N/A"
@@ -88,7 +88,9 @@ def test_api_reinicio(base_url: str = "http://127.0.0.1:5000"):
         response = requests.get(f"{base_url}/reporte", timeout=5)
         if response.status_code == 200:
             reporte_reiniciado = response.json()
-            steps_reiniciado = reporte_reiniciado.get("steps", -1)
+            steps_reiniciado = reporte_reiniciado.get("report_data", {}).get(
+                "steps", -1
+            )
             logger.info(f"   📈 Steps después del reinicio: {steps_reiniciado}")
 
             if steps_reiniciado == 0:

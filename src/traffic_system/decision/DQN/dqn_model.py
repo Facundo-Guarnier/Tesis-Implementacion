@@ -101,7 +101,11 @@ class DQNModel:
             NDArray: Estado actual normalizado. Ej: [0.1, 0.3, 0.5, 0, 0.1, 0.2, 0.4, 0.2, 0.6, 0.3, 0.9, 1]
         """
         #! Tiempo
-        state_raw = tuple(self._service.get_wait_times()["tiempos_espera"])  # type: ignore
+        wait_times_response = self._service.get_wait_times()
+        if wait_times_response is None:
+            raise RuntimeError("No se pudo obtener los tiempos de espera del servicio")
+
+        state_raw = tuple(wait_times_response.tiempos_espera)
 
         #! Ponderar mas un semáforo que otro
         weighted_state = tuple(
@@ -141,5 +145,5 @@ class DQNModel:
         if response is None:
             return False
         else:
-            done: bool = response["done"]
+            done: bool = response.done
             return done

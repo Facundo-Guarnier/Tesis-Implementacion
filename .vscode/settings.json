@@ -50,15 +50,19 @@
   "mypy-type-checker.preferDaemon": true,
   "mypy-type-checker.reportingScope": "workspace",
   "mypy-type-checker.importStrategy": "fromEnvironment",
+
   // Configuración de GitHub Copilot para el proyecto
   "github.copilot.chat.codeGeneration.useInstructionFiles": true,
   "chat.promptFiles": true,
 
   // Configuraciones específicas para el proyecto
   "github.copilot.chat.commitMessageGeneration.instructions": [
+    { "text": "Utilizar idioma 'Español' para todos los mensajes" },
     { "text": "Usar Conventional Commits: tipo(ámbito): descripción" },
     { "text": "Tipos: feat, fix, docs, refactor, test, chore" },
-    { "text": "Incluir contexto del sistema de semáforos cuando aplique" }
+    {
+      "text": "Incluir los detalles relevantes de los cambios en el cuerpo del mensaje, si aplica."
+    }
   ],
 
   "github.copilot.chat.reviewSelection.instructions": [

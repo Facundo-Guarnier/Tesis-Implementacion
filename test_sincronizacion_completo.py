@@ -77,10 +77,11 @@ def verificar_sync(momento, spacing="   "):
             sync_data = response.json()
             sync_status = "✅" if sync_data["sincronizado"] else "❌"
             fase_info = f" ({sync_data.get('fase', 'normal')})"
+
             logger.info(
-                f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['tiempo_s1']:.1f}s, "
-                f"S2={sync_data['tiempo_s2']:.1f}s, diff={sync_data['diferencia']:.1f}s "
-                f"(max: {sync_data['max_diferencia_permitida']:.1f}s)"
+                f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['s1_time']:.1f}s, "
+                f"S2={sync_data.get('s2_time', 0):.1f}s, diff={sync_data['diferencia_tiempo']:.1f}s "
+                f"(max: {sync_data.get('tolerancia', 1.0):.1f}s)"
             )
             return sync_data["sincronizado"]
         else:
@@ -130,17 +131,16 @@ def test_semaforo_sync():
     logger.info("🚦 3/3 Probando sincronización con cambios de semáforos...")
 
     # Función helper para verificar sincronización
-    def verificar_sync(momento, spacing="   "):
+    def verificar_sync_local(momento, spacing="   "):
         try:
             response = requests.get(f"{API_BASE_URL}/sincronizacion", timeout=5)
             if response.status_code == 200:
                 sync_data = response.json()
                 sync_status = "✅" if sync_data["sincronizado"] else "❌"
-                fase_info = f" ({sync_data.get('fase', 'normal')})"
                 logger.info(
-                    f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['tiempo_s1']:.1f}s, "
-                    f"S2={sync_data['tiempo_s2']:.1f}s, diff={sync_data['diferencia']:.1f}s "
-                    f"(max: {sync_data['max_diferencia_permitida']:.1f}s)"
+                    f"{spacing}{sync_status} {momento}: S1={sync_data['s1_time']:.1f}s, "
+                    f"S2={sync_data.get('s2_time', 0):.1f}s, diff={sync_data['diferencia_tiempo']:.1f}s "
+                    f"(max: {sync_data.get('tolerancia', 1.0):.1f}s)"
                 )
                 return sync_data["sincronizado"]
             else:
@@ -149,6 +149,19 @@ def test_semaforo_sync():
         except Exception as e:
             logger.error(f"{spacing}❌ Error verificando sincronización: {e}")
             return False
+
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+    # FALLA ESTE TEST
+
+    # PEDIRLE A COPILOT
 
     # Definir algunos cambios de semáforos de prueba
     cambios_semaforos = [
@@ -215,7 +228,7 @@ def test_semaforo_sync():
             if response.status_code == 200:
                 logger.info("         ✅ Cambio aplicado exitosamente")
                 time.sleep(1)  # Pequeña pausa para que se procese
-                verificar_sync("Después del cambio de semáforo", "         ")
+                verificar_sync_local("Después del cambio de semáforo", "         ")
             else:
                 logger.error(
                     f"         ❌ Error aplicando cambio: {response.status_code}"

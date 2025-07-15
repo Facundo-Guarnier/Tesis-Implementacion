@@ -1,5 +1,6 @@
-import requests  # type: ignore
+import requests
 
+from src.traffic_system.core.api_models import ReportResponse, SimulationStatusResponse
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import AppSettings
 
@@ -10,26 +11,21 @@ class ReportAPI:
         self.app_settings = load_app_settings()
         self.__url = self.app_settings.base_url
 
-    def get_report(self) -> dict:
+    def get_report(self) -> ReportResponse | None:
         """
         Obtener el reporte de la simulación. Incluye:
         - Tiempos de espera de cada zona.
         - Estados de los semáforos.
 
         Returns:
-            dict: {
-                "steps": int,
-                "tiempos_espera": list[float],
-                "estados_semaforos": list[str]
-            }
+            ReportResponse | None: Respuesta tipada con datos del reporte
         """
-
         endpoint = "/reporte"
         response = requests.get(self.__url + endpoint)
         if response.status_code == 200:
-            return response.json()
+            return ReportResponse.model_validate(response.json())
         else:
-            return {"steps": -1, "tiempos_espera": [], "estados_semaforos": []}
+            return None
 
     def is_simulation_running(self) -> bool:
         """
@@ -38,6 +34,7 @@ class ReportAPI:
         endpoint = "/simulacion"
         response = requests.get(self.__url + endpoint)
         if response.status_code == 200:
-            return response.json()["simulacion"]
+            simulation_status = SimulationStatusResponse.model_validate(response.json())
+            return simulation_status.simulacion
         else:
             return False

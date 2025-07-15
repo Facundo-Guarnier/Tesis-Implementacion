@@ -91,7 +91,7 @@ Para escenarios donde la tarea es muy específica o ya tienes la solución clara
 
 - **Configuración:** **Todo** viene de `config.yaml` validado por Pydantic en `config_models.py`
 - **Para cambiar config:** actualizar `config_models.py` PRIMERO, luego `config.yaml`
-- **APIs:** Flask, retornar `return jsonify(data), status_code`
+- **APIs:** Flask con DTOs, retornar `return jsonify(response.model_dump()), status_code`
 - **Imports:** absolutos desde `src/` - ej: `from src.traffic_system.core.config_loader import load_app_settings`
 - **Logging:** usar emojis ✅❌⚠️🧪 y formato estándar del proyecto
 
