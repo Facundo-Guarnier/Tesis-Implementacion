@@ -109,7 +109,8 @@ class SumoApp:
 
     def get_wait_times(self) -> list[float]:
         """Obtener todos los tiempos de espera por en todas las zonas."""
-        return [self.traci.edge.getWaitingTime(zone.id) for zone in self.zones.zones]
+        # return [self.traci.edge.getWaitingTime(zone.id) for zone in self.zones.zones]
+        return [self.get_zone_wait_time(zone.id) for zone in self.zones.zones]
 
     def get_total_wait_time(self) -> float:
         """Obtener el tiempo total de espera de todas las zonas juntas."""
@@ -192,8 +193,8 @@ class SumoApp:
         # El límite de tiempo es una regla de negocio, podría externalizarse
         return (
             self.traci.simulation.getTime() <= 19500
-            # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
-            and int(self.traci.simulation.getMinExpectedNumber()) > 0
+            # and int(self.traci.simulation.getMinExpectedNumber()) > 0
+            and self.get_vehicle_count() > 0
         )
 
     def is_simulation_active(self) -> bool:

@@ -1,9 +1,10 @@
 import inspect
 import logging
-from typing import cast
 
 import requests
+from pydantic import ValidationError
 
+from src.traffic_system.core.api_helper import APIRequestHelper
 from src.traffic_system.core.api_models import (
     SimulationStatusResponse,
     SimulationStepResponse,
@@ -28,25 +29,17 @@ class DecisionAPI:
         Returns:
             VehicleQuantitiesResponse | None: Respuesta tipada con cantidades por zona
         """
-        endpoint = "/cantidad"
-        response = requests.get(self.base_url + endpoint)
-        if response.status_code == 200:
-            # TODO: No implementar cast
-            return cast(
-                VehicleQuantitiesResponse,
-                VehicleQuantitiesResponse.model_validate(response.json()),
-            )
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url, "/cantidad", VehicleQuantitiesResponse
+        )
 
     def get_zone_quantity(self, zona_name: str) -> VehicleQuantitiesResponse | None:
         """
         Obtener la cantidad de vehículos en una zona específica.
         """
-        endpoint = f"/cantidad/{zona_name}"
-        response = requests.get(self.base_url + endpoint)
-        if response.status_code == 200:
-            return VehicleQuantitiesResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url, f"/cantidad/{zona_name}", VehicleQuantitiesResponse
+        )
 
     def get_all_traffic_light_states(self) -> TrafficLightStatesResponse | None:
         """
@@ -55,11 +48,9 @@ class DecisionAPI:
         Returns:
             TrafficLightStatesResponse | None: Respuesta tipada con estados de semáforos
         """
-        endpoint = "/semaforo"
-        response = requests.get(self.base_url + endpoint)
-        if response.status_code == 200:
-            return TrafficLightStatesResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url, "/semaforo", TrafficLightStatesResponse
+        )
 
     def get_traffic_light_state(
         self, light_id: int
@@ -67,21 +58,17 @@ class DecisionAPI:
         """
         Obtener el estado de un semáforo.
         """
-        endpoint = f"/semaforo/{light_id}"
-        response = requests.get(self.base_url + endpoint)
-        if response.status_code == 200:
-            return TrafficLightStateResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url, f"/semaforo/{light_id}", TrafficLightStateResponse
+        )
 
     def get_zone_wait_time(self, zone_id: str) -> WaitTimesResponse | None:
         """
         Obtener el tiempo total de espera de una zona en la simulación.
         """
-        endpoint = f"/espera/{zone_id}"
-        response = requests.get(self.base_url + endpoint)
-        if response.status_code == 200:
-            return WaitTimesResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url, f"/espera/{zone_id}", WaitTimesResponse
+        )
 
     def get_wait_times(self) -> WaitTimesResponse | None:
         """
@@ -90,11 +77,9 @@ class DecisionAPI:
         Returns:
             WaitTimesResponse | None: Respuesta tipada con tiempos de espera
         """
-        endpoint = "/espera"
-        response = requests.get(self.base_url + endpoint)
-        if response.status_code == 200:
-            return WaitTimesResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url, "/espera", WaitTimesResponse
+        )
 
     def advance_simulation(self, steps: int) -> SimulationStepResponse | None:
         """
@@ -106,27 +91,29 @@ class DecisionAPI:
         Returns:
             SimulationStepResponse | None: Respuesta tipada con resultado del avance
         """
-        endpoint = "/avanzar"
-        response = requests.put(self.base_url + endpoint, params={"steps": steps})
-        if response.status_code == 200:
-            return SimulationStepResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url,
+            "/avanzar",
+            SimulationStepResponse,
+            method="PUT",
+            params={"steps": steps},
+        )
 
     def set_traffic_light_states(self, states: list[str]) -> SuccessResponse | None:
         """
         Cambiar el estado de un semáforo.
         """
-        endpoint = "/semaforo"
-
         data_payload = []
         for light_id in range(len(states)):
             data_payload.append({"id": str(light_id + 1), "estado": states[light_id]})
 
-        response = requests.put(self.base_url + endpoint, json={"data": data_payload})
-
-        if response.status_code == 200:
-            return SuccessResponse.model_validate(response.json())
-        return None
+        return APIRequestHelper.safe_request_with_validation(
+            self.base_url,
+            "/semaforo",
+            SuccessResponse,
+            method="PUT",
+            json={"data": data_payload},
+        )
 
     def is_simulation_running(self) -> bool:
         """
@@ -137,16 +124,21 @@ class DecisionAPI:
         )
 
         try:
-            response = requests.get(f"{self.base_url}/simulacion")
-            if response.status_code != 200:
+            # Usamos APIRequestHelper.safe_request para consistencia
+            response_data = APIRequestHelper.safe_request(self.base_url, "/simulacion")
+            if response_data is None:
                 logger.error("❌ La API no está disponible")
                 return False
-            simulation_status = SimulationStatusResponse.model_validate(response.json())
+
+            simulation_status = SimulationStatusResponse.model_validate(response_data)
             return simulation_status.simulacion
         except requests.ConnectionError:
             logger.error(
                 "❌ No se puede conectar a la API. ¿Está ejecutándose el servidor?"
             )
+            return False
+        except ValidationError as e:
+            logger.error(f"❌ Error validando respuesta: {e}")
             return False
 
     def is_simulation_synchronized(self) -> bool:
@@ -157,9 +149,11 @@ class DecisionAPI:
             f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
         )
         try:
-            response = requests.get(f"{self.base_url}/sincronizacion")
-            if response.status_code == 200:
-                sync_response = SynchronizationResponse.model_validate(response.json())
+            response_data = APIRequestHelper.safe_request(
+                self.base_url, "/sincronizacion"
+            )
+            if response_data is not None:
+                sync_response = SynchronizationResponse.model_validate(response_data)
                 logger.info(
                     f"📊 Sincronización actual: S1={sync_response.s1_time:.1f}s, S2={sync_response.s2_time or 0:.1f}s"
                 )
@@ -167,6 +161,9 @@ class DecisionAPI:
             else:
                 logger.warning("⚠️ No hay simulación de comparación activa")
                 return False
+        except ValidationError as e:
+            logger.error(f"❌ Error validando respuesta de sincronización: {e}")
+            return False
         except Exception as e:
             logger.error(f"❌ Error verificando sincronización: {e}")
             return False

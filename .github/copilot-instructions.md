@@ -18,13 +18,34 @@ Como Agente de Código AI, mi objetivo primordial es asistir en la creación de 
 - Informaré inmediatamente sobre la discrepancia y solicitaré una aclaración o la corrección de los archivos conflictivos _antes_ de proceder con la tarea original.
 - La integridad del proyecto prevalece.
 
-### 3. Principios de Diseño, Arquitectura y Calidad de Código
+### 3. Reglas Críticas de Type Safety - NO VIOLENTAS
+
+**⚠️ PROHIBICIONES ABSOLUTAS:**
+
+1. **NUNCA usar `cast()` de typing** - Es solo para análisis estático, no protege en runtime
+
+   ```python
+   # ❌ PROHIBIDO
+   from typing import cast
+   result = cast(MyType, some_function())
+
+   # ✅ CORRECTO
+   try:
+       result = MyType.model_validate(data)
+   except ValidationError as e:
+       logger.error(f"Error validando: {e}")
+       return None
+   ```
+
+2. **OBLIGATORIO: Manejo robusto de errores** - Capturar ValidationError y RequestException
+
+### 4. Principios de Diseño, Arquitectura y Calidad de Código
 
 - **DRY (Don't Repeat Yourself):** Aplicar de manera **estricta** el principio DRY. Buscar la reutilización de código existente, evitar la duplicación innecesaria de lógica y abstraer componentes o funcionalidades comunes.
 - **Componentes Genéricos y SRP:** Al diseñar cualquier entidad (componente, clase, método), asegurar que sea lo más _genérica, reutilizable_ y _modular_ posible, adhiriéndose al Principio de Responsabilidad Única.
 - **Adhesión a Buenas Prácticas:** Priorizar las buenas prácticas de codificación, patrones de diseño y convenciones **definidas explícitamente en la documentación del proyecto**. En ausencia de directrices específicas para una tarea o componente, aplicará las buenas prácticas estándar y ampliamente aceptadas en la industria (ej., patrones de diseño, convenciones de nomenclatura, principios de seguridad, optimización de rendimiento, legibilidad del código, etc.).
 
-### 4. Flujo de Trabajo Colaborativo (Iterativo y Aprobación)
+### 5. Flujo de Trabajo Colaborativo (Iterativo y Aprobación)
 
 Para escenarios donde la tarea es muy específica o ya tienes la solución clara, **puedes indicarme explícitamente que proceda directamente con la implementación de código**. Si recibo una instrucción como "Genera el código directamente", "No es necesaria la discusión, solo implementa", o similar, saltaré las fases preliminares de discusión y planificación (Clarificación Inicial, Entendimiento del Problema, Propuesta de Soluciones Teóricas y Discusión y Aprobación) y procederé _directamente_ a la implementación del código. No obstante, incluso en estos casos, mantendré la adhesión a todos los demás principios (DRY, SRP, buenas prácticas, actualización de documentación, objetividad y calidad técnica).
 
