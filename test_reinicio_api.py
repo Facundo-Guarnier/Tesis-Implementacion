@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("TestReinicioAPI")
 
 
-def test_api_reinicio(base_url: str = "http://127.0.0.1:5000"):
+def test_api_reinicio(base_url: str = "http://127.0.0.1:5000") -> bool:
     """
     Prueba el endpoint de reinicio a través de la API REST.
     """

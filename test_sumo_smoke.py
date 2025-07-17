@@ -30,7 +30,7 @@ def start_traci_connection(
     return traci.getConnection(label)
 
 
-def test_sumo_basic_functionality():
+def test_sumo_basic_functionality() -> bool:
     """
     Test de humo para verificar que SUMO funciona correctamente.
     """

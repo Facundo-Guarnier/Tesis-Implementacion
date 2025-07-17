@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("TestDQNTrainer")
 
 
-def test_configuracion_real():
+def test_configuracion_real() -> bool:
     """
     Test real de la configuración automática de DQNTrainer.
     """
@@ -35,11 +35,11 @@ def test_configuracion_real():
         logger.info("🔧 1/4 Configurando entorno de prueba...")
 
         class MockSettings:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.entrenamiento = MockEntrenamiento()
 
         class MockEntrenamiento:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.memory = 1000
                 self.num_epocas = 2
                 self.batch_size = 32
@@ -117,7 +117,7 @@ def test_configuracion_real():
         return False
 
 
-def test_sin_gpu():
+def test_sin_gpu() -> bool:
     """
     Test simulando sistema sin GPU.
     """

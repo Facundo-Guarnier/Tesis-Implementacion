@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("TestDQN")
 
 
-def test_configuracion_dispositivo():
+def test_configuracion_dispositivo() -> bool:
     """
     Prueba la configuración automática de dispositivo en DQNTrainer.
     """
@@ -61,7 +61,7 @@ def test_configuracion_dispositivo():
         return False
 
 
-def test_dispositivo_manual():
+def test_dispositivo_manual() -> None:
     """
     Test manual de selección de dispositivo.
     """

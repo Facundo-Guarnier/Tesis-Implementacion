@@ -299,7 +299,7 @@ class DQNTrainer:
             int: Índice de la acción seleccionada.
         """
         if np.random.rand() <= self.epsilon:
-            return np.random.choice(len(self._action_space))
+            return int(np.random.choice(len(self._action_space)))
         else:
             # Reshape para predicción en lote (más eficiente)
             state_batch = np.expand_dims(state, axis=0)  # (12,) -> (1, 12)

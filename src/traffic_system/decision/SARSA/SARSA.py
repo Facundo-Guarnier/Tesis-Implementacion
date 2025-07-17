@@ -26,7 +26,7 @@ class SARSA:
             for s4 in semaforo_4
         ]
 
-    def usar(self):
+    def usar(self) -> None:
         """
         Utilizar el modelo entrenado.
         """
@@ -39,7 +39,7 @@ class SARSA:
             )
             done = self.__avanzar(action)
 
-    def __inicializar_Q(self, path) -> dict[tuple, float]:
+    def __inicializar_Q(self, path: str) -> dict[tuple, float]:
         """
         Cargar los valores Q desde el archivo.
         """

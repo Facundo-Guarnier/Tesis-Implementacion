@@ -3,6 +3,7 @@ import logging
 import os
 import sqlite3
 import time
+from typing import Any, cast
 
 from src.traffic_system.api_client.reporting_client import ReportAPI
 from src.traffic_system.core.config_loader import load_app_settings
@@ -63,7 +64,7 @@ class ReportService:
         logger.error("❌ Falló 5 veces seguidas al intentar generar el reporte.")
         self._close_db()
 
-    def _create_logger(self):
+    def _create_logger(self) -> None:
         """
         Crea un logger para registrar las alertas en un archivo .log.
         """
@@ -116,19 +117,24 @@ class ReportService:
         """
 
         if not self._client_api_report.is_simulation_running():
+            return {}  #! Obtener los datos de la simulación
+        data_response = self._client_api_report.get_report()
+
+        if data_response is None:
             return {}
 
-        #! Obtener los datos de la simulación
-        data = self._client_api_report.get_report()
+        # Convertir la respuesta Pydantic a diccionario
+        data = data_response.model_dump()
 
         #! Calcular el tiempo de espera total
         # ? Esto es redundante si get_report ya devuelve "total_wait_time"?
-        total_wait = sum(
-            data["wait_times_per_zone"]
+        total_wait = float(
+            sum(data["wait_times_per_zone"])
         )  # Asumiendo que esta es la clave de la API
-        data["total_wait_time"] = total_wait
+        data["tiempo_espera_total"] = total_wait
 
-        return data
+        # TODO: Implementar mejor tipado
+        return cast(dict[Any, Any], data)
 
     def _create_table(self) -> None:
         """

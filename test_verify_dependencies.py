@@ -62,7 +62,7 @@ def get_poetry_info() -> dict[str, Any]:
         return {"poetry_available": False, "error": str(e)}
 
 
-def main():
+def main() -> None:
     """Función principal de verificación."""
     logger.info("🔍 VERIFICACIÓN DE DEPENDENCIAS MULTIPLATAFORMA")
     logger.info("=" * 50)

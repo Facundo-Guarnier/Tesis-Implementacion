@@ -38,7 +38,7 @@ from src.traffic_system.api_client.data_source_client import DecisionAPI
 
 
 class EntrenamientoSARSA:
-    def __init__(self):
+    def __init__(self) -> None:
         self.__api = DecisionAPI("http://127.0.0.1:5000")
         self.__setEspacioAcciones()
         self.__setPath()

@@ -1,5 +1,6 @@
 import inspect
 import logging
+from typing import cast
 
 import requests
 
@@ -16,7 +17,7 @@ from src.traffic_system.core.api_models import (
 
 
 class DecisionAPI:
-    def __init__(self, base_url):
+    def __init__(self, base_url: str) -> None:
         logging.basicConfig(level=logging.DEBUG)
         self.base_url = base_url
 
@@ -30,9 +31,12 @@ class DecisionAPI:
         endpoint = "/cantidad"
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
-            return VehicleQuantitiesResponse.model_validate(response.json())
-        else:
-            return None
+            # TODO: No implementar cast
+            return cast(
+                VehicleQuantitiesResponse,
+                VehicleQuantitiesResponse.model_validate(response.json()),
+            )
+        return None
 
     def get_zone_quantity(self, zona_name: str) -> VehicleQuantitiesResponse | None:
         """
@@ -42,8 +46,7 @@ class DecisionAPI:
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return VehicleQuantitiesResponse.model_validate(response.json())
-        else:
-            return None
+        return None
 
     def get_all_traffic_light_states(self) -> TrafficLightStatesResponse | None:
         """
@@ -56,9 +59,7 @@ class DecisionAPI:
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return TrafficLightStatesResponse.model_validate(response.json())
-        else:
-            return None
-            return None
+        return None
 
     def get_traffic_light_state(
         self, light_id: int
@@ -70,10 +71,9 @@ class DecisionAPI:
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return TrafficLightStateResponse.model_validate(response.json())
-        else:
-            return None
+        return None
 
-    def get_zone_wait_time(self, zone_id) -> WaitTimesResponse | None:
+    def get_zone_wait_time(self, zone_id: str) -> WaitTimesResponse | None:
         """
         Obtener el tiempo total de espera de una zona en la simulación.
         """
@@ -81,8 +81,7 @@ class DecisionAPI:
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return WaitTimesResponse.model_validate(response.json())
-        else:
-            return None
+        return None
 
     def get_wait_times(self) -> WaitTimesResponse | None:
         """
@@ -95,8 +94,7 @@ class DecisionAPI:
         response = requests.get(self.base_url + endpoint)
         if response.status_code == 200:
             return WaitTimesResponse.model_validate(response.json())
-        else:
-            return None
+        return None
 
     def advance_simulation(self, steps: int) -> SimulationStepResponse | None:
         """
@@ -112,8 +110,7 @@ class DecisionAPI:
         response = requests.put(self.base_url + endpoint, params={"steps": steps})
         if response.status_code == 200:
             return SimulationStepResponse.model_validate(response.json())
-        else:
-            return None
+        return None
 
     def set_traffic_light_states(self, states: list[str]) -> SuccessResponse | None:
         """
@@ -129,8 +126,7 @@ class DecisionAPI:
 
         if response.status_code == 200:
             return SuccessResponse.model_validate(response.json())
-        else:
-            return None
+        return None
 
     def is_simulation_running(self) -> bool:
         """

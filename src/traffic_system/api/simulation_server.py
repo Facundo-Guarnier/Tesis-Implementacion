@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from flask import Flask, Response, jsonify, request
 
@@ -21,7 +22,7 @@ class SumoAPI(Flask):
         name: str,
         app_s1: SumoApp,
         app_s2: SumoApp | None = None,
-        comparison_logger=None,
+        comparison_logger: Any = None,
     ) -> None:
         super().__init__(name)
 
@@ -252,7 +253,7 @@ class SumoAPI(Flask):
         )
         return jsonify(response.model_dump()), 200
 
-    def set_traffic_light_state(self, light_id) -> tuple[Response, int]:
+    def set_traffic_light_state(self, light_id: str) -> tuple[Response, int]:
         """Cambiar el estado de un semáforo en S1."""
         state = request.args.get("estado", type=str)
         if not state:

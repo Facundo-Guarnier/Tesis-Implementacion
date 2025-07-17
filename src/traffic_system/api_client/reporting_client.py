@@ -1,3 +1,5 @@
+from typing import cast
+
 import requests
 
 from src.traffic_system.core.api_models import ReportResponse, SimulationStatusResponse
@@ -23,9 +25,9 @@ class ReportAPI:
         endpoint = "/reporte"
         response = requests.get(self.__url + endpoint)
         if response.status_code == 200:
-            return ReportResponse.model_validate(response.json())
-        else:
-            return None
+            # TODO: Implementar mejor tipado
+            return cast(ReportResponse, ReportResponse.model_validate(response.json()))
+        return None
 
     def is_simulation_running(self) -> bool:
         """
@@ -34,7 +36,10 @@ class ReportAPI:
         endpoint = "/simulacion"
         response = requests.get(self.__url + endpoint)
         if response.status_code == 200:
-            simulation_status = SimulationStatusResponse.model_validate(response.json())
+            # TODO: Implementar mejor tipado
+            simulation_status = cast(
+                SimulationStatusResponse,
+                SimulationStatusResponse.model_validate(response.json()),
+            )
             return simulation_status.simulacion
-        else:
-            return False
+        return False

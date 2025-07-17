@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import sys
+from typing import Any
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.decision.DQN.App import DecisionApp
@@ -61,7 +62,7 @@ def main() -> None:
         app.run_model_inference()
 
 
-def shutdown_handler(sig_num, frame):
+def shutdown_handler(sig_num: int, frame: Any) -> None:
     logger.info("Cerrando el agente de decisión...")
     sys.exit(0)
 

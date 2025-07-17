@@ -92,7 +92,8 @@ class SumoApp:
 
     def get_traffic_light_state(self, traffic_light_id: str) -> str:
         """Obtener el estado actual de un semáforo."""
-        return self.traci.trafficlight.getRedYellowGreenState(traffic_light_id)
+        # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado de getRedYellowGreenState
+        return str(self.traci.trafficlight.getRedYellowGreenState(traffic_light_id))
 
     def get_traffic_light_states(self) -> list[str]:
         """Obtener el estado actual de todos los semáforos principales."""
@@ -103,7 +104,8 @@ class SumoApp:
 
     def get_zone_wait_time(self, zone_id: str) -> float:
         """Obtener el tiempo de espera en una zona."""
-        return self.traci.edge.getWaitingTime(zone_id)
+        # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
+        return float(self.traci.edge.getWaitingTime(zone_id))
 
     def get_wait_times(self) -> list[float]:
         """Obtener todos los tiempos de espera por en todas las zonas."""
@@ -115,7 +117,8 @@ class SumoApp:
 
     def get_vehicle_count(self) -> int:
         """Obtener la cantidad de vehículos en la simulación."""
-        return self.traci.simulation.getMinExpectedNumber()
+        # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
+        return int(self.traci.simulation.getMinExpectedNumber())
 
     def advance(self, steps: int) -> bool:
         """
@@ -189,7 +192,8 @@ class SumoApp:
         # El límite de tiempo es una regla de negocio, podría externalizarse
         return (
             self.traci.simulation.getTime() <= 19500
-            and self.traci.simulation.getMinExpectedNumber() > 0
+            # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
+            and int(self.traci.simulation.getMinExpectedNumber()) > 0
         )
 
     def is_simulation_active(self) -> bool:

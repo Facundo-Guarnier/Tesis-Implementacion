@@ -14,7 +14,7 @@ from src.traffic_system.reporting.report_service import ReportService
 
 
 class ReportApp:
-    def __init__(self):
+    def __init__(self) -> None:
         logging.basicConfig(level=logging.DEBUG)
         self.report_service = ReportService()
 
