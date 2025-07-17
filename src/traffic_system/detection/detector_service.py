@@ -104,7 +104,7 @@ class DetectorService:
         )
 
     def _draw_detection_polygon_and_centers_cv2(
-        self, frame, detections: sv.Detections
+        self, frame: np.ndarray, detections: sv.Detections
     ) -> np.ndarray:
         """
         - Dibuja el centro de los objetos y el polígono de detección.

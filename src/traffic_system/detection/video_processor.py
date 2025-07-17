@@ -67,7 +67,7 @@ class VideoProcessor:
 
     def _get_fps(self) -> float:
         cap = cv2.VideoCapture(self.origin_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps: float = cap.get(cv2.CAP_PROP_FPS)
         cap.release()
         return fps
 

@@ -1,7 +1,19 @@
 import logging
+from typing import Any
 
 from flask import Flask, Response, jsonify, request
 
+from src.traffic_system.core.api_models import (
+    ErrorResponse,
+    ReportResponse,
+    SimulationStatusResponse,
+    SimulationStepResponse,
+    SuccessResponse,
+    SynchronizationResponse,
+    TrafficLightStateResponse,
+    TrafficLightStatesResponse,
+    WaitTimesResponse,
+)
 from src.traffic_system.simulation.app import SumoApp
 
 
@@ -11,7 +23,7 @@ class SumoAPI(Flask):
         name: str,
         app_s1: SumoApp,
         app_s2: SumoApp | None = None,
-        comparison_logger=None,
+        comparison_logger: Any = None,
     ) -> None:
         super().__init__(name)
 
@@ -49,7 +61,8 @@ class SumoAPI(Flask):
         """
         steps = request.args.get("steps", type=int)
         if not steps:
-            return jsonify({"error": "Falta el parámetro 'steps'."}), 400
+            error_response = ErrorResponse(error="Falta el parámetro 'steps'.")
+            return jsonify(error_response.model_dump()), 400
 
         # Verificar estado inicial de ambas simulaciones
         # Solo aplicar verificación estricta después de los primeros pasos
@@ -59,7 +72,10 @@ class SumoAPI(Flask):
 
             # Si estamos en los primeros pasos, permitir diferencias mayores
             if max(time_s1, time_s2) >= 5.0 and not self._check_synchronization():
-                return jsonify({"error": "Las simulaciones están desincronizadas"}), 500
+                error_response = ErrorResponse(
+                    error="Las simulaciones están desincronizadas"
+                )
+                return jsonify(error_response.model_dump()), 500
 
         # Avanzar simulación principal (controlada por el agente)
         done_s1 = self.app_s1.advance(steps=steps)
@@ -81,10 +97,10 @@ class SumoAPI(Flask):
 
             except Exception as e:
                 self.logger.error(f"Error avanzando simulación de comparación: {e}")
-                return (
-                    jsonify({"error": f"Error en simulación de comparación: {str(e)}"}),
-                    500,
+                error_response = ErrorResponse(
+                    error=f"Error en simulación de comparación: {str(e)}"
                 )
+                return jsonify(error_response.model_dump()), 500
 
         # Si hay un logger de comparación, invocarlo para que verifique
         # si debe registrar las métricas.
@@ -94,21 +110,14 @@ class SumoAPI(Flask):
         # La simulación se considera terminada si cualquiera de las dos termina
         done = done_s1 or done_s2
 
-        return (
-            jsonify(
-                {
-                    "done": done,
-                    "s1_done": done_s1,
-                    "s2_done": done_s2 if self.app_s2 else None,
-                    "sync_status": (
-                        "ok"
-                        if not self.app_s2 or self._check_synchronization()
-                        else "desync"
-                    ),
-                }
-            ),
-            200,
+        # Crear respuesta tipada
+        response = SimulationStepResponse(
+            done=done,
+            current_time=self.app_s1.traci.simulation.getTime(),
+            vehicles_count=len(self.app_s1.traci.vehicle.getIDList()),
         )
+
+        return jsonify(response.model_dump()), 200
 
     def _check_synchronization(self) -> bool:
         """
@@ -151,7 +160,10 @@ class SumoAPI(Flask):
         Endpoint para obtener información de sincronización entre las dos simulaciones.
         """
         if not self.app_s2:
-            return jsonify({"error": "No hay simulación de comparación activa"}), 404
+            error_response = ErrorResponse(
+                error="No hay simulación de comparación activa"
+            )
+            return jsonify(error_response.model_dump()), 404
 
         try:
             time_s1: float = self.app_s1.traci.simulation.getTime()
@@ -162,56 +174,57 @@ class SumoAPI(Flask):
             if max(time_s1, time_s2) < 5.0:
                 is_synced = difference <= 2.0
                 max_allowed_difference = 2.0
-                phase = "inicial"
             else:
                 is_synced = difference <= 1.0
                 max_allowed_difference = 1.0
-                phase = "normal"
 
-            return (
-                jsonify(
-                    {
-                        "sincronizado": is_synced,
-                        "tiempo_s1": time_s1,
-                        "tiempo_s2": time_s2,
-                        "diferencia": difference,
-                        "max_diferencia_permitida": max_allowed_difference,
-                        "fase": phase,
-                    }
-                ),
-                200,
+            response = SynchronizationResponse(
+                sincronizado=is_synced,
+                diferencia_tiempo=difference,
+                s1_time=time_s1,
+                s2_time=time_s2,
+                tolerancia=max_allowed_difference,
             )
+
+            return jsonify(response.model_dump()), 200
         except Exception as e:
             self.logger.error(f"Error obteniendo sincronización: {e}")
-            return jsonify({"error": str(e)}), 500
+            error_response = ErrorResponse(error=str(e))
+            return jsonify(error_response.model_dump()), 500
 
     # --- El resto de los métodos de la API no necesitan cambios ---
     # ... (getTiemposEspera, getEstados, etc. se quedan como estaban)
     def get_wait_times(self) -> tuple[Response, int]:
         """Obtener tiempos de espera de la simulación principal (S1)."""
-        return (
-            jsonify(
-                {
-                    "tiempo_espera_total": self.app_s1.get_total_wait_time(),
-                    "tiempos_espera": self.app_s1.get_wait_times(),
-                }
-            ),
-            200,
+        wait_times = self.app_s1.get_wait_times()
+        total_wait_time = self.app_s1.get_total_wait_time()
+
+        response = WaitTimesResponse(
+            tiempos_espera=wait_times,
+            tiempo_espera_total=total_wait_time,
+            promedio_espera=sum(wait_times) / len(wait_times) if wait_times else 0.0,
         )
+
+        return jsonify(response.model_dump()), 200
 
     def get_wait_times_s2(self) -> tuple[Response, int]:
         """Obtener tiempos de espera de la simulación de comparación (S2)."""
         if self.app_s2 and self.app_s2.is_simulation_active():
-            return (
-                jsonify(
-                    {
-                        "tiempo_espera_total": self.app_s2.get_total_wait_time(),
-                        "tiempos_espera": self.app_s2.get_wait_times(),
-                    }
+            wait_times = self.app_s2.get_wait_times()
+            total_wait_time = self.app_s2.get_total_wait_time()
+
+            response = WaitTimesResponse(
+                tiempos_espera=wait_times,
+                tiempo_espera_total=total_wait_time,
+                promedio_espera=(
+                    sum(wait_times) / len(wait_times) if wait_times else 0.0
                 ),
-                200,
             )
-        return jsonify({"error": "Simulación de comparación no disponible."}), 404
+
+            return jsonify(response.model_dump()), 200
+
+        error_response = ErrorResponse(error="Simulación de comparación no disponible.")
+        return jsonify(error_response.model_dump()), 404
 
     def get_zone_wait_time(self, zone_id: str) -> tuple[Response, int]:
         """Obtener tiempo de espera de una zona en S1."""
@@ -222,17 +235,31 @@ class SumoAPI(Flask):
 
     def get_all_traffic_light_states(self) -> tuple[Response, int]:
         """Obtener estados de semáforos de S1."""
-        return jsonify({"estados": self.app_s1.get_traffic_light_states()}), 200
+        states_list = self.app_s1.get_traffic_light_states()
+        # Convertir lista a diccionario con IDs
+        states_dict = {str(i + 1): state for i, state in enumerate(states_list)}
+
+        response = TrafficLightStatesResponse(
+            estados=states_dict,
+            total_lights=len(states_dict),
+        )
+        return jsonify(response.model_dump()), 200
 
     def get_traffic_light_state(self, id: str) -> tuple[Response, int]:
         """Obtener estado de un semáforo de S1."""
-        return jsonify({"estado": self.app_s1.get_traffic_light_state(id)}), 200
+        state = self.app_s1.get_traffic_light_state(id)
+        response = TrafficLightStateResponse(
+            estado=state,
+            light_id=id,
+        )
+        return jsonify(response.model_dump()), 200
 
-    def set_traffic_light_state(self, light_id) -> tuple[Response, int]:
+    def set_traffic_light_state(self, light_id: str) -> tuple[Response, int]:
         """Cambiar el estado de un semáforo en S1."""
         state = request.args.get("estado", type=str)
         if not state:
-            return jsonify({"error": "Falta el parámetro 'estado'."}), 400
+            error_response = ErrorResponse(error="Falta el parámetro 'estado'.")
+            return jsonify(error_response.model_dump()), 400
 
         try:
             # Capturar tiempo antes del cambio
@@ -254,17 +281,23 @@ class SumoAPI(Flask):
                     # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
                     self.app_s2.advance(int(steps_advanced))
 
-            return jsonify({"estado": state}), 200
+            response = TrafficLightStateResponse(
+                estado=state,
+                light_id=light_id,
+            )
+            return jsonify(response.model_dump()), 200
 
         except Exception as e:
             self.logger.error(f"Error cambiando estado de semáforo {light_id}: {e}")
-            return jsonify({"error": f"Error interno: {str(e)}"}), 500
+            error_response = ErrorResponse(error=f"Error interno: {str(e)}")
+            return jsonify(error_response.model_dump()), 500
 
     def set_all_traffic_light_states(self) -> tuple[Response, int]:
         """Cambiar los estados de varios semáforos en S1."""
         payload = request.json
         if not payload or "data" not in payload:
-            return jsonify({"error": "Falta el campo 'data' en el JSON."}), 400
+            error_response = ErrorResponse(error="Falta el campo 'data' en el JSON.")
+            return jsonify(error_response.model_dump()), 400
 
         try:
             # Capturar tiempo antes del cambio
@@ -293,28 +326,45 @@ class SumoAPI(Flask):
                             "después del cambio de semáforos"
                         )
 
-            return jsonify({"estado": "OK"}), 200
+            response = SuccessResponse(
+                message="Estados de semáforos actualizados correctamente"
+            )
+            return jsonify(response.model_dump()), 200
 
         except Exception as e:
             self.logger.error(f"Error cambiando estados de semáforos: {e}")
-            return jsonify({"error": f"Error interno: {str(e)}"}), 500
+            error_response = ErrorResponse(error=f"Error interno: {str(e)}")
+            return jsonify(error_response.model_dump()), 500
 
     def get_simulation_status(self) -> tuple[Response, int]:
         """Verificar si la simulación S1 está en ejecución."""
-        return jsonify({"simulacion": self.app_s1.is_simulation_active()}), 200
+        response = SimulationStatusResponse(
+            simulacion=self.app_s1.is_simulation_active(),
+            tiempo_actual=(
+                self.app_s1.traci.simulation.getTime()
+                if self.app_s1.is_simulation_active()
+                else None
+            ),
+            modo_comparacion=self.app_s2 is not None,
+        )
+        return jsonify(response.model_dump()), 200
 
     def get_report(self) -> tuple[Response, int]:
         """Reporte de flujo vehicular de S1."""
-        return (
-            jsonify(
-                {
-                    "steps": int(self.app_s1.traci.simulation.getTime()),
-                    "tiempos_espera": self.app_s1.get_wait_times(),
-                    "estados_semaforos": self.app_s1.get_traffic_light_states(),
-                }
-            ),
-            200,
+        states_list = self.app_s1.get_traffic_light_states()
+        # Crear diccionario con datos de reporte
+        report_data = {
+            "steps": int(self.app_s1.traci.simulation.getTime()),
+            "tiempos_espera": self.app_s1.get_wait_times(),
+            "estados_semaforos": states_list,
+        }
+
+        response = ReportResponse(
+            report_data=report_data,
+            generated_at=f"{int(self.app_s1.traci.simulation.getTime())}s",
         )
+
+        return jsonify(response.model_dump()), 200
 
     def reset_simulations(self) -> tuple[Response, int]:
         """Reiniciar las simulaciones S1 y S2 (si existe)."""
@@ -341,4 +391,7 @@ class SumoAPI(Flask):
 
         except Exception as e:
             self.logger.error(f"❌ Error al reiniciar simulaciones: {e}")
-            return jsonify({"error": f"Error al reiniciar simulaciones: {str(e)}"}), 500
+            error_response = ErrorResponse(
+                error=f"Error al reiniciar simulaciones: {str(e)}"
+            )
+            return jsonify(error_response.model_dump()), 500

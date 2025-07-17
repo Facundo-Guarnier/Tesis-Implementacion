@@ -17,7 +17,7 @@ logger = logging.getLogger("TestSincronizacion")
 API_BASE_URL = "http://localhost:5000"
 
 
-def test_endpoints():
+def test_endpoints() -> bool:
     """Prueba todos los endpoints básicos de la API."""
     logger.info("🔧 1/3 Probando endpoints básicos de la API...")
 
@@ -70,19 +70,20 @@ def test_endpoints():
     return True
 
 
-def verificar_sync(momento, spacing="   "):
+def verificar_sync(momento: str, spacing: str = "   ") -> bool:
     try:
         response = requests.get(f"{API_BASE_URL}/sincronizacion", timeout=5)
         if response.status_code == 200:
             sync_data = response.json()
             sync_status = "✅" if sync_data["sincronizado"] else "❌"
             fase_info = f" ({sync_data.get('fase', 'normal')})"
+
             logger.info(
-                f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['tiempo_s1']:.1f}s, "
-                f"S2={sync_data['tiempo_s2']:.1f}s, diff={sync_data['diferencia']:.1f}s "
-                f"(max: {sync_data['max_diferencia_permitida']:.1f}s)"
+                f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['s1_time']:.1f}s, "
+                f"S2={sync_data.get('s2_time', 0):.1f}s, diff={sync_data['diferencia_tiempo']:.1f}s "
+                f"(max: {sync_data.get('tolerancia', 1.0):.1f}s)"
             )
-            return sync_data["sincronizado"]
+            return bool(sync_data["sincronizado"])
         else:
             logger.warning(f"{spacing}⚠️  No hay simulación de comparación activa")
             return True
@@ -91,7 +92,7 @@ def verificar_sync(momento, spacing="   "):
         return False
 
 
-def test_basic_sync():
+def test_basic_sync() -> bool:
     """Prueba la sincronización básica sin cambios de semáforos."""
     logger.info("⚡ 2/3 Probando sincronización básica...")
 
@@ -125,24 +126,23 @@ def test_basic_sync():
     return True
 
 
-def test_semaforo_sync():
+def test_semaforo_sync() -> bool:
     """Prueba que los cambios de semáforos mantengan la sincronización."""
     logger.info("🚦 3/3 Probando sincronización con cambios de semáforos...")
 
     # Función helper para verificar sincronización
-    def verificar_sync(momento, spacing="   "):
+    def verificar_sync_local(momento: str, spacing: str = "   ") -> bool:
         try:
             response = requests.get(f"{API_BASE_URL}/sincronizacion", timeout=5)
             if response.status_code == 200:
                 sync_data = response.json()
                 sync_status = "✅" if sync_data["sincronizado"] else "❌"
-                fase_info = f" ({sync_data.get('fase', 'normal')})"
                 logger.info(
-                    f"{spacing}{sync_status} {momento}{fase_info}: S1={sync_data['tiempo_s1']:.1f}s, "
-                    f"S2={sync_data['tiempo_s2']:.1f}s, diff={sync_data['diferencia']:.1f}s "
-                    f"(max: {sync_data['max_diferencia_permitida']:.1f}s)"
+                    f"{spacing}{sync_status} {momento}: S1={sync_data['s1_time']:.1f}s, "
+                    f"S2={sync_data.get('s2_time', 0):.1f}s, diff={sync_data['diferencia_tiempo']:.1f}s "
+                    f"(max: {sync_data.get('tolerancia', 1.0):.1f}s)"
                 )
-                return sync_data["sincronizado"]
+                return bool(sync_data["sincronizado"])
             else:
                 logger.warning(f"{spacing}⚠️  No hay simulación de comparación activa")
                 return True
@@ -202,7 +202,7 @@ def test_semaforo_sync():
                 if "params" in cambio:
                     response = requests.put(
                         f"{API_BASE_URL}{cambio['endpoint']}",
-                        params=cambio["params"],
+                        params=cambio["params"],  # type: ignore[arg-type]
                         timeout=10,
                     )
                 elif "json" in cambio:
@@ -215,7 +215,7 @@ def test_semaforo_sync():
             if response.status_code == 200:
                 logger.info("         ✅ Cambio aplicado exitosamente")
                 time.sleep(1)  # Pequeña pausa para que se procese
-                verificar_sync("Después del cambio de semáforo", "         ")
+                verificar_sync_local("Después del cambio de semáforo", "         ")
             else:
                 logger.error(
                     f"         ❌ Error aplicando cambio: {response.status_code}"
@@ -254,7 +254,7 @@ def test_semaforo_sync():
     return True
 
 
-def run_complete_sync_test():
+def run_complete_sync_test() -> bool:
     """Ejecuta el test completo de sincronización."""
     logger.info("=" * 60)
     logger.info("TEST COMPLETO: SINCRONIZACIÓN DE SIMULACIONES")

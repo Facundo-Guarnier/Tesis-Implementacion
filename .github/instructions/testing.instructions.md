@@ -60,4 +60,4 @@ if __name__ == "__main__":
 
 - Base URL: `http://127.0.0.1:5000`
 - Endpoints clave: `/simulacion`, `/reporte`, `/avanzar`, `/sincronizacion`
-- Verificar respuestas JSON con `response.json()`
+- Verificar respuestas JSON con DTOs: `response = MyResponse.model_validate(response.json())`

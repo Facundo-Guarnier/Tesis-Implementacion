@@ -14,11 +14,13 @@ class Coordinates:
 
         self.video()
 
-    def print_coordinates(self, event, x, y, flags, params):
+    def print_coordinates(
+        self, event: int, x: int, y: int, flags: int, params: object
+    ) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
             self.pixel_coordinates.append([x, y])
 
-    def video(self):
+    def video(self) -> None:
         while True:
             status, frame = self.cap.read()
 
@@ -30,7 +32,7 @@ class Coordinates:
             if cv2.waitKey(70) & 0xFF == ord("q"):
                 break
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.cap.release()
         cv2.destroyAllWindows()
 

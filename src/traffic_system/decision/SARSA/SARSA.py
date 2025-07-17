@@ -26,7 +26,7 @@ class SARSA:
             for s4 in semaforo_4
         ]
 
-    def usar(self):
+    def usar(self) -> None:
         """
         Utilizar el modelo entrenado.
         """
@@ -39,7 +39,7 @@ class SARSA:
             )
             done = self.__avanzar(action)
 
-    def __inicializar_Q(self, path) -> dict[tuple, float]:
+    def __inicializar_Q(self, path: str) -> dict[tuple, float]:
         """
         Cargar los valores Q desde el archivo.
         """
@@ -55,7 +55,11 @@ class SARSA:
         - No incluye el color de los semáforos porque estaría duplicando datos con respecto a la accion.
         - Ej: [1,3,5,0,1,2,4,2,6,3,9,10]
         """
-        vehiculos = tuple(self.__api.get_quantities().values())  # type: ignore
+        quantities_response = self.__api.get_quantities()
+        if quantities_response is None:
+            raise RuntimeError("No se pudo obtener las cantidades de vehículos")
+
+        vehiculos = tuple(quantities_response.cantidades.values())
 
         return vehiculos
 
@@ -67,11 +71,17 @@ class SARSA:
         """
 
         #! Cambiar el estado de los semáforos en SUMO
-        action = action.split("-")  # type: ignore
-        self.__api.set_traffic_light_states(states=action)
+        if isinstance(action, str):
+            action_list = action.split("-")
+        else:
+            action_list = action
+        self.__api.set_traffic_light_states(states=action_list)
 
         #! Avanzar en SUMO con la acción seleccionada
         respuesta = self.__api.advance_simulation(steps=10)
-        done: bool = respuesta["done"]  # type: ignore
+        if respuesta is None:
+            raise RuntimeError("No se pudo avanzar la simulación")
+
+        done: bool = respuesta.done
 
         return done

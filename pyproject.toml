@@ -100,15 +100,21 @@ ignore_missing_imports = true
 warn_unused_configs = true # Advertir sobre configuraciones no utilizadas
 show_error_codes = true # Mostrar códigos de error
 # TODO: Activar y hacer las correcciones pertinentes
-# disallow_untyped_defs = true # Desalentar funciones sin anotaciones de tipo
-# warn_return_any = true # Advertir sobre funciones que retornan Any
-# strict_optional = true # Habilitar comprobaciones estrictas de tipos opcionales
+disallow_untyped_defs = true # Desalentar funciones sin anotaciones de tipo
+warn_return_any = true # Advertir sobre funciones que retornan Any
+strict_optional = true # Habilitar comprobaciones estrictas de tipos opcionales
 
-# Configuración por módulos específicos
+# Ignorar errores en algoritmos de Machine Learning (SARSA)
 [[tool.mypy.overrides]]
-module = "tests.*"
+module = "src.traffic_system.decision.SARSA.*"
 ignore_errors = true
 
+# Ignorar errores de retorno Any en archivos que usan bibliotecas externas como Pydantic
+[[tool.mypy.overrides]]
+module = "src.traffic_system.api_client.*"
+warn_return_any = false
+
+# Configuración por módulos específicos
 [[tool.mypy.overrides]]
 module = "scripts.*"
 ignore_errors = true

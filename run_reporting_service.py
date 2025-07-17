@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import sys
+from typing import Any
 
 from src.traffic_system.reporting.app import ReportApp
 
@@ -22,7 +23,7 @@ def main() -> None:
     app.generate_report()
 
 
-def shutdown_handler(sig_num, frame):
+def shutdown_handler(sig_num: int, frame: Any) -> None:
     logger.info("⚠️ Cerrando el servicio de simulación...")
     sys.exit(0)
 

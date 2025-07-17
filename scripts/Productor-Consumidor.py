@@ -1,14 +1,15 @@
 import multiprocessing
 import queue
 import time
+from typing import Any
 
 
 class Notificado:
-    def __init__(self):
+    def __init__(self) -> None:
         manager = multiprocessing.Manager()
         self.__notificaciones = manager.Queue(maxsize=1)
 
-    def notificar(self, notificacion):
+    def notificar(self, notificacion: Any) -> None:
         # Intenta retirar una notificación existente antes de poner la nueva
         try:
             self.__notificaciones.get_nowait()
@@ -16,7 +17,7 @@ class Notificado:
             pass
         self.__notificaciones.put(notificacion)
 
-    def getNotificaciones(self):
+    def getNotificaciones(self) -> None:
         while True:
             time.sleep(0.00001)
             notificacion = self.__notificaciones.get()
@@ -26,10 +27,10 @@ class Notificado:
 
 
 class Detector:
-    def __init__(self, notificado):
+    def __init__(self, notificado: Notificado) -> None:
         self.notificado = notificado
 
-    def detectar(self, m):
+    def detectar(self, m: Any) -> None:
         # Detecta algo y notifica
         self.notificado.notificar(f"Algo detectado {m}")
         print(f"Notificando {m}")

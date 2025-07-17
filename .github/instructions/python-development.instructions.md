@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 ## APIs REST
 
 - Usar Flask para APIs
-- Retornar tuplas: `return jsonify(data), status_code`
+- Retornar tuplas con DTOs: `return jsonify(response.model_dump()), status_code`
 - Manejar errores con try/except y logs apropiados
 - Usar timeouts en requests: `requests.get(url, timeout=5)`
 

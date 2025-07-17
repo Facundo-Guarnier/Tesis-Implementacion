@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 from threading import Thread
+from typing import Any
 
 from src.traffic_system.core.config_loader import load_app_settings
 
@@ -106,7 +107,7 @@ def api_client() -> None:
     api.run(host="0.0.0.0", port=5000, debug=False)
 
 
-def shutdown_handler(sig_num, frame):
+def shutdown_handler(sig_num: int, frame: Any) -> None:
     logger.info("Cerrando el servicio de detección...")
     sys.exit(0)
 

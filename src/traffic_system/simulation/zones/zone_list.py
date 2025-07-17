@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from src.traffic_system.simulation.zones.zone import Zone
 
 
@@ -7,14 +9,14 @@ class ZoneList:
     - Representa una lista de zonas (List[Zone]).
     """
 
-    _instance = None  # type: ignore
+    _instance: ZoneList | None = None
 
-    def __new__(cls):
+    def __new__(cls) -> ZoneList:
         if not cls._instance:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.zones = self._define_zones()
 
     def _define_zones(self) -> list[Zone]:

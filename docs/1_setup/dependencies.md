@@ -80,6 +80,10 @@ poetry run python test_verify_dependencies.py
 
 - **📖 Guía completa:** Ver [`code_style.md`](../2_guides/code_style.md#-logging-vs-print-statements)
 
+**APIs**: Migrar a DTOs/Models con Pydantic para type safety
+
+- **📖 Propuesta:** Ver [`api_models_proposal.md`](../3_reference/api_models_proposal.md)
+
 ## 📦 Dependencias del Proyecto
 
 ### Producción

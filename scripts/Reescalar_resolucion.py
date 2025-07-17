@@ -4,8 +4,11 @@ import cv2
 
 
 def reescalar_video(
-    ruta_entrada, ruta_salida, nueva_resolucion, factor_reduccion_fps=3
-):
+    ruta_entrada: str,
+    ruta_salida: str,
+    nueva_resolucion: tuple[int, int],
+    factor_reduccion_fps: int = 3,
+) -> None:
     """
     - Reduce a un tercio los fps.
     - Reescala un video a una nueva resolución.
@@ -27,7 +30,7 @@ def reescalar_video(
 
     # ruta_salida = nombre_base + f"-{nueva_resolucion[0]}x{nueva_resolucion[1]}-{round(fps_nuevo)}fps{extension}"
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     out = cv2.VideoWriter(ruta_salida, fourcc, fps_nuevo, nueva_resolucion)
 
     while True:
@@ -52,8 +55,11 @@ def reescalar_video(
 
 
 def reescalar_carpeta_videos(
-    carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps
-):
+    carpeta_entrada: str,
+    carpeta_salida: str,
+    nueva_resolucion: tuple[int, int],
+    factor_reduccion_fps: int,
+) -> None:
     #! Crear la carpeta de salida si no existe
     carpeta_salida = f"{carpeta_salida}-{nueva_resolucion[0]}x{nueva_resolucion[1]}-{round(30/factor_reduccion_fps)}fps"
     if not os.path.exists(carpeta_salida):

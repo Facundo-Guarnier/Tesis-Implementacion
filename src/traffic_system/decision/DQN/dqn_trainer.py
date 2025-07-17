@@ -299,7 +299,7 @@ class DQNTrainer:
             int: Índice de la acción seleccionada.
         """
         if np.random.rand() <= self.epsilon:
-            return np.random.choice(len(self._action_space))
+            return int(np.random.choice(len(self._action_space)))
         else:
             # Reshape para predicción en lote (más eficiente)
             state_batch = np.expand_dims(state, axis=0)  # (12,) -> (1, 12)
@@ -493,8 +493,11 @@ class DQNTrainer:
             NDArray: Estado normalizado como (12,) en lugar de (1,12)
         """
         #! Tiempo
-        state_raw = self._api.get_wait_times()["tiempos_espera"]  # type: ignore
-        state_raw = np.array(state_raw, dtype=np.float32)
+        wait_times_response = self._api.get_wait_times()
+        if wait_times_response is None:
+            raise RuntimeError("No se pudo obtener los tiempos de espera de la API")
+
+        state_raw = np.array(wait_times_response.tiempos_espera, dtype=np.float32)
 
         # Optimizar normalización
         max_wait_time = np.max(state_raw)
@@ -527,8 +530,10 @@ class DQNTrainer:
 
         #! Avanzar en SUMO con la acción seleccionada
         response = self._api.advance_simulation(steps=self.steps)
+        if response is None:
+            raise RuntimeError("No se pudo avanzar la simulación")
 
-        done: bool = response["done"]  # type: ignore #! Si la simulación ha terminado
+        done: bool = response.done  #! Si la simulación ha terminado
 
         return self._get_current_state(), self._calculate_reward(), done
 
@@ -538,7 +543,13 @@ class DQNTrainer:
         La inversa del tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
         - 100 / (tiempo_espera_total + 100)
         """
-        wait_time = self._api.get_wait_times()["tiempo_espera_total"]  # type: ignore
+        wait_times_response = self._api.get_wait_times()
+        if wait_times_response is None:
+            raise RuntimeError(
+                "No se pudo obtener los tiempos de espera para calcular recompensa"
+            )
+
+        wait_time = wait_times_response.tiempo_espera_total
         return 100 / ((wait_time) + 100)
 
     def start_training_process(self) -> None:
@@ -626,7 +637,12 @@ class DQNTrainer:
         fixed_time_start = time.time()
         while not done:
             total_reward += self._calculate_reward()
-            done = self._api.advance_simulation(steps=self.steps)["done"]  # type: ignore
+            response = self._api.advance_simulation(steps=self.steps)
+            if response is None:
+                raise RuntimeError(
+                    "No se pudo avanzar la simulación en cálculo de tiempo fijo"
+                )
+            done = response.done
         fixed_time_duration = time.time() - fixed_time_start
 
         #! Guardar los datos de los semaforos con tiempo fijo

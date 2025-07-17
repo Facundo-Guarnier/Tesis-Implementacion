@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger("VerificacionGPU")
 
 
-def verificar_gpu():
+def verificar_gpu() -> bool:
     """
     Verifica la configuración de GPU para TensorFlow.
     """
@@ -182,7 +182,7 @@ def verificar_gpu():
     return True
 
 
-def verificar_dependencias():
+def verificar_dependencias() -> bool:
     """
     Verifica las dependencias necesarias para el entrenamiento.
     """

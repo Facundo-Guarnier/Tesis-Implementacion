@@ -1,5 +1,10 @@
 from flask import Flask, Response, jsonify
 
+from src.traffic_system.core.api_models import (
+    SuccessResponse,
+    VehicleQuantitiesResponse,
+    WaitTimesResponse,
+)
 from src.traffic_system.detection.zones.zone_list import ZoneList
 
 
@@ -28,49 +33,48 @@ class DetectionAPI(Flask):
         """
         Cantidades de vehículos por cada una de las zonas.
         """
-        return jsonify(self.zones.get_all_quantities()), 200
+        quantities = self.zones.get_all_quantities()
+        response = VehicleQuantitiesResponse(
+            cantidades=quantities,
+            total_vehicles=sum(quantities.values()),
+        )
+        return jsonify(response.model_dump()), 200
 
     def get_zone_quantity(self, zone_name: str) -> tuple[Response, int]:
         """
         Cantidad de vehículos en una zona específica.
         """
-        return (
-            jsonify(
-                {
-                    "zona": zone_name,
-                    "cantidad_detecciones": self.zones.get_zone_quantity(zone_name),
-                }
-            ),
-            200,
+        quantity = self.zones.get_zone_quantity(zone_name)
+        response = VehicleQuantitiesResponse(
+            cantidades={zone_name: quantity},
+            total_vehicles=quantity,
         )
+        return jsonify(response.model_dump()), 200
 
     def get_wait_times(self) -> tuple[Response, int]:
         """
         Devuelve los tiempos de espera en cada zona.
 
         Return:
-            - dict -> {"tiempo_espera_total": int, "tiempos_espera": list[int]}
+            WaitTimesResponse: Respuesta tipada con tiempos de espera
         """
-        return (
-            jsonify(
-                {
-                    "tiempo_espera_total": self.zones.get_total_wait_time(),
-                    "tiempos_espera": self.zones.get_zone_wait_times(),
-                }
-            ),
-            200,
+        wait_times_raw = self.zones.get_zone_wait_times()
+        wait_times = [float(wt) for wt in wait_times_raw]  # Convertir a float
+        total_wait_time = float(self.zones.get_total_wait_time())
+
+        response = WaitTimesResponse(
+            tiempos_espera=wait_times,
+            tiempo_espera_total=total_wait_time,
+            promedio_espera=sum(wait_times) / len(wait_times) if wait_times else 0.0,
         )
+
+        return jsonify(response.model_dump()), 200
 
     def activate_fines(self, zone_name: str) -> tuple[Response, int]:
         """
         Activa las multas en las zonas.
         """
+        result = self.zones.activate_fines(zone_name)
+        response = SuccessResponse(message=f"Multas {zone_name}: {result}")
 
-        return (
-            jsonify(
-                {
-                    "mensaje": f"Multas {zone_name}: {self.zones.activate_fines(zone_name)}"
-                }
-            ),
-            200,
-        )
+        return jsonify(response.model_dump()), 200

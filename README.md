@@ -53,8 +53,13 @@ curl -sSL https://install.python-poetry.org | python3 -
 # Instalar todas las dependencias
 poetry install
 
+# Ver el entorno virtual creado
+poetry env list --full-path
+
 # Activar entorno virtual
 poetry shell
+# o
+poetry env activate <path_to_virtual_env>
 
 # Instalar hooks de pre-commit
 poetry run pre-commit install

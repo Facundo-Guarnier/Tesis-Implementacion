@@ -48,9 +48,17 @@ app_sumo.reiniciar()
 # Usando curl
 curl -X POST http://127.0.0.1:5000/simulacion/reiniciar
 
-# Usando requests en Python
+# Usando requests en Python con DTOs
 import requests
+from src.traffic_system.api.api_models import ResetResponse, ErrorResponse
+
 response = requests.post("http://127.0.0.1:5000/simulacion/reiniciar")
+if response.status_code == 200:
+    reset_response = ResetResponse.model_validate(response.json())
+    print(f"✅ {reset_response.message}")
+else:
+    error_response = ErrorResponse.model_validate(response.json())
+    print(f"❌ {error_response.error}")
 ```
 
 ## 🧪 Scripts de prueba
