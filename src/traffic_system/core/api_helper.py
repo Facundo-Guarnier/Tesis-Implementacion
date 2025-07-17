@@ -62,8 +62,14 @@ class APIRequestHelper:
                 return None
 
             if response.status_code == 200:
-                json_data: dict[str, Any] = response.json()
-                return json_data
+                if "application/json" in response.headers.get("Content-Type", ""):
+                    json_data: dict[str, Any] = response.json()
+                    return json_data
+                else:
+                    logger.warning(
+                        f"Respuesta con Content-Type inválido en {endpoint}: {response.headers.get('Content-Type')}"
+                    )
+                    return None
             else:
                 logger.warning(
                     f"Respuesta no exitosa en {endpoint}: {response.status_code}"

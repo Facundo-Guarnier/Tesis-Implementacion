@@ -8,6 +8,7 @@ from src.traffic_system.core.api_models import (
     ReportResponse,
     SimulationStatusResponse,
     SimulationStepResponse,
+    SuccessResponse,
     SynchronizationResponse,
     TrafficLightStateResponse,
     TrafficLightStatesResponse,
@@ -324,8 +325,6 @@ class SumoAPI(Flask):
                             "Advertencia: Las simulaciones no quedaron perfectamente sincronizadas "
                             "después del cambio de semáforos"
                         )
-
-            from src.traffic_system.core.api_models import SuccessResponse
 
             response = SuccessResponse(
                 message="Estados de semáforos actualizados correctamente"

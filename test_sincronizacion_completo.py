@@ -150,19 +150,6 @@ def test_semaforo_sync() -> bool:
             logger.error(f"{spacing}❌ Error verificando sincronización: {e}")
             return False
 
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-    # FALLA ESTE TEST
-
-    # PEDIRLE A COPILOT
-
     # Definir algunos cambios de semáforos de prueba
     cambios_semaforos = [
         {
