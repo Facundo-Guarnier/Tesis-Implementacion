@@ -16,6 +16,10 @@ from src.traffic_system.core.api_models import (
 )
 from src.traffic_system.simulation.app import SumoApp
 
+# Constants for simulation defaults when done
+DEFAULT_SIMULATION_TIME = 0.0
+DEFAULT_VEHICLES_COUNT = 0
+
 
 class SumoAPI(Flask):
     def __init__(
@@ -32,6 +36,15 @@ class SumoAPI(Flask):
         self.comparison_logger = comparison_logger
 
         self.logger = logging.getLogger("SumoAPI")
+
+        # Estado interno para rastrear si alguna operación de semáforos terminó la simulación
+        self._simulation_ended_during_traffic_light_change = False
+
+        # Logging detallado de requests para debuggear MemoryError
+        self.before_request(self._log_request_details)
+
+        # Handler global para MemoryError con información completa
+        self.register_error_handler(MemoryError, self._handle_memory_error_with_debug)
 
         log = logging.getLogger("werkzeug")
         log.setLevel(logging.ERROR)
@@ -64,6 +77,21 @@ class SumoAPI(Flask):
             error_response = ErrorResponse(error="Falta el parámetro 'steps'.")
             return jsonify(error_response.model_dump()), 400
 
+        # VERIFICAR PRIMERO si la simulación terminó en una operación anterior de semáforos
+        if self._simulation_ended_during_traffic_light_change:
+            self.logger.info(
+                "🏁 step_simulation: Detectada terminación previa durante cambio de semáforos. "
+                "Devolviendo done=True (simulaciones ya reiniciadas)."
+            )
+            # Limpiar el flag y devolver done=True
+            self._simulation_ended_during_traffic_light_change = False
+            response = SimulationStepResponse(
+                done=True,
+                current_time=DEFAULT_SIMULATION_TIME,
+                vehicles_count=DEFAULT_VEHICLES_COUNT,
+            )
+            return jsonify(response.model_dump()), 200
+
         # Verificar estado inicial de ambas simulaciones
         # Solo aplicar verificación estricta después de los primeros pasos
         if self.app_s2:
@@ -77,8 +105,13 @@ class SumoAPI(Flask):
                 )
                 return jsonify(error_response.model_dump()), 500
 
+        # Capturar TODOS los estados ANTES de cualquier operación
+        time_s1_before = self.app_s1.traci.simulation.getTime()
+        vehicles_s1_before = len(self.app_s1.traci.vehicle.getIDList())
+
         # Avanzar simulación principal (controlada por el agente)
         done_s1 = self.app_s1.advance(steps=steps)
+
         done_s2 = False
 
         # Si estamos en modo comparación, avanzar la segunda simulación
@@ -90,7 +123,12 @@ class SumoAPI(Flask):
                 # Verificar que ambas simulaciones siguen sincronizadas
                 # Solo mostrar warning después de los primeros pasos
                 tiempo_s1_final = self.app_s1.traci.simulation.getTime()
-                if tiempo_s1_final >= 5.0 and not self._check_synchronization():
+                if (
+                    tiempo_s1_final >= 5.0
+                    and not done_s1
+                    and not done_s2
+                    and not self._check_synchronization()
+                ):
                     self.logger.warning(
                         "Las simulaciones se desincronizaron durante el avance"
                     )
@@ -102,20 +140,76 @@ class SumoAPI(Flask):
                 )
                 return jsonify(error_response.model_dump()), 500
 
-        # Si hay un logger de comparación, invocarlo para que verifique
-        # si debe registrar las métricas.
-        if self.comparison_logger and self.app_s2:
-            self.comparison_logger.log_if_needed(self.app_s1, self.app_s2)
-
         # La simulación se considera terminada si cualquiera de las dos termina
         done = done_s1 or done_s2
 
-        # Crear respuesta tipada
-        response = SimulationStepResponse(
-            done=done,
-            current_time=self.app_s1.traci.simulation.getTime(),
-            vehicles_count=len(self.app_s1.traci.vehicle.getIDList()),
-        )
+        # Si alguna simulación terminó, reiniciarlas DESPUÉS de capturar el estado
+        if done:
+            # Reiniciar S1
+            if done_s1:
+                self.app_s1.reset()
+
+            # Reiniciar S2 si existe y terminó
+            if self.app_s2 and done_s2:
+                self.app_s2.reset()
+
+            # Si solo una terminó, reiniciar ambas para mantener sincronización
+            elif self.app_s2 and done:
+                if not done_s1:
+                    self.app_s1.reset()
+                if not done_s2:
+                    self.app_s2.reset()
+
+        # Si hay un logger de comparación, invocarlo para que verifique
+        # si debe registrar las métricas (solo si no se reiniciaron las simulaciones)
+        if self.comparison_logger and self.app_s2 and not done:
+            self.comparison_logger.log_if_needed(self.app_s1, self.app_s2)
+
+        # Crear respuesta tipada usando SIEMPRE los estados capturados ANTES de advance()
+        # Esto garantiza consistencia independientemente de reinicios
+        if done:
+            # Reportar tiempo 0 cuando done=True para consistencia con logs esperados
+            response = SimulationStepResponse(
+                done=True,  # Usar valor determinado, no verificar estado actual
+                current_time=DEFAULT_SIMULATION_TIME,
+                vehicles_count=DEFAULT_VEHICLES_COUNT,
+            )
+        else:
+            # Usar SIEMPRE los estados capturados antes de advance() para evitar race conditions
+            # Pero actualizarlos con el avance real que se hizo
+            steps_advanced = steps  # El número de pasos solicitados
+            estimated_time_after = time_s1_before + steps_advanced
+
+            # Solo si no hay problemas, usar el tiempo real actual
+            try:
+                actual_time_after = self.app_s1.traci.simulation.getTime()
+                actual_vehicles_after = len(self.app_s1.traci.vehicle.getIDList())
+
+                # Verificación de consistencia: si hay gran diferencia, usar estimado
+                time_diff = abs(actual_time_after - estimated_time_after)
+                if time_diff > 50:  # Diferencia sospechosa
+                    self.logger.warning(
+                        f"⚠️ Diferencia temporal sospechosa: estimated={estimated_time_after:.1f}s, "
+                        f"actual={actual_time_after:.1f}s, diff={time_diff:.1f}s"
+                    )
+                    # Usar valores seguros
+                    final_time = estimated_time_after
+                    final_vehicles = vehicles_s1_before
+                else:
+                    final_time = actual_time_after
+                    final_vehicles = actual_vehicles_after
+
+            except Exception as e:
+                self.logger.error(f"Error leyendo estado post-advance: {e}")
+                # Fallback a estimación
+                final_time = estimated_time_after
+                final_vehicles = vehicles_s1_before
+
+            response = SimulationStepResponse(
+                done=False,  # Usar valor determinado, no verificar estado actual
+                current_time=final_time,
+                vehicles_count=final_vehicles,
+            )
 
         return jsonify(response.model_dump()), 200
 
@@ -266,20 +360,46 @@ class SumoAPI(Flask):
             time_s1_before = self.app_s1.traci.simulation.getTime()
 
             # Cambiar estado del semáforo en S1 (esto puede avanzar 3 pasos internamente)
-            self.app_s1.set_traffic_light_state(light_id, state)
+            done_s1 = self.app_s1.set_traffic_light_state(light_id, state)
 
-            # Si hay simulación de comparación, sincronizar el avance
-            if self.app_s2:
+            # Si la simulación terminó durante el cambio, REINICIAR INMEDIATAMENTE
+            # y marcar el flag para que step_simulation lo reporte en la próxima llamada
+            if done_s1:
+                self.logger.info(
+                    f"🏁 Simulación terminó durante cambio de semáforo {light_id}. "
+                    f"Reiniciando inmediatamente y marcando flag."
+                )
+
+                # Reiniciar S1 inmediatamente
+                self.app_s1.reset()
+
+                # Reiniciar S2 si existe
+                if self.app_s2:
+                    self.app_s2.reset()
+
+                # Marcar flag para que step_simulation reporte done=True
+                self._simulation_ended_during_traffic_light_change = True
+
+            # Si hay simulación de comparación, sincronizar el avance SOLO si no terminó
+            elif self.app_s2:
                 time_s1_after = self.app_s1.traci.simulation.getTime()
                 steps_advanced = time_s1_after - time_s1_before
 
                 if steps_advanced > 0:
-                    self.logger.debug(
-                        f"S1 avanzó {steps_advanced:.1f} pasos por cambio de semáforo {light_id}. "
-                        f"Sincronizando S2..."
-                    )
                     # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
-                    self.app_s2.advance(int(steps_advanced))
+                    done_s2 = self.app_s2.advance(int(steps_advanced))
+                    if done_s2:
+                        self.logger.info(
+                            "🏁 S2 terminó durante sincronización de semáforo. "
+                            "Reiniciando inmediatamente y marcando flag."
+                        )
+
+                        # Reiniciar ambas inmediatamente
+                        self.app_s1.reset()
+                        self.app_s2.reset()
+
+                        # Marcar flag para que step_simulation reporte done=True
+                        self._simulation_ended_during_traffic_light_change = True
 
             response = TrafficLightStateResponse(
                 estado=state,
@@ -304,27 +424,46 @@ class SumoAPI(Flask):
             time_s1_before = self.app_s1.traci.simulation.getTime()
 
             # Cambiar estados de semáforos en S1 (esto puede avanzar 3 pasos internamente)
-            self.app_s1.set_traffic_light_states(new_states=payload["data"])
+            done_s1 = self.app_s1.set_traffic_light_states(new_states=payload["data"])
 
-            # Si hay simulación de comparación, sincronizar el avance
-            if self.app_s2:
+            # Si la simulación terminó durante el cambio, REINICIAR INMEDIATAMENTE
+            # y marcar el flag para que step_simulation lo reporte en la próxima llamada
+            if done_s1:
+                self.logger.info(
+                    "🏁 Simulación terminó durante cambio de semáforos. "
+                    "Reiniciando inmediatamente y marcando flag."
+                )
+
+                # Reiniciar S1 inmediatamente
+                self.app_s1.reset()
+
+                # Reiniciar S2 si existe
+                if self.app_s2:
+                    self.app_s2.reset()
+
+                # Marcar flag para que step_simulation reporte done=True
+                self._simulation_ended_during_traffic_light_change = True
+
+            # Si hay simulación de comparación, sincronizar el avance SOLO si no terminó
+            elif self.app_s2:
                 time_s1_after = self.app_s1.traci.simulation.getTime()
                 steps_advanced = time_s1_after - time_s1_before
 
                 if steps_advanced > 0:
-                    self.logger.debug(
-                        f"S1 avanzó {steps_advanced:.1f} pasos por cambio de semáforos. "
-                        f"Sincronizando S2..."
-                    )
                     # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
-                    self.app_s2.advance(int(steps_advanced))
-
-                    # Verificar sincronización final
-                    if not self._check_synchronization():
-                        self.logger.warning(
-                            "Advertencia: Las simulaciones no quedaron perfectamente sincronizadas "
-                            "después del cambio de semáforos"
+                    done_s2 = self.app_s2.advance(int(steps_advanced))
+                    if done_s2:
+                        self.logger.info(
+                            "🏁 S2 terminó durante sincronización de semáforos. "
+                            "Reiniciando inmediatamente y marcando flag."
                         )
+
+                        # Reiniciar ambas inmediatamente
+                        self.app_s1.reset()
+                        self.app_s2.reset()
+
+                        # Marcar flag para que step_simulation reporte done=True
+                        self._simulation_ended_during_traffic_light_change = True
 
             response = SuccessResponse(
                 message="Estados de semáforos actualizados correctamente"
@@ -369,6 +508,9 @@ class SumoAPI(Flask):
     def reset_simulations(self) -> tuple[Response, int]:
         """Reiniciar las simulaciones S1 y S2 (si existe)."""
         try:
+            # Limpiar el flag de terminación durante cambio de semáforos
+            self._simulation_ended_during_traffic_light_change = False
+
             # Reiniciar S1
             self.app_s1.reset()
             result = {"s1": "reiniciada"}
@@ -395,3 +537,129 @@ class SumoAPI(Flask):
                 error=f"Error al reiniciar simulaciones: {str(e)}"
             )
             return jsonify(error_response.model_dump()), 500
+
+    def _log_request_details(self) -> None:
+        """Loggea detalles de todas las requests entrantes para debuggear."""
+        import datetime
+
+        from flask import request
+
+        # Información básica de la request
+        content_length = request.content_length or 0
+
+        method = request.method
+        url = request.url
+        headers = dict(request.headers)
+
+        # Log básico siempre
+
+        # Si la request es sospechosamente grande, loggear más detalles
+        if content_length > 1_000:  # 1 KB
+            self.logger.info(
+                f"📥 Request: {method} {url} | Size: {content_length:,} bytes"
+            )
+            self.logger.warning(
+                f"⚠️  REQUEST GRANDE DETECTADA: {content_length:,} bytes"
+            )
+            self.logger.warning(f"Headers: {headers}")
+
+            # Guardar request grande en archivo para análisis
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"debug_large_request_{timestamp}.json"
+
+            try:
+                debug_data = {
+                    "timestamp": timestamp,
+                    "method": method,
+                    "url": url,
+                    "content_length": content_length,
+                    "headers": headers,
+                    "args": dict(request.args),
+                    "form": dict(request.form) if request.form else None,
+                }
+
+                # Intentar capturar el JSON si es posible
+                try:
+                    if request.is_json:
+                        debug_data["json_data"] = request.get_json()
+                except Exception as e:
+                    debug_data["json_error"] = str(e)
+
+                import json
+
+                with open(filename, "w", encoding="utf-8") as f:
+                    json.dump(debug_data, f, indent=2, ensure_ascii=False)
+
+                self.logger.warning(f"💾 Request guardada en: {filename}")
+
+            except Exception as e:
+                self.logger.error(f"❌ Error guardando request debug: {e}")
+
+    def _handle_memory_error_with_debug(
+        self, error: MemoryError
+    ) -> tuple[Response, int]:
+        """Handler para MemoryError con información completa de debug."""
+        import datetime
+        import json
+        import traceback
+
+        from flask import request
+
+        self.logger.error(f"💥 MEMORY ERROR DETECTADO: {error}")
+
+        # Capturar toda la información posible
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        debug_info: dict[str, Any] = {
+            "timestamp": timestamp,
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+            "request_info": {
+                "method": getattr(request, "method", "UNKNOWN"),
+                "url": getattr(request, "url", "UNKNOWN"),
+                "content_length": getattr(request, "content_length", 0),
+                "headers": dict(getattr(request, "headers", {})),
+                "remote_addr": getattr(request, "remote_addr", "UNKNOWN"),
+            },
+        }
+
+        # Guardar información de debug
+        debug_filename = f"MEMORY_ERROR_DEBUG_{timestamp}.json"
+        try:
+
+            with open(debug_filename, "w", encoding="utf-8") as f:
+                json.dump(debug_info, f, indent=2, ensure_ascii=False)
+
+            self.logger.error(f"🔍 Debug info guardada en: {debug_filename}")
+        except Exception as save_error:
+            self.logger.error(f"❌ Error guardando debug info: {save_error}")
+
+        # Log completo en consola
+        self.logger.error("=" * 80)
+        self.logger.error("MEMORY ERROR COMPLETO:")
+
+        # Extraer información del request con type hints claros
+        request_info: dict[str, Any] = debug_info["request_info"]
+        method = request_info.get("method", "UNKNOWN")
+        url = request_info.get("url", "UNKNOWN")
+        content_length = request_info.get("content_length", 0)
+        headers = dict(request_info.get("headers", {}))
+        traceback_str = debug_info.get("traceback", "")
+
+        self.logger.error(f"Request: {method} {url}")
+        self.logger.error(f"Content-Length: {content_length:,} bytes")
+        self.logger.error(f"Headers: {headers}")
+        self.logger.error(f"Traceback: {traceback_str}")
+        self.logger.error("=" * 80)
+
+        # Fallar intencionalmente para que el desarrollador vea el problema
+        raise error
+
+    def _handle_payload_too_large(self, error: Exception) -> tuple[Response, int]:
+        """Handler para payloads demasiado grandes."""
+        self.logger.error(f"❌ Payload demasiado grande: {error}")
+
+        error_response = ErrorResponse(
+            error="Request demasiado grande. Máximo permitido: 1MB"
+        )
+        return jsonify(error_response.model_dump()), 413

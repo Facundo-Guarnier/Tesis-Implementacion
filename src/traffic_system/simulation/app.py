@@ -38,10 +38,18 @@ class SumoApp:
         self.restart_callback = restart_callback
         self.logger = logging.getLogger(f" {self.__class__.__name__}[{self.label}]")
 
-    def set_traffic_light_state(self, traffic_light_id: str, new_state: str) -> None:
+    def set_traffic_light_state(self, traffic_light_id: str, new_state: str) -> bool:
         """
         Cambiar el color del semáforo (ejemplo: ponerlo en verde).
+
+        Returns:
+            bool: True si la simulación terminó durante el cambio, False en caso contrario
         """
+        initial_time = self.traci.simulation.getTime()
+        self.logger.debug(
+            f"🚦 set_traffic_light_state({traffic_light_id}, {new_state}) desde t={initial_time:.1f}s"
+        )
+
         current_state = self.get_traffic_light_state(traffic_light_id)
         if new_state != current_state:
             yellow_state = current_state.replace("g", "y").replace("G", "y")
@@ -49,16 +57,33 @@ class SumoApp:
             self.traci.trafficlight.setRedYellowGreenState(
                 traffic_light_id, yellow_state
             )
-            self.advance(3)  # Avanza 3 segundos para el amarillo
+            # Avanzar para mostrar el amarillo - verificar si termina la simulación
+            self.logger.debug("🟡 Mostrando amarillo durante 3 pasos...")
+            done = self.advance(3)
+            if done:
+                self.logger.info(
+                    f"🏁 Simulación terminó durante cambio de semáforo {traffic_light_id} (amarillo)"
+                )
+                return True
 
             self.traci.trafficlight.setRedYellowGreenState(traffic_light_id, new_state)
+            self.logger.debug(f"✅ Semáforo {traffic_light_id} cambiado a {new_state}")
+        else:
+            self.logger.debug(
+                f"⏭️ Semáforo {traffic_light_id} ya está en {new_state}, no necesita cambio"
+            )
 
-    def set_traffic_light_states(self, new_states: list[dict]) -> None:
+        return False
+
+    def set_traffic_light_states(self, new_states: list[dict]) -> bool:
         """
         Cambiar el color de varios semáforos de forma coordinada.
 
         Args:
             estados_nuevos: [{'id': '1', 'estado': 'GGGrrr...'}, ...]
+
+        Returns:
+            bool: True si la simulación terminó durante el cambio, False en caso contrario
         """
         yellow_states_list: list[dict] = []
 
@@ -82,13 +107,17 @@ class SumoApp:
 
         # Si hubo cambios, avanzar para que el amarillo sea visible
         if yellow_states_list:
-            self.advance(3)
+            done = self.advance(3)
+            if done:
+                return True
 
         # Poner todos los semáforos en su estado verde/rojo final
         for traffic_light_data in new_states:
             self.traci.trafficlight.setRedYellowGreenState(
                 traffic_light_data["id"], traffic_light_data["estado"]
             )
+
+        return False
 
     def get_traffic_light_state(self, traffic_light_id: str) -> str:
         """Obtener el estado actual de un semáforo."""
@@ -125,32 +154,78 @@ class SumoApp:
         """
         Avanzar la cantidad de steps especificada.
         Devuelve True si la simulación terminó durante el avance.
+        NOTA: No reinicia automáticamente - el llamador debe llamar reset() si done=True.
         """
         initial_time = self.traci.simulation.getTime()
-        self.logger.debug(f"Avanzando {steps} pasos desde t={initial_time:.1f}s...")
 
+        # Solo hacer debug logging cuando sea relevante
+        if initial_time > 19480 or initial_time < 10:
+            self.logger.debug(
+                f"💫 Iniciando advance({steps}) desde t={initial_time:.1f}s..."
+            )
+
+        #! VERIFICACIÓN CONSERVADORA: Si estamos cerca del límite, verificar si podemos completar TODOS los pasos
+        current_time = self.traci.simulation.getTime()
+        time_after_all_steps = current_time + steps
+
+        if time_after_all_steps >= 19500:
+            # self.logger.info(
+            #     f"🚨 CONSERVADOR: advance({steps}) desde t={current_time:.1f}s llegaría a t={time_after_all_steps:.1f}s "
+            #     f"(>= 19500). Devolviendo done=True preventivamente."
+            # )
+            return True
+
+        # Si no vamos a sobrepasar el límite, proceder normalmente
         done = False
         steps_executed = 0
 
         for i in range(steps):
-            if self.can_continue():
-                try:
-                    self.traci.simulationStep()
-                    steps_executed += 1
-                except Exception as e:
-                    self.logger.error(f"Error ejecutando paso {i+1}: {e}")
-                    done = False
-                    break
-            else:
+            # Verificar ANTES de ejecutar el paso
+            if not self.can_continue():
                 done = True
-                self.reset()
+                self.logger.debug(
+                    f"🏁 Simulación {self.label} terminó ANTES del paso {i+1} en t={self.traci.simulation.getTime():.1f}s"
+                )
+                break
+
+            try:
+                # Ejecutar el paso de simulación
+                self.traci.simulationStep()
+                steps_executed += 1
+
+                # Verificar DESPUÉS de ejecutar el paso - puede que ahora haya terminado
+                if not self.can_continue():
+                    done = True
+                    self.logger.debug(
+                        f"🏁 Simulación {self.label} terminó DESPUÉS del paso {i+1} en t={self.traci.simulation.getTime():.1f}s"
+                    )
+                    break
+
+            except Exception as e:
+                self.logger.error(f"Error ejecutando paso {i+1}: {e}")
+                # Si hay error durante simulationStep, verificar si es porque terminó
+                try:
+                    if not self.can_continue():
+                        done = True
+                        self.logger.debug(
+                            f"🏁 Simulación {self.label} terminó por límite después de error en paso {i+1}"
+                        )
+                    else:
+                        done = False
+                        self.logger.error(f"❌ Error real en simulationStep: {e}")
+                except Exception as e:
+                    # Si no podemos verificar can_continue, asumir que terminó por error
+                    done = False
                 break
 
         final_time = self.traci.simulation.getTime()
-        self.logger.debug(
-            f"Simulación {self.label}: {steps_executed}/{steps} pasos ejecutados, "
-            f"t={initial_time:.1f}s -> {final_time:.1f}s, done={done}"
-        )
+
+        # Solo hacer debug logging cuando sea relevante
+        if initial_time > 19480 or initial_time < 10 or done:
+            self.logger.debug(
+                f"✅ Simulación {self.label}: {steps_executed}/{steps} pasos ejecutados, "
+                f"t={initial_time:.1f}s -> {final_time:.1f}s, done={done}"
+            )
 
         return done
 
@@ -190,12 +265,23 @@ class SumoApp:
         - Si está por debajo del tiempo/steps 19500.
         - Si hay vehículos en la simulación.
         """
-        # El límite de tiempo es una regla de negocio, podría externalizarse
-        return (
-            self.traci.simulation.getTime() <= 19500
-            # and int(self.traci.simulation.getMinExpectedNumber()) > 0
-            and self.get_vehicle_count() > 0
-        )
+        current_time = self.traci.simulation.getTime()
+        vehicle_count = self.get_vehicle_count()
+        # Cambiar >= para ser más estricto - terminar EN 19500, no después
+        time_ok = current_time < 19500  # Cambiado de <= a <
+        vehicles_ok = vehicle_count > 0
+
+        can_continue = time_ok and vehicles_ok
+
+        # Logging detallado para debugging
+        # if current_time > 19480 or not can_continue:
+        #     self.logger.info(
+        #         f"🔍 {self.label} - can_continue={can_continue}: "
+        #         f"time={current_time:.1f}s (ok={time_ok}), "
+        #         f"vehicles={vehicle_count} (ok={vehicles_ok})"
+        #     )
+
+        return can_continue
 
     def is_simulation_active(self) -> bool:
         """
