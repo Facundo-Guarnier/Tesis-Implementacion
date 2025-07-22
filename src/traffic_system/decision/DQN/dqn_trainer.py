@@ -1,9 +1,12 @@
 import csv
+import datetime
 import inspect
 import io
 import logging
 import os
+import platform
 import random
+import sys
 import time
 from collections import deque
 from contextlib import redirect_stdout
@@ -190,6 +193,74 @@ class DQNTrainer:
             except Exception as e:
                 logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
                 logger.debug(f" Error monitoreando GPU: {e}")
+
+    def _get_system_info(self) -> dict[str, str]:
+        """
+        Recopila información relevante del sistema, hardware y librerías para el entrenamiento.
+
+        Returns:
+            dict[str, str]: Diccionario con información del sistema
+        """
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
+
+        # Información básica del sistema
+        system_info = {
+            # Hardware y dispositivo
+            "dispositivo": "GPU" if self.use_gpu else "CPU",
+            "dispositivo_detalle": self.device,
+            "modo_testing": str(self.test_large_model),
+            # Sistema operativo
+            "os": platform.system(),
+            "os_version": platform.release(),
+            "arquitectura": platform.machine(),
+            "python_version": sys.version.split()[0],
+            # Fecha y hora
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            # Versiones de librerías críticas
+            "tensorflow_version": tf.__version__,
+            "numpy_version": np.__version__,
+        }
+
+        # Información específica de GPU si está disponible
+        if self.use_gpu:
+            try:
+                gpus = tf.config.experimental.list_physical_devices("GPU")
+                if gpus:
+                    gpu_details = tf.config.experimental.get_device_details(gpus[0])
+                    system_info["gpu_nombre"] = gpu_details.get("device_name", "N/A")
+                    system_info["gpu_memoria_dinamica"] = "Habilitado"
+                    system_info["gpu_mixed_precision"] = (
+                        "Deshabilitado"  # Como está configurado actualmente
+                    )
+                    system_info["gpu_count"] = str(len(gpus))
+                else:
+                    system_info["gpu_nombre"] = "N/A"
+            except Exception as e:
+                logger.warning(f" ⚠️ Error obteniendo detalles de GPU: {e}")
+                system_info["gpu_nombre"] = "Error al obtener info"
+        else:
+            system_info["gpu_nombre"] = "N/A (CPU)"
+            system_info["gpu_memoria_dinamica"] = "N/A"
+            system_info["gpu_mixed_precision"] = "N/A"
+            system_info["gpu_count"] = "0"
+
+        # Configuración de TensorFlow
+        try:
+            # Usar métodos actualizados en lugar de los deprecados
+            gpus_available = (
+                len(tf.config.experimental.list_physical_devices("GPU")) > 0
+            )
+            system_info["tf_gpu_available"] = str(gpus_available)
+            system_info["tf_built_with_cuda"] = str(tf.test.is_built_with_cuda())
+        except Exception:
+            system_info["tf_gpu_available"] = "Error"
+            system_info["tf_built_with_cuda"] = "Error"
+
+        logger.info(" 📋 Información del sistema recopilada para hiperparámetros")
+
+        return system_info
 
     def _set_action_space(self) -> None:
         """
@@ -589,45 +660,102 @@ class DQNTrainer:
                 )
 
         #! Guardar hiperparámetros
+        system_info = self._get_system_info()
         with open(
             self._save_path + "/hiperparametros.csv", mode="w", newline=""
         ) as file:
             writer = csv.writer(file)
-            writer.writerow(
-                [
-                    "Num Epocas",
-                    "Batch size",
-                    "Steps",
-                    "Learning rate",
-                    "Learning rate decay",
-                    "Learning rate min",
-                    "Epsilon",
-                    "Epsilon decay",
-                    "Epsilon min",
-                    "Gamma",
-                    "Memoria de reproducción",
-                    "Red neuronal",
-                ]
-            )
+
+            # Encabezados - Hiperparámetros del modelo
+            headers = [
+                "Num Epocas",
+                "Batch size",
+                "Steps",
+                "Learning rate",
+                "Learning rate decay",
+                "Learning rate min",
+                "Epsilon",
+                "Epsilon decay",
+                "Epsilon min",
+                "Gamma",
+                "Memoria de reproducción",
+                "Red neuronal",
+            ]
+
+            # Encabezados - Información del sistema
+            system_headers = [
+                "Dispositivo",
+                "Dispositivo Detalle",
+                "GPU Nombre",
+                "GPU Count",
+                "GPU Memoria Dinamica",
+                "GPU Mixed Precision",
+                "Modo Testing",
+                "OS",
+                "OS Version",
+                "Arquitectura",
+                "Python Version",
+                "TensorFlow Version",
+                "NumPy Version",
+                "TF GPU Available",
+                "TF Built with CUDA",
+                "Timestamp",
+            ]
+
+            writer.writerow(headers + system_headers)
+
+            # Valores - Hiperparámetros del modelo
             layers = f"{self.state_size} | "
             for i in range(len(self.hidden_layers)):
                 layers += f"{self.hidden_layers[i]} | "
             layers += f"{len(self._action_space)}"
-            writer.writerow(
-                [
-                    self.num_epocas,
-                    self.batch_size,
-                    str(self.steps) + "+3",
-                    str(self.learning_rate),
-                    self.learning_rate_decay,
-                    self.learning_rate_min,
-                    self.epsilon,
-                    self.epsilon_decay,
-                    self.epsilon_min,
-                    self.gamma,
-                    self.memory.maxlen,
-                    layers,
-                ]
+
+            hyperparams_values = [
+                self.num_epocas,
+                self.batch_size,
+                str(self.steps) + "+3",
+                str(self.learning_rate),
+                self.learning_rate_decay,
+                self.learning_rate_min,
+                self.epsilon,
+                self.epsilon_decay,
+                self.epsilon_min,
+                self.gamma,
+                self.memory.maxlen,
+                layers,
+            ]
+
+            # Valores - Información del sistema
+            system_values = [
+                system_info["dispositivo"],
+                system_info["dispositivo_detalle"],
+                system_info["gpu_nombre"],
+                system_info["gpu_count"],
+                system_info["gpu_memoria_dinamica"],
+                system_info["gpu_mixed_precision"],
+                system_info["modo_testing"],
+                system_info["os"],
+                system_info["os_version"],
+                system_info["arquitectura"],
+                system_info["python_version"],
+                system_info["tensorflow_version"],
+                system_info["numpy_version"],
+                system_info["tf_gpu_available"],
+                system_info["tf_built_with_cuda"],
+                system_info["timestamp"],
+            ]
+
+            writer.writerow(hyperparams_values + system_values)
+
+            logger.info(" 💾 Hiperparámetros e información del sistema guardados")
+            logger.info(
+                f" 🎯 Entrenamiento: {system_info['dispositivo']} ({system_info['gpu_nombre']})"
+            )
+            logger.info(
+                f" 🐍 Python {system_info['python_version']} + TensorFlow {system_info['tensorflow_version']}"
+            )
+            logger.info(
+                f" 💻 {system_info['os']} {system_info['os_version']} ({system_info['arquitectura']})"
             )
 
         #! Calcular la recompensa con semaforos con tiempo fijo
