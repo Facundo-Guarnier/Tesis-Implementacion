@@ -33,20 +33,7 @@
     //   "justMyCode": false
     // },
     {
-      "name": "Poetry: Debug (Solo Mi Código)",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src"
-      },
-      "stopOnEntry": false,
-      "justMyCode": true
-    },
-    {
-      "name": "Poetry: Debug (Todo el Código)",
+      "name": "Poetry: Debug (File)",
       "type": "debugpy",
       "request": "launch",
       "program": "${file}",
