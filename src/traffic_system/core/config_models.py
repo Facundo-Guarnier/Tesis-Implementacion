@@ -55,6 +55,7 @@ class SumoSettings(BaseModel):
     gui: bool  #! Mostrar la interfaz gráfica de SUMO
     comparar: bool  #! Comparar la simulación con la detección de objetos
     path_sumo: str  #! Path de la instalación de SUMO
+    simulation_time_limit: int
 
 
 class ReporteSettings(BaseModel):

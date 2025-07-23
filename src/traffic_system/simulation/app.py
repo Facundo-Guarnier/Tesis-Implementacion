@@ -3,6 +3,8 @@ from collections.abc import Callable
 
 import traci
 
+from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import SumoSettings
 from src.traffic_system.simulation.zones.zone_list import ZoneList
 
 
@@ -17,6 +19,7 @@ class SumoApp:
         restart_callback: (
             Callable[[str, str, bool], traci.connection.Connection] | None
         ) = None,
+        sumo_settings: SumoSettings | None = None,
     ) -> None:
         """
         Una clase de servicio que encapsula las interacciones con una única
@@ -30,6 +33,9 @@ class SumoApp:
             use_gui: Si usar la interfaz gráfica de SUMO.
             restart_callback: Función que puede recrear la conexión traci cuando se necesite reiniciar.
         """
+        # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
+        self.settings = load_app_settings().sumo
+
         self.traci = traci_conn
         self.zones = zones
         self.label = label
@@ -158,21 +164,11 @@ class SumoApp:
         """
         initial_time = self.traci.simulation.getTime()
 
-        # Solo hacer debug logging cuando sea relevante
-        if initial_time > 19480 or initial_time < 10:
-            self.logger.debug(
-                f"💫 Iniciando advance({steps}) desde t={initial_time:.1f}s..."
-            )
-
         #! VERIFICACIÓN CONSERVADORA: Si estamos cerca del límite, verificar si podemos completar TODOS los pasos
         current_time = self.traci.simulation.getTime()
         time_after_all_steps = current_time + steps
 
-        if time_after_all_steps >= 19500:
-            # self.logger.info(
-            #     f"🚨 CONSERVADOR: advance({steps}) desde t={current_time:.1f}s llegaría a t={time_after_all_steps:.1f}s "
-            #     f"(>= 19500). Devolviendo done=True preventivamente."
-            # )
+        if time_after_all_steps >= self.settings.simulation_time_limit:
             return True
 
         # Si no vamos a sobrepasar el límite, proceder normalmente
@@ -267,19 +263,10 @@ class SumoApp:
         """
         current_time = self.traci.simulation.getTime()
         vehicle_count = self.get_vehicle_count()
-        # Cambiar >= para ser más estricto - terminar EN 19500, no después
-        time_ok = current_time < 19500  # Cambiado de <= a <
+        time_ok = current_time < self.settings.simulation_time_limit
         vehicles_ok = vehicle_count > 0
 
         can_continue = time_ok and vehicles_ok
-
-        # Logging detallado para debugging
-        # if current_time > 19480 or not can_continue:
-        #     self.logger.info(
-        #         f"🔍 {self.label} - can_continue={can_continue}: "
-        #         f"time={current_time:.1f}s (ok={time_ok}), "
-        #         f"vehicles={vehicle_count} (ok={vehicles_ok})"
-        #     )
 
         return can_continue
 

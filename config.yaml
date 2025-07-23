@@ -67,6 +67,7 @@ sumo:
   gui: False #! Mostrar la interfaz gráfica de SUMO
   comparar: False #! Comparar la simulación con la detección de objetos
   path_sumo: "/usr/share/sumo" #! Path de la instalación de SUMO
+  simulation_time_limit: 19500 #! Límite de tiempo de la simulación en segundos
 
 reporte:
   generar: False #* Generar el reporte de la simulación

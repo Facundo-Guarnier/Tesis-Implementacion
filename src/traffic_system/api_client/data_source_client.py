@@ -91,14 +91,13 @@ class DecisionAPI:
         Returns:
             SimulationStepResponse | None: Respuesta tipada con resultado del avance
         """
-        a = APIRequestHelper.safe_request_with_validation(
+        return APIRequestHelper.safe_request_with_validation(
             self.base_url,
             "/avanzar",
             SimulationStepResponse,
             method="PUT",
             params={"steps": steps},
         )
-        return a
 
     def set_traffic_light_states(self, states: list[str]) -> SuccessResponse | None:
         """
