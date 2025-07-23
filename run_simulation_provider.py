@@ -34,7 +34,7 @@ def api_service(
         api = SumoAPI(
             name="API_SUMO", app_s1=app_s1, app_s2=app_s2, comparison_logger=comp_logger
         )
-        api.run(host="0.0.0.0", port=5000, debug=False)
+        api.run(host="0.0.0.0", port=5000, debug=False, threaded=False)
     except Exception as e:
         logger.error(f"No se pudo iniciar el servicio API: {e}", exc_info=True)
 

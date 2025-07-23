@@ -47,25 +47,27 @@ decision:
   entrenamiento:
     entrenar: True #* Entrenar el modelo
     path_resultado: "results/training/" #! Carpeta donde se guardarán los resultados del entrenamiento
-    num_epocas: 25
-    batch_size: 64
+    num_epocas: 35
+    batch_size: 256
     steps: 10
-    memory: 4000
-    learning_rate: 0.1
+    memory: 5000
+    learning_rate: 0.15
     learning_rate_decay: 0.99995
-    learning_rate_min: 0.001
+    learning_rate_min: 0.0001
     epsilon: 1
-    epsilon_decay: 0.99995
-    epsilon_min: 0.01
+    epsilon_decay: 0.999995
+    epsilon_min: 0.005
     gamma: 0.85
     # hidden_layers: [10, 10, 10]
-    hidden_layers: [512, 512, 256, 256, 128, 128, 64]
+    # hidden_layers: [512, 512, 256, 256, 128, 128, 64]
+    hidden_layers: [512, 512, 256, 128, 128, 64]
 
 sumo:
   simular: True #* Iniciar la simulación en SUMO
-  gui: True #! Mostrar la interfaz gráfica de SUMO
-  comparar: True #! Comparar la simulación con la detección de objetos
+  gui: False #! Mostrar la interfaz gráfica de SUMO
+  comparar: False #! Comparar la simulación con la detección de objetos
   path_sumo: "/usr/share/sumo" #! Path de la instalación de SUMO
+  simulation_time_limit: 19500 #! Límite de tiempo de la simulación en segundos
 
 reporte:
   generar: False #* Generar el reporte de la simulación

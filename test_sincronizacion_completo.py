@@ -109,7 +109,7 @@ def test_basic_sync() -> bool:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("done", False):
-                    logger.info("      🏁 Simulación terminada durante avances básicos")
+                    logger.info("     ⚠️  Simulación terminada durante avances básicos")
                     break
             else:
                 logger.error(f"      ❌ Error en avance básico: {response.status_code}")
@@ -237,7 +237,6 @@ def test_semaforo_sync() -> bool:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("done", False):
-                    logger.info("      🏁 Simulación terminada")
                     break
             else:
                 logger.error(f"      ❌ Error en avance final: {response.status_code}")

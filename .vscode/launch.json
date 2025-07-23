@@ -4,30 +4,69 @@
   // Para más información, visite: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
+    //  {
+    //   "name": "Pypoetry: File (Debug)",
+    //   "type": "debugpy",
+    //   "request": "launch",
+    //   "program": "${file}",
+    //   "console": "integratedTerminal",
+    //   "python": "C:/Users/facun/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/Local/pypoetry/Cache/virtualenvs/traffic-system-0IpZKoqG-py3.11/Scripts/python.exe",
+    //   "cwd": "${workspaceFolder}",
+    //   "env": {
+    //     "PYTHONPATH": "${workspaceFolder}"
+    //   },
+    //   "stopOnEntry": false,
+    //   "justMyCode": true
+    // },
+    // {
+    //   "name": "Pypoetry: File (Run)",
+    //   "type": "debugpy",
+    //   "request": "launch",
+    //   "program": "${file}",
+    //   "console": "integratedTerminal",
+    //   "python": "C:/Users/facun/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/Local/pypoetry/Cache/virtualenvs/traffic-system-0IpZKoqG-py3.11/Scripts/python.exe",
+    //   "cwd": "${workspaceFolder}",
+    //   "env": {
+    //     "PYTHONPATH": "${workspaceFolder}"
+    //   },
+    //   "stopOnEntry": false,
+    //   "justMyCode": false
+    // },
     {
-      "name": "Pypoetry: File (Debug)",
+      "name": "Poetry: Debug (File)",
       "type": "debugpy",
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "python": "C:/Users/facun/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/Local/pypoetry/Cache/virtualenvs/traffic-system-0IpZKoqG-py3.11/Scripts/python.exe",
       "cwd": "${workspaceFolder}",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}"
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src"
       },
       "stopOnEntry": false,
-      "justMyCode": true
+      "justMyCode": false
     },
     {
-      "name": "Pypoetry: File (Run)",
+      "name": "Poetry: Simulation",
       "type": "debugpy",
       "request": "launch",
-      "program": "${file}",
+      "program": "${workspaceFolder}/run_simulation_provider.py",
       "console": "integratedTerminal",
-      "python": "C:/Users/facun/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/Local/pypoetry/Cache/virtualenvs/traffic-system-0IpZKoqG-py3.11/Scripts/python.exe",
       "cwd": "${workspaceFolder}",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}"
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src"
+      },
+      "stopOnEntry": false,
+      "justMyCode": false
+    },
+    {
+      "name": "Poetry: Decisión",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_decision_agent.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src"
       },
       "stopOnEntry": false,
       "justMyCode": false

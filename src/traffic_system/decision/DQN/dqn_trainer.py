@@ -1,14 +1,18 @@
 import csv
+import datetime
 import inspect
 import io
 import logging
 import os
+import platform
 import random
+import sys
 import time
 from collections import deque
 from contextlib import redirect_stdout
 
 import numpy as np
+import psutil
 import tensorflow as tf
 from numpy import ndarray as NDArray
 
@@ -59,6 +63,8 @@ class DQNTrainer:
         self._set_action_space()
         self._set_save_path()
         self.state_size = 12
+
+        self._init_process_memory_monitoring()
 
         #! Hiperparámetros
         self.num_epocas = self.decision_settings.entrenamiento.num_epocas
@@ -191,6 +197,183 @@ class DQNTrainer:
                 logger = logging.getLogger(f" {self.__class__.__name__}.GPU_Monitor")
                 logger.debug(f" Error monitoreando GPU: {e}")
 
+    def _init_process_memory_monitoring(self) -> None:
+        """
+        Inicializa el monitoreo de memoria del proceso actual.
+        """
+        logger = logging.getLogger(f" {self.__class__.__name__}.Memory_Monitor")
+        try:
+            self.process = psutil.Process()
+            initial_memory = self.process.memory_info().rss / (1024**2)
+            logger.info(f" 🔍 Memoria RAM inicial del proceso: {initial_memory:.1f} MB")
+        except ImportError:
+            logger.warning(" ⚠️ psutil no disponible - monitoreo de RAM deshabilitado")
+            self.process = None
+        except Exception as e:
+            logger.warning(f" ⚠️ Error inicializando monitoreo RAM: {e}")
+            self.process = None
+
+    def _get_process_memory_mb(self) -> float:
+        """
+        Obtiene el uso de memoria RAM del proceso actual en MB.
+
+        Returns:
+            float: Memoria RAM usada por el proceso en MB, o 0 si no disponible
+        """
+        if hasattr(self, "process") and self.process:
+            try:
+                return float(self.process.memory_info().rss / (1024**2))
+            except Exception:
+                return 0.0
+        return 0.0
+
+    def _get_system_info(self) -> dict[str, str]:
+        """
+        Recopila información relevante del sistema, hardware y librerías para el entrenamiento.
+
+        Returns:
+            dict[str, str]: Diccionario con información del sistema
+        """
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
+
+        # Información básica del sistema
+        system_info = {
+            # Hardware y dispositivo
+            "dispositivo": "GPU" if self.use_gpu else "CPU",
+            "dispositivo_detalle": self.device,
+            "modo_testing": str(self.test_large_model),
+            # Sistema operativo
+            "os": platform.system(),
+            "os_version": platform.release(),
+            "arquitectura": platform.machine(),
+            "python_version": sys.version.split()[0],
+            # Fecha y hora
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            # Versiones de librerías críticas
+            "tensorflow_version": tf.__version__,
+            "numpy_version": np.__version__,
+        }
+
+        # Información específica de GPU si está disponible
+        if self.use_gpu:
+            try:
+                gpus = tf.config.experimental.list_physical_devices("GPU")
+                if gpus:
+                    gpu_details = tf.config.experimental.get_device_details(gpus[0])
+                    system_info["gpu_nombre"] = gpu_details.get("device_name", "N/A")
+                    system_info["gpu_memoria_dinamica"] = "Habilitado"
+                    system_info["gpu_mixed_precision"] = (
+                        "Deshabilitado"  # Como está configurado actualmente
+                    )
+                    system_info["gpu_count"] = str(len(gpus))
+                else:
+                    system_info["gpu_nombre"] = "N/A"
+            except Exception as e:
+                logger.warning(f" ⚠️ Error obteniendo detalles de GPU: {e}")
+                system_info["gpu_nombre"] = "Error al obtener info"
+        else:
+            system_info["gpu_nombre"] = "N/A (CPU)"
+            system_info["gpu_memoria_dinamica"] = "N/A"
+            system_info["gpu_mixed_precision"] = "N/A"
+            system_info["gpu_count"] = "0"
+
+        # Configuración de TensorFlow
+        try:
+            # Usar métodos actualizados en lugar de los deprecados
+            gpus_available = (
+                len(tf.config.experimental.list_physical_devices("GPU")) > 0
+            )
+            system_info["tf_gpu_available"] = str(gpus_available)
+            system_info["tf_built_with_cuda"] = str(tf.test.is_built_with_cuda())
+        except Exception:
+            system_info["tf_gpu_available"] = "Error"
+            system_info["tf_built_with_cuda"] = "Error"
+
+        logger.info(" 📋 Información del sistema recopilada para hiperparámetros")
+
+        return system_info
+
+    def _collect_training_metrics(
+        self,
+        epoch_rewards: list[float],
+        epoch_actions: list[int],
+        epoch_q_values: list[float],
+        replay_count: int,
+        epoch_duration: float,
+        inference_times: list[float],
+        total_steps: int,
+    ) -> dict[str, float]:
+        """
+        Recopila métricas variables del entrenamiento para una época específica.
+
+        Args:
+            epoch_rewards: Lista de recompensas de la época
+            epoch_actions: Lista de acciones tomadas en la época
+            epoch_q_values: Lista de Q-values máximos de la época
+            replay_count: Número de replays ejecutados
+            epoch_duration: Duración total de la época en segundos
+            inference_times: Tiempos de inferencia individuales
+            total_steps: Total de pasos de simulación ejecutados
+
+        Returns:
+            dict[str, float]: Métricas calculadas de la época
+        """
+        metrics = {}
+
+        # Métricas básicas de recompensa (cálculo rápido)
+        if epoch_rewards:
+            rewards_array = np.array(epoch_rewards)
+            metrics["recompensa_max"] = float(np.max(rewards_array))
+            metrics["recompensa_min"] = float(np.min(rewards_array))
+            metrics["recompensa_std"] = float(np.std(rewards_array))
+        else:
+            metrics["recompensa_max"] = 0.0
+            metrics["recompensa_min"] = 0.0
+            metrics["recompensa_std"] = 0.0
+
+        # Métricas de Q-values (cálculo rápido)
+        if epoch_q_values:
+            q_values_array = np.array(epoch_q_values)
+            metrics["q_value_promedio"] = float(np.mean(q_values_array))
+            metrics["q_value_maximo"] = float(np.max(q_values_array))
+        else:
+            metrics["q_value_promedio"] = 0.0
+            metrics["q_value_maximo"] = 0.0
+
+        # Hiperparámetros actuales (acceso directo, sin cálculos)
+        metrics["epsilon_actual"] = float(self.epsilon)
+        metrics["learning_rate_actual"] = float(self.learning_rate)
+
+        # Métricas de eficiencia (cálculos simples)
+        metrics["numero_replays"] = float(replay_count)
+        metrics["pasos_por_segundo"] = float(
+            total_steps / epoch_duration if epoch_duration > 0 else 0
+        )
+
+        # Tiempo de inferencia (promedio rápido)
+        if inference_times:
+            metrics["tiempo_inferencia_promedio"] = float(np.mean(inference_times))
+        else:
+            metrics["tiempo_inferencia_promedio"] = 0.0
+
+        # Memoria del proceso (acceso rápido)
+        metrics["memoria_ram_proceso_mb"] = self._get_process_memory_mb()
+
+        # Memoria GPU solo si está disponible y no es costosa
+        metrics["memoria_gpu_pico_mb"] = 0.0
+        # REMOVIDO: Llamada costosa a tf.config.experimental.get_memory_info()
+        # Esta operación puede ser muy lenta y afectar el rendimiento del entrenamiento
+
+        # Métricas de simulación - REMOVIDAS para evitar llamadas API costosas
+        # Estas métricas requieren llamadas HTTP adicionales que ralentizan el entrenamiento
+        metrics["tiempo_espera_total"] = 0.0
+        metrics["tiempo_espera_promedio"] = 0.0
+        metrics["congestion_maxima"] = 0.0
+
+        return metrics
+
     def _set_action_space(self) -> None:
         """
         Establece el espacio de acciones está formado por una lista de tuplas, donde cada tupla representa el estado de los 4 semaforos.
@@ -290,21 +473,28 @@ class DQNTrainer:
         """
         self.memory.append((state, action, reward, next_state, done))
 
-    def _select_action(self, state: NDArray) -> int:
+    def _select_action(self, state: NDArray) -> tuple[int, float, float]:
         """
         Elige una acción basada en el estado actual del agente, utilizando una política ε-greedy para el control de la exploración.
         Optimizado para el dispositivo configurado (GPU/CPU) con monitoreo.
 
         returns:
-            int: Índice de la acción seleccionada.
+            tuple[int, float, float]: (Índice de la acción seleccionada, Q-value máximo, tiempo de inferencia)
         """
+        inference_start = time.time()
+
         if np.random.rand() <= self.epsilon:
-            return int(np.random.choice(len(self._action_space)))
+            action = int(np.random.choice(len(self._action_space)))
+            max_q_value = 0.0  # No hay Q-value para acciones aleatorias
         else:
             # Reshape para predicción en lote (más eficiente)
             state_batch = np.expand_dims(state, axis=0)  # (12,) -> (1, 12)
             act_values = self.model.predict(state_batch, verbose=0)
-            return int(np.argmax(act_values[0]))
+            action = int(np.argmax(act_values[0]))
+            max_q_value = float(np.max(act_values[0]))
+
+        inference_time = time.time() - inference_start
+        return action, max_q_value, inference_time
 
     def _replay(self) -> None:
         """
@@ -387,9 +577,19 @@ class DQNTrainer:
                 states, targets, epochs=1, verbose=0, batch_size=self.batch_size
             )
 
-        # Actualizar parámetros - solo epsilon (learning_rate se maneja en el optimizador)
+        # Actualizar parámetros - epsilon y learning rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+        # Actualizar learning rate del optimizador si está configurado el decay
+        if self.learning_rate > self.learning_rate_min:
+            new_learning_rate = max(
+                self.learning_rate * self.learning_rate_decay, self.learning_rate_min
+            )
+            if new_learning_rate != self.learning_rate:
+                self.learning_rate = new_learning_rate
+                # Actualizar el learning rate del optimizador
+                self.model.optimizer.learning_rate.assign(self.learning_rate)
 
     def _train_agent(self) -> None:
         """
@@ -398,7 +598,7 @@ class DQNTrainer:
         experiencia en la memoria de reproducción.
         Cuando el tamaño de la memoria de reproducción alcanza el tamaño del lote, el agente
         realiza el proceso de repetición.
-        Incluye monitoreo detallado de GPU.
+        Incluye monitoreo detallado de GPU y recopilación de métricas avanzadas.
         - 19500 segundos / 15 steps  = 1300 repeticiones por epoca
         """
         logger = logging.getLogger(
@@ -410,19 +610,34 @@ class DQNTrainer:
         for e in range(self.num_epocas):
             logger.info(f" 🏁 Iniciando época {e+1}/{self.num_epocas}")
 
+            # Inicializar métricas de la época
+            epoch_rewards = []
+            epoch_actions = []
+            epoch_q_values = []
+            inference_times = []
+
             state = self._get_current_state()
             done = False
             total_reward = 0.0
             replay_count = 0
+            total_steps = 0
 
             t1 = time.time()
             while not done:
-                action_index = self._select_action(state)
+                # Seleccionar acción y capturar métricas
+                action_index, max_q_value, inference_time = self._select_action(state)
                 next_state, reward, done = self._execute_action_and_advance(
                     action_index
                 )
 
+                # Recopilar métricas de la acción
+                epoch_rewards.append(reward)
+                epoch_actions.append(action_index)
+                epoch_q_values.append(max_q_value)
+                inference_times.append(inference_time)
+
                 total_reward += reward
+                total_steps += 1
                 self._remember(state, action_index, reward, next_state, done)
 
                 state = next_state
@@ -430,27 +645,54 @@ class DQNTrainer:
                     self._replay()
                     replay_count += 1
 
-                    # Monitorear GPU cada 500 replays para evitar spam
-                    if replay_count % 500 == 0:
+                    # Monitorear GPU menos frecuentemente para reducir overhead
+                    if replay_count % 1000 == 0:
                         self._log_gpu_usage(f"Época {e+1} - Replay {replay_count}")
 
             #! Guardar los datos de entrenamiento por epoca en formato Keras moderno
             self.model.save(self._save_path + f"/epoca_{e+1}.h5")
             self.model.save(self._save_path + f"/epoca_{e+1}.keras")
 
-            #! Guardar métricas de entrenamiento en un archivo CSV
+            #! Recopilar métricas de entrenamiento
             epoch_duration = time.time() - t1
+            training_metrics = self._collect_training_metrics(
+                epoch_rewards,
+                epoch_actions,
+                epoch_q_values,
+                replay_count,
+                epoch_duration,
+                inference_times,
+                total_steps,
+            )
+
+            #! Guardar métricas completas de entrenamiento en un archivo CSV
             with open(
                 self._save_path + "/entrenamiento_data.csv", mode="a", newline=""
             ) as file:
                 writer = csv.writer(file)
                 writer.writerow(
                     [
+                        # Métricas básicas
                         e + 1,
                         f"{epoch_duration:.2f}",
                         f"{total_reward:.2f}",
                         f"{self.epsilon:.5f}",
-                        "-",  # Ya no actualizamos learning_rate en cada replay
+                        f"{self.learning_rate:.8f}",  # Learning rate actual del optimizador
+                        # Métricas de rendimiento del modelo
+                        f"{training_metrics['recompensa_max']:.2f}",
+                        f"{training_metrics['recompensa_min']:.2f}",
+                        f"{training_metrics['recompensa_std']:.4f}",
+                        f"{training_metrics['q_value_promedio']:.4f}",
+                        f"{training_metrics['q_value_maximo']:.4f}",
+                        # Hiperparámetros actuales
+                        f"{training_metrics['epsilon_actual']:.5f}",
+                        f"{training_metrics['learning_rate_actual']:.8f}",
+                        # Métricas de eficiencia
+                        f"{training_metrics['numero_replays']:.0f}",
+                        f"{training_metrics['pasos_por_segundo']:.2f}",
+                        f"{training_metrics['tiempo_inferencia_promedio']:.6f}",
+                        # Métricas de memoria optimizadas
+                        f"{training_metrics['memoria_ram_proceso_mb']:.1f}",
                     ]
                 )
 
@@ -458,7 +700,7 @@ class DQNTrainer:
                 f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {epoch_duration:.2f}s - Replays: {replay_count}"
             )
 
-        logger.info(" Entrenamiento finalizado.")
+        logger.info(" ✅ Entrenamiento finalizado.")
 
         # Mostrar información final del dispositivo usado
         if self.use_gpu:
@@ -580,54 +822,127 @@ class DQNTrainer:
                 writer = csv.writer(file)
                 writer.writerow(
                     [
+                        # Métricas básicas
                         "Epoca",
                         "Duración (segundos)",
                         "Recompensa Acumulada",
                         "Epsilon",
                         "Tasa de Aprendizaje",
+                        # Métricas de rendimiento del modelo
+                        "Recompensa Max",
+                        "Recompensa Min",
+                        "Recompensa Std",
+                        "Q-Value Promedio",
+                        "Q-Value Máximo",
+                        # Hiperparámetros actuales (optimizados)
+                        "Epsilon Actual",
+                        "Learning Rate Actual",
+                        # Métricas de eficiencia (optimizadas)
+                        "Número Replays",
+                        "Pasos por Segundo",
+                        "Tiempo Inferencia Promedio",
+                        # Métricas de memoria (optimizadas para rendimiento)
+                        "Memoria RAM Proceso (MB)",
                     ]
                 )
 
         #! Guardar hiperparámetros
+        system_info = self._get_system_info()
         with open(
             self._save_path + "/hiperparametros.csv", mode="w", newline=""
         ) as file:
             writer = csv.writer(file)
-            writer.writerow(
-                [
-                    "Num Epocas",
-                    "Batch size",
-                    "Steps",
-                    "Learning rate",
-                    "Learning rate decay",
-                    "Learning rate min",
-                    "Epsilon",
-                    "Epsilon decay",
-                    "Epsilon min",
-                    "Gamma",
-                    "Memoria de reproducción",
-                    "Red neuronal",
-                ]
-            )
+
+            # Encabezados - Hiperparámetros del modelo
+            headers = [
+                "Num Epocas",
+                "Batch size",
+                "Steps",
+                "Learning rate",
+                "Learning rate decay",
+                "Learning rate min",
+                "Epsilon",
+                "Epsilon decay",
+                "Epsilon min",
+                "Gamma",
+                "Memoria de reproducción",
+                "Red neuronal",
+            ]
+
+            # Encabezados - Información del sistema
+            system_headers = [
+                "Dispositivo",
+                "Dispositivo Detalle",
+                "GPU Nombre",
+                "GPU Count",
+                "GPU Memoria Dinamica",
+                "GPU Mixed Precision",
+                "Modo Testing",
+                "OS",
+                "OS Version",
+                "Arquitectura",
+                "Python Version",
+                "TensorFlow Version",
+                "NumPy Version",
+                "TF GPU Available",
+                "TF Built with CUDA",
+                "Timestamp",
+            ]
+
+            writer.writerow(headers + system_headers)
+
+            # Valores - Hiperparámetros del modelo
             layers = f"{self.state_size} | "
             for i in range(len(self.hidden_layers)):
                 layers += f"{self.hidden_layers[i]} | "
             layers += f"{len(self._action_space)}"
-            writer.writerow(
-                [
-                    self.num_epocas,
-                    self.batch_size,
-                    str(self.steps) + "+3",
-                    str(self.learning_rate),
-                    self.learning_rate_decay,
-                    self.learning_rate_min,
-                    self.epsilon,
-                    self.epsilon_decay,
-                    self.epsilon_min,
-                    self.gamma,
-                    self.memory.maxlen,
-                    layers,
-                ]
+
+            hyperparams_values = [
+                self.num_epocas,
+                self.batch_size,
+                str(self.steps) + "+3",
+                str(self.learning_rate),
+                self.learning_rate_decay,
+                self.learning_rate_min,
+                self.epsilon,
+                self.epsilon_decay,
+                self.epsilon_min,
+                self.gamma,
+                self.memory.maxlen,
+                layers,
+            ]
+
+            # Valores - Información del sistema
+            system_values = [
+                system_info["dispositivo"],
+                system_info["dispositivo_detalle"],
+                system_info["gpu_nombre"],
+                system_info["gpu_count"],
+                system_info["gpu_memoria_dinamica"],
+                system_info["gpu_mixed_precision"],
+                system_info["modo_testing"],
+                system_info["os"],
+                system_info["os_version"],
+                system_info["arquitectura"],
+                system_info["python_version"],
+                system_info["tensorflow_version"],
+                system_info["numpy_version"],
+                system_info["tf_gpu_available"],
+                system_info["tf_built_with_cuda"],
+                system_info["timestamp"],
+            ]
+
+            writer.writerow(hyperparams_values + system_values)
+
+            logger.info(" 💾 Hiperparámetros e información del sistema guardados")
+            logger.info(
+                f" 🎯 Entrenamiento: {system_info['dispositivo']} ({system_info['gpu_nombre']})"
+            )
+            logger.info(
+                f" 🐍 Python {system_info['python_version']} + TensorFlow {system_info['tensorflow_version']}"
+            )
+            logger.info(
+                f" 💻 {system_info['os']} {system_info['os_version']} ({system_info['arquitectura']})"
             )
 
         #! Calcular la recompensa con semaforos con tiempo fijo
@@ -650,8 +965,26 @@ class DQNTrainer:
             self._save_path + "/entrenamiento_data.csv", mode="a", newline=""
         ) as file:
             writer = csv.writer(file)
+            # Datos de tiempo fijo con valores por defecto para las nuevas columnas
             writer.writerow(
-                ["-", f"{fixed_time_duration:.2f}", f"{total_reward:.2f}", "-", "-"]
+                [
+                    "-",  # Época
+                    f"{fixed_time_duration:.2f}",  # Duración
+                    f"{total_reward:.2f}",  # Recompensa
+                    "-",  # Epsilon
+                    "-",  # Learning rate
+                    "-",  # Recompensa Max
+                    "-",  # Recompensa Min
+                    "-",  # Recompensa Std
+                    "-",  # Q-Value Promedio
+                    "-",  # Q-Value Máximo
+                    "-",  # Epsilon Actual
+                    "-",  # Learning Rate Actual
+                    "-",  # Número Replays
+                    "-",  # Pasos por Segundo
+                    "-",  # Tiempo Inferencia Promedio
+                    "-",  # Memoria RAM Proceso
+                ]
             )
 
         self.model = self._build_model()
