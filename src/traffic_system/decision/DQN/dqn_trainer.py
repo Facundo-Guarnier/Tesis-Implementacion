@@ -62,7 +62,13 @@ class DQNTrainer:
 
         self._set_action_space()
         self._set_save_path()
-        self.state_size = 12
+        self.state_size = (
+            48  # 12 tiempos + 12 cantidades + 12 tiempos_prev + 12 cantidades_prev
+        )
+
+        # Historial para capturar dinámica temporal
+        self.state_history: list[list[float]] = []
+        self.max_history_length = 2  # Mantener actual + anterior
 
         self._init_process_memory_monitoring()
 
@@ -729,25 +735,97 @@ class DQNTrainer:
 
     def _get_current_state(self) -> NDArray:
         """
-        Define el estado (El tiempo de espera de los vehículos en las intersecciones) normalizado en un rango de 0 a 1.
-        Optimizado para reducir conversiones innecesarias.
-        returns:
-            NDArray: Estado normalizado como (12,) en lugar de (1,12)
+        Define el estado enriquecido que incluye:
+        - Tiempos de espera de las 12 zonas (actual)
+        - Cantidades de vehículos de las 12 zonas (actual)
+        - Tiempos de espera de las 12 zonas (anterior)
+        - Cantidades de vehículos de las 12 zonas (anterior)
+
+        Total: 48 características para capturar dinámica temporal
+
+        Returns:
+            NDArray: Estado enriquecido y normalizado como (48,)
         """
-        #! Tiempo
+        # Obtener tiempos de espera actuales
         wait_times_response = self._api.get_wait_times()
         if wait_times_response is None:
             raise RuntimeError("No se pudo obtener los tiempos de espera de la API")
 
-        state_raw = np.array(wait_times_response.tiempos_espera, dtype=np.float32)
+        # Obtener cantidades de vehículos actuales
+        quantities_response = self._api.get_quantities()
+        if quantities_response is None:
+            raise RuntimeError(
+                "No se pudo obtener las cantidades de vehículos de la API"
+            )
 
-        # Optimizar normalización
-        max_wait_time = np.max(state_raw)
-        if max_wait_time == 0:
-            return state_raw
+        # Preparar observación actual
+        wait_times = wait_times_response.tiempos_espera
+        quantities = list(quantities_response.cantidades.values())
+
+        # Asegurar que tenemos exactamente 12 valores para cada tipo
+        if len(wait_times) != 12:
+            raise RuntimeError(
+                f"Se esperaban 12 tiempos de espera, se obtuvieron {len(wait_times)}"
+            )
+        if len(quantities) != 12:
+            raise RuntimeError(
+                f"Se esperaban 12 cantidades, se obtuvieron {len(quantities)}"
+            )
+
+        # Combinar observación actual: [tiempos(12) + cantidades(12)] = 24 valores
+        current_observation = wait_times + quantities
+
+        # Gestionar historial temporal
+        self.state_history.append(current_observation)
+        if len(self.state_history) > self.max_history_length:
+            self.state_history.pop(0)
+
+        # Construir estado completo con historial
+        if len(self.state_history) >= 2:
+            # Estado: [actual(24) + anterior(24)] = 48 valores
+            previous_observation = self.state_history[-2]
+            complete_state = current_observation + previous_observation
         else:
-            # Normalización simple sin conversiones innecesarias
-            return state_raw / max_wait_time
+            # Si no hay historial, duplicar observación actual
+            complete_state = current_observation + current_observation
+
+        # Normalizar estado de manera robusta
+        return self._normalize_state_robust(complete_state)
+
+    def _normalize_state_robust(self, state: list[float]) -> NDArray:
+        """
+        Normalización robusta del estado que maneja casos extremos.
+
+        Args:
+            state: Lista con los valores del estado a normalizar
+
+        Returns:
+            NDArray: Estado normalizado
+        """
+        state_array = np.array(state, dtype=np.float32)
+
+        # Normalización por componentes: primera mitad = tiempos, segunda = cantidades
+        mid_point = len(state_array) // 2
+
+        # Normalizar tiempos de espera (0-1000 segundos típicamente)
+        wait_times_part = state_array[:mid_point]
+        wait_max = np.max(wait_times_part) if np.max(wait_times_part) > 0 else 1.0
+        normalized_waits = wait_times_part / wait_max
+
+        # Normalizar cantidades (0-100 vehículos típicamente)
+        quantities_part = state_array[mid_point:]
+        qty_max = np.max(quantities_part) if np.max(quantities_part) > 0 else 1.0
+        normalized_quantities = quantities_part / qty_max
+
+        # Combinar partes normalizadas
+        normalized_state = np.concatenate([normalized_waits, normalized_quantities])
+
+        # Verificar que no hay valores inválidos
+        normalized_state = np.nan_to_num(
+            normalized_state, nan=0.0, posinf=1.0, neginf=0.0
+        )
+
+        return np.array(normalized_state, dtype=np.float32)
 
     def _execute_action_and_advance(
         self, id_action: int
@@ -781,9 +859,15 @@ class DQNTrainer:
 
     def _calculate_reward(self) -> float:
         """
-        Calcula la recompensa en función del estado actual.
-        La inversa del tiempo de espera de los vehículos en las intersecciones controladas por los semáforos.
-        - 100 / (tiempo_espera_total + 100)
+        Calcula la recompensa mejorada en función del estado actual.
+
+        Nueva fórmula con penalizaciones ponderadas:
+        - Penaliza tiempo de espera (cuadrático para casos extremos)
+        - Penaliza congestión desigual (alta varianza)
+        - Bonifica eficiencia del flujo vehicular
+
+        Returns:
+            float: Recompensa calculada (valores negativos = penalización)
         """
         wait_times_response = self._api.get_wait_times()
         if wait_times_response is None:
@@ -791,8 +875,41 @@ class DQNTrainer:
                 "No se pudo obtener los tiempos de espera para calcular recompensa"
             )
 
-        wait_time = wait_times_response.tiempo_espera_total
-        return 100 / ((wait_time) + 100)
+        quantities_response = self._api.get_quantities()
+        if quantities_response is None:
+            raise RuntimeError(
+                "No se pudo obtener las cantidades de vehículos para calcular recompensa"
+            )
+
+        # Obtener datos
+        wait_times = wait_times_response.tiempos_espera
+        quantities = list(quantities_response.cantidades.values())
+
+        # 1. Penalización por tiempo de espera (cuadrático para casos extremos)
+        wait_penalty = sum(t**2 for t in wait_times) / len(wait_times)
+
+        # 2. Penalización por congestión desigual (alta varianza = mal balance)
+        if len(quantities) > 1:
+            congestion_variance = float(np.var(quantities))
+        else:
+            congestion_variance = 0.0
+
+        # 3. Penalización por congestión total excesiva
+        total_vehicles = sum(quantities)
+        congestion_penalty = total_vehicles**1.5 if total_vehicles > 50 else 0
+
+        # 4. Fórmula final con pesos ajustables
+        w1_wait = 0.01  # Peso para tiempo de espera
+        w2_variance = 0.1  # Peso para varianza de congestión
+        w3_congestion = 0.005  # Peso para congestión total
+
+        reward = -(
+            w1_wait * wait_penalty
+            + w2_variance * congestion_variance
+            + w3_congestion * congestion_penalty
+        )
+
+        return float(reward)
 
     def start_training_process(self) -> None:
         """
