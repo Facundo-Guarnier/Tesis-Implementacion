@@ -70,6 +70,12 @@ class EntrenamientoSettings(BaseModel):
     statistical_tests: bool = True  # * Realizar pruebas estadísticas
     generate_plots: bool = True  # * Generar gráficos de progreso
 
+    # OPTIMIZACIONES DE RENDIMIENTO (Bajo Riesgo)
+    enable_jit_compilation: bool = True  # * Activar XLA/JIT para optimización GPU
+    dropout_mode: str = "optimized"  # * "full", "optimized", "minimal"
+    dropout_layers: str = "strategic"  # * "all_layers", "strategic", "output_only"
+    noisy_implementation: str = "efficient"  # * "gaussian_noise", "efficient"
+
 
 class DecisionSettings(BaseModel):
     decision: bool  # * Iniciar la toma de decisiones

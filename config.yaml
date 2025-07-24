@@ -51,8 +51,8 @@ decision:
     batch_size: 256
     steps: 10
     memory: 5000
-    learning_rate: 0.15
-    learning_rate_decay: 0.99995
+    learning_rate: 0.001              # Reducido de 0.15 a 0.001 (más conservador)
+    learning_rate_decay: 0.95          # Cambiado de 0.99995 a 0.95 (decay por época)
     learning_rate_min: 0.0001
     epsilon: 1
     epsilon_decay: 0.999995
@@ -73,21 +73,27 @@ decision:
     per_beta_start: 0.4 #* Importance sampling beta inicial
     per_beta_frames: 100000 #* Frames para llegar a beta=1.0
     use_noisy_networks: True #* Activar Noisy Networks para exploración
-    noise_std: 0.5 #* Desviación estándar del ruido
+    noise_std: 0.3 #* Desviación estándar del ruido (reducido de 0.5)
     use_dropout: True #* Activar Dropout para regularización
-    dropout_rate: 0.1 #* Tasa de dropout
+    dropout_rate: 0.05 #* Tasa de dropout (reducido de 0.1)
     adaptive_lr: True #* Learning rate adaptativo
     lr_schedule_type: "cosine" #* Tipo de schedule: "exponential", "cosine", "plateau"
 
     # FASE 4: Evaluación y métricas
     enable_evaluation: True #* Activar sistema de evaluación
     evaluation_episodes: 10 #* Número de episodios para evaluación
-    evaluation_frequency: 5 #* Evaluar cada N épocas
+    evaluation_frequency: 10 #* Evaluar cada N épocas (optimizado de 5 a 10)
     baseline_comparison: True #* Comparar con modelo baseline
     save_evaluation_data: True #* Guardar datos de evaluación
     metrics_window_size: 100 #* Ventana para métricas deslizantes
     statistical_tests: True #* Realizar pruebas estadísticas
     generate_plots: True #* Generar gráficos de progreso
+
+    # OPTIMIZACIONES DE RENDIMIENTO (Bajo Riesgo)
+    enable_jit_compilation: True #* Activar XLA/JIT para optimización GPU
+    dropout_mode: "optimized" #* Modo de dropout: "full", "optimized", "minimal"
+    dropout_layers: "strategic" #* Capas con dropout: "all_layers", "strategic", "output_only"
+    noisy_implementation: "efficient" #* Implementación noisy: "gaussian_noise", "efficient"
 
 sumo:
   simular: True #* Iniciar la simulación en SUMO

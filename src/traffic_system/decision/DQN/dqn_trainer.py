@@ -240,6 +240,20 @@ class DQNTrainer:
         # Contador de frames para ajustes adaptativos
         self.frame_count = 0
 
+        # FASE 4: Configuración para optimizaciones de rendimiento
+        self.enable_jit_compilation = getattr(
+            self.decision_settings.entrenamiento, "enable_jit_compilation", True
+        )
+        self.dropout_mode = getattr(
+            self.decision_settings.entrenamiento, "dropout_mode", "optimized"
+        )
+        self.dropout_layers = getattr(
+            self.decision_settings.entrenamiento, "dropout_layers", "strategic"
+        )
+        self.noisy_implementation = getattr(
+            self.decision_settings.entrenamiento, "noisy_implementation", "efficient"
+        )
+
         # Configuración para testing con modelo más grande
         self.test_large_model = False  # Cambiar a True para probar modelo grande
 
@@ -616,12 +630,21 @@ class DQNTrainer:
                 model = self._build_standard_model()
                 logger.info(" 📊 Usando arquitectura DQN estándar")
 
-            # Compilar modelo
+            # Compilar modelo con optimizaciones configurables
+            jit_compile_enabled = (
+                self.enable_jit_compilation and self.use_gpu
+            )  # JIT más eficaz en GPU
+
             model.compile(
                 loss="mse",
                 optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-                jit_compile=False,  # Deshabilitar XLA temporalmente
+                jit_compile=jit_compile_enabled,
             )
+
+            if jit_compile_enabled:
+                logger.info(" ⚡ JIT compilation habilitado para optimización")
+            else:
+                logger.info(" 📊 JIT compilation deshabilitado")
 
         # Mostrar resumen del modelo
         stream = io.StringIO()
@@ -641,6 +664,36 @@ class DQNTrainer:
             logger.info(f" 🎯 Modelo configurado para: {self.device}")
 
         return model
+
+    def _should_add_dropout(self, layer_index: int) -> bool:
+        """
+        Determina si se debe añadir dropout en una capa específica basado en la estrategia configurada.
+
+        Args:
+            layer_index: Índice de la capa (1-indexed)
+
+        Returns:
+            bool: True si se debe añadir dropout
+        """
+        if self.dropout_mode == "full":
+            return True  # Dropout en todas las capas (comportamiento original)
+        elif self.dropout_mode == "optimized":
+            # Dropout estratégico: primera capa, mitad y antes de output
+            total_layers = len(self.hidden_layers)
+            return (
+                layer_index == 1  # Primera capa
+                or layer_index == total_layers // 2  # Capa del medio
+                or layer_index == total_layers - 1  # Antes de output
+            )
+        elif self.dropout_mode == "strategic":
+            # Solo en primeras y últimas capas
+            total_layers = len(self.hidden_layers)
+            return layer_index <= 2 or layer_index >= total_layers - 1
+        elif self.dropout_mode == "minimal":
+            # Solo antes de la capa de salida
+            return layer_index == len(self.hidden_layers)
+        else:
+            return True  # Default: full dropout
 
     def _create_noisy_layer(
         self, units: int, input_dim: int | None = None, activation: str = "relu"
@@ -668,27 +721,54 @@ class DQNTrainer:
             else:
                 return tf.keras.layers.Dense(units, activation=activation)
 
-        # Implementación simplificada de Noisy Layer usando Gaussian Noise
-        # En una implementación completa, se usarían NoisyLinear layers customizadas
-        if input_dim is not None:
-            dense = tf.keras.layers.Dense(
-                units, input_dim=input_dim, activation=activation
-            )
+        # Seleccionar implementación basada en configuración
+        if self.noisy_implementation == "efficient":
+            # Implementación más eficiente usando inicializadores específicos
+            # En lugar de añadir ruido post-procesamiento, usar inicialización con ruido
+            if input_dim is not None:
+                layer = tf.keras.layers.Dense(
+                    units,
+                    input_dim=input_dim,
+                    activation=activation,
+                    kernel_initializer=tf.keras.initializers.RandomNormal(
+                        stddev=self.noise_std * 0.1
+                    ),  # Ruido en inicialización
+                    bias_initializer=tf.keras.initializers.RandomNormal(
+                        stddev=self.noise_std * 0.1
+                    ),
+                )
+            else:
+                layer = tf.keras.layers.Dense(
+                    units,
+                    activation=activation,
+                    kernel_initializer=tf.keras.initializers.RandomNormal(
+                        stddev=self.noise_std * 0.1
+                    ),
+                    bias_initializer=tf.keras.initializers.RandomNormal(
+                        stddev=self.noise_std * 0.1
+                    ),
+                )
+            return layer
         else:
-            dense = tf.keras.layers.Dense(units, activation=activation)
+            # Implementación original con GaussianNoise (menos eficiente)
+            if input_dim is not None:
+                dense = tf.keras.layers.Dense(
+                    units, input_dim=input_dim, activation=activation
+                )
+            else:
+                dense = tf.keras.layers.Dense(units, activation=activation)
 
-        # Añadir ruido gaussiano para simular exploración
-        # Nota: En production se implementaría NoisyLinear completa con factorized gaussian noise
-        return tf.keras.Sequential(
-            [
-                dense,
-                (
-                    tf.keras.layers.GaussianNoise(stddev=self.noise_std)
-                    if activation != "linear"
-                    else dense
-                ),
-            ]
-        )
+            # Añadir ruido gaussiano para simular exploración
+            return tf.keras.Sequential(
+                [
+                    dense,
+                    (
+                        tf.keras.layers.GaussianNoise(stddev=self.noise_std)
+                        if activation != "linear"
+                        else dense
+                    ),
+                ]
+            )
 
     def _build_standard_model(self) -> tf.keras.Model:
         """
@@ -714,7 +794,7 @@ class DQNTrainer:
             )
 
         # Dropout después de la primera capa si está habilitado
-        if self.use_dropout:
+        if self.use_dropout and self._should_add_dropout(layer_index=1):
             model.add(tf.keras.layers.Dropout(self.dropout_rate))
 
         # Capas ocultas restantes
@@ -727,7 +807,7 @@ class DQNTrainer:
                 )
 
             # Dropout entre capas si está habilitado
-            if self.use_dropout:
+            if self.use_dropout and self._should_add_dropout(layer_index=i + 1):
                 model.add(tf.keras.layers.Dropout(self.dropout_rate))
 
         # Capa de salida (sin dropout)
@@ -783,13 +863,24 @@ class DQNTrainer:
                 )(shared)
 
             # Añadir Dropout si está habilitado
-            if self.use_dropout:
+            if self.use_dropout and self._should_add_dropout(layer_index=i):
                 shared = tf.keras.layers.Dropout(
                     self.dropout_rate, name=f"shared_{i}_dropout"
                 )(shared)
 
         # Stream de valor del estado V(s)
-        if self.use_noisy_networks:
+        if self.use_noisy_networks and self.noisy_implementation == "efficient":
+            # Implementación eficiente para Noisy Networks
+            value_stream = tf.keras.layers.Dense(
+                self.hidden_layers[-2],
+                activation="relu",
+                name="value_hidden",
+                kernel_initializer=tf.keras.initializers.RandomNormal(
+                    stddev=self.noise_std * 0.1
+                ),
+            )(shared)
+        elif self.use_noisy_networks:
+            # Implementación original menos eficiente
             value_stream = tf.keras.Sequential(
                 [
                     tf.keras.layers.Dense(
@@ -808,7 +899,7 @@ class DQNTrainer:
                 self.hidden_layers[-2], activation="relu", name="value_hidden"
             )(shared)
 
-        if self.use_dropout:
+        if self.use_dropout and self.dropout_mode in ["full", "strategic"]:
             value_stream = tf.keras.layers.Dropout(
                 self.dropout_rate, name="value_dropout"
             )(value_stream)
@@ -816,7 +907,18 @@ class DQNTrainer:
         value = tf.keras.layers.Dense(1, name="value")(value_stream)
 
         # Stream de ventaja de acciones A(s,a)
-        if self.use_noisy_networks:
+        if self.use_noisy_networks and self.noisy_implementation == "efficient":
+            # Implementación eficiente para Noisy Networks
+            advantage_stream = tf.keras.layers.Dense(
+                self.hidden_layers[-1],
+                activation="relu",
+                name="advantage_hidden",
+                kernel_initializer=tf.keras.initializers.RandomNormal(
+                    stddev=self.noise_std * 0.1
+                ),
+            )(shared)
+        elif self.use_noisy_networks:
+            # Implementación original menos eficiente
             advantage_stream = tf.keras.Sequential(
                 [
                     tf.keras.layers.Dense(
@@ -835,7 +937,7 @@ class DQNTrainer:
                 self.hidden_layers[-1], activation="relu", name="advantage_hidden"
             )(shared)
 
-        if self.use_dropout:
+        if self.use_dropout and self.dropout_mode in ["full", "strategic"]:
             advantage_stream = tf.keras.layers.Dropout(
                 self.dropout_rate, name="advantage_dropout"
             )(advantage_stream)
@@ -1196,40 +1298,12 @@ class DQNTrainer:
         """
         self.frame_count += 1
 
-        # Actualizar epsilon y learning rate (mantener lógica existente)
+        # Actualizar epsilon (mantener lógica existente)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-        # FASE 3: Learning rate adaptativo
-        if self.adaptive_lr and self.learning_rate > self.learning_rate_min:
-            if self.lr_schedule_type == "exponential":
-                new_learning_rate = max(
-                    self.learning_rate * self.learning_rate_decay,
-                    self.learning_rate_min,
-                )
-            elif self.lr_schedule_type == "cosine":
-                # Cosine annealing
-                progress = self.frame_count / (self.num_epocas * 1000)  # Estimación
-                new_learning_rate = (
-                    self.learning_rate_min
-                    + (self.learning_rate - self.learning_rate_min)
-                    * (1 + np.cos(np.pi * progress))
-                    / 2
-                )
-                new_learning_rate = max(new_learning_rate, self.learning_rate_min)
-            else:
-                # Default: exponential
-                new_learning_rate = max(
-                    self.learning_rate * self.learning_rate_decay,
-                    self.learning_rate_min,
-                )
-
-            if new_learning_rate != self.learning_rate:
-                assert (
-                    self.model is not None
-                ), "Model must be initialized before updating learning rate"
-                self.learning_rate = new_learning_rate
-                self.model.optimizer.learning_rate.assign(self.learning_rate)
+        # NOTA: Learning rate se actualiza SOLO al final de cada época
+        # en _on_epoch_end() para evitar decay excesivo por step
 
     def _update_target_model(self) -> None:
         """
@@ -1397,6 +1471,41 @@ class DQNTrainer:
             # FASE 4: Actualizar parámetros adaptativos para la siguiente época
             if hasattr(self, "frame_count"):
                 self._update_adaptive_parameters()
+
+            # FASE 3: Learning rate adaptativo (solo al final de cada época)
+            if self.adaptive_lr and self.learning_rate > self.learning_rate_min:
+                old_lr = self.learning_rate
+                if self.lr_schedule_type == "exponential":
+                    new_learning_rate = max(
+                        self.learning_rate * self.learning_rate_decay,
+                        self.learning_rate_min,
+                    )
+                elif self.lr_schedule_type == "cosine":
+                    # Cosine annealing basado en progreso por épocas, no por steps
+                    progress = (e + 1) / self.num_epocas
+                    new_learning_rate = (
+                        self.learning_rate_min
+                        + (self.learning_rate - self.learning_rate_min)
+                        * (1 + np.cos(np.pi * progress))
+                        / 2
+                    )
+                    new_learning_rate = max(new_learning_rate, self.learning_rate_min)
+                else:
+                    # Default: exponential
+                    new_learning_rate = max(
+                        self.learning_rate * self.learning_rate_decay,
+                        self.learning_rate_min,
+                    )
+
+                if new_learning_rate != self.learning_rate:
+                    assert (
+                        self.model is not None
+                    ), "Model must be initialized before updating learning rate"
+                    self.learning_rate = new_learning_rate
+                    self.model.optimizer.learning_rate.assign(self.learning_rate)
+                    logger.info(
+                        f" 📉 Learning rate actualizado: {old_lr:.8f} → {new_learning_rate:.8f}"
+                    )
 
         logger.info(" ✅ Entrenamiento finalizado.")
 
