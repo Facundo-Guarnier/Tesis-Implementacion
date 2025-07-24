@@ -156,6 +156,17 @@ class SumoApp:
         # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
         return int(self.traci.simulation.getMinExpectedNumber())
 
+    def get_zone_vehicle_count(self, zone_id: str) -> int:
+        """Obtener la cantidad de vehículos en una zona específica."""
+        # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
+        return int(self.traci.edge.getLastStepVehicleNumber(zone_id))
+
+    def get_vehicle_counts_by_zone(self) -> dict[str, int]:
+        """Obtener la cantidad de vehículos en todas las zonas."""
+        return {
+            zone.id: self.get_zone_vehicle_count(zone.id) for zone in self.zones.zones
+        }
+
     def advance(self, steps: int) -> bool:
         """
         Avanzar la cantidad de steps especificada.

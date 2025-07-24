@@ -41,6 +41,13 @@ def test_all_phases_integration() -> bool:
             print("📊 Fase 1: Verificando arquitectura base...")
             trainer = DQNTrainer(auto_train=False)
 
+            # Crear modelo manualmente ya que auto_train=False
+            if trainer.model is None:
+                trainer.model = trainer._build_model()
+                trainer.target_model = trainer._build_model()
+                trainer.target_model.set_weights(trainer.model.get_weights())
+                print("   🏗️ Modelo creado manualmente para testing")
+
             # Verificar componentes de Fase 1 (Base)
             assert trainer.model is not None
             assert trainer.state_size == 48
@@ -198,6 +205,17 @@ def test_model_architecture_details() -> bool:
             from src.traffic_system.decision.DQN.dqn_trainer import DQNTrainer
 
             trainer = DQNTrainer(auto_train=False)
+
+            # Inicializar el modelo manualmente ya que auto_train=False
+            if trainer.model is None:
+                trainer.model = trainer._build_model()
+                trainer.target_model = trainer._build_model()
+                trainer.target_model.set_weights(trainer.model.get_weights())
+
+            # Verificar que el modelo existe antes de acceder a sus propiedades
+            assert (
+                trainer.model is not None
+            ), "Model must be initialized for architecture test"
 
             # Verificar entrada del modelo
             assert trainer.model.input_shape == (None, 48)

@@ -60,6 +60,16 @@ def test_phase_2_integration() -> bool:
         if hasattr(trainer, "model"):
             print(f"   🔍 ¿El modelo es None? {trainer.model is None}")
 
+        # Inicializar el modelo manualmente ya que auto_train=False
+        if trainer.model is None:
+            print("   🔧 Inicializando modelo manualmente...")
+            trainer.model = trainer._build_model()
+
+            # Inicializar target_model si Double DQN está habilitado
+            if trainer.use_double_dqn:
+                trainer.target_model = trainer._build_model()
+                trainer.target_model.set_weights(trainer.model.get_weights())
+
         assert hasattr(trainer, "model"), "El modelo no fue creado"
         assert trainer.model is not None, "El modelo es None"
 
@@ -166,8 +176,16 @@ def test_model_prediction() -> bool:
                 auto_train=False
             )  # No entrenar automáticamente en test
 
+            # Inicializar el modelo manualmente ya que auto_train=False
+            trainer.model = trainer._build_model()
+
         # Crear estado de prueba (48 features como espera el modelo)
         test_state = np.random.random((1, 48)).astype(np.float32)
+
+        # Verificar que el modelo existe antes de hacer predicción
+        assert (
+            trainer.model is not None
+        ), "Model must be initialized for prediction test"
 
         # Hacer predicción
         prediction = trainer.model.predict(test_state, verbose=0)

@@ -51,6 +51,13 @@ def test_phase_3_integration() -> bool:
         print(f"   📊 use_dropout: {getattr(trainer, 'use_dropout', 'NO DEFINIDO')}")
         print(f"   📊 adaptive_lr: {getattr(trainer, 'adaptive_lr', 'NO DEFINIDO')}")
 
+        # Crear modelo manualmente ya que auto_train=False
+        if trainer.model is None:
+            trainer.model = trainer._build_model()
+            trainer.target_model = trainer._build_model()
+            trainer.target_model.set_weights(trainer.model.get_weights())
+            print("   🏗️ Modelo creado manualmente para testing")
+
         # Verificar que el modelo existe
         assert hasattr(trainer, "model"), "El modelo no fue creado"
         assert trainer.model is not None, "El modelo es None"

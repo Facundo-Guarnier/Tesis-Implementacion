@@ -138,13 +138,17 @@ class DQNTrainer:
             hasattr(self.decision_settings.entrenamiento, "use_prioritized_replay")
             and self.decision_settings.entrenamiento.use_prioritized_replay
         ):
-            self.memory_buffer = PrioritizedReplayBuffer(
-                capacity=self.decision_settings.entrenamiento.memory,
-                alpha=getattr(self.decision_settings.entrenamiento, "per_alpha", 0.6),
+            self.memory_buffer: PrioritizedReplayBuffer | deque = (
+                PrioritizedReplayBuffer(
+                    capacity=self.decision_settings.entrenamiento.memory,
+                    alpha=getattr(
+                        self.decision_settings.entrenamiento, "per_alpha", 0.6
+                    ),
+                )
             )
             self.use_prioritized_replay = True
         else:
-            self.memory: deque = deque(
+            self.memory_buffer = deque(
                 maxlen=self.decision_settings.entrenamiento.memory
             )  #! Memoria de reproducción estándar
             self.use_prioritized_replay = False
@@ -245,21 +249,16 @@ class DQNTrainer:
             # Modelo mucho más grande para testing de GPU
             self.hidden_layers = [512, 512, 256, 256, 128, 128, 64]
 
-        # Construir el modelo principal
-        self.model = self._build_model()
+        # NOTA: El modelo se construye en start_training_process(), no aquí
+        # Esto permite hacer el cálculo de baseline ANTES de crear el modelo
+        self.model: tf.keras.Model | None = None
+        self.target_model: tf.keras.Model | None = None
+        self.model = None  # Se inicializará en start_training_process()
 
-        # FASE 2: Inicializar red target y contador para Double DQN
+        # FASE 2: Configuración para Double DQN (modelo target se crea después)
         if self.use_double_dqn:
-            logger = logging.getLogger(f" {self.__class__.__name__}.__init__")
-            logger.info(" 🎯 Inicializando red target para Double DQN")
-            self.target_model = self._build_model()  # Crear red target idéntica
-            self.target_model.set_weights(
-                self.model.get_weights()
-            )  # Copiar pesos iniciales
+            self.target_model = None  # Se inicializará junto con el modelo principal
             self.target_update_counter = 0  # Contador para actualizaciones
-            logger.info(
-                f" 🔄 Red target se actualizará cada {self.target_update_frequency} pasos"
-            )
 
         # FASE 4: Inicializar sistema de evaluación
         if getattr(self.decision_settings.entrenamiento, "enable_evaluation", True):
@@ -279,8 +278,11 @@ class DQNTrainer:
             logger.info(" ⚠️ Sistema de evaluación desactivado")
 
         # Solo entrenar si auto_train es True (para evitar entrenamiento en tests)
+        # NOTA: El entrenamiento real se hace en start_training_process(), no aquí
+        # Este parámetro se mantiene para compatibilidad con tests
         if self.auto_train:
-            self._train_agent()
+            # No hacer nada aquí - el entrenamiento se inicia en start_training_process()
+            pass
 
     def _configure_gpu(self) -> None:
         """
@@ -875,9 +877,25 @@ class DQNTrainer:
         FASE 3: Soporte para Prioritized Experience Replay.
         """
         if self.use_prioritized_replay:
+            assert isinstance(self.memory_buffer, PrioritizedReplayBuffer)
             self.memory_buffer.add(state, action, reward, next_state, done, td_error)
         else:
-            self.memory.append((state, action, reward, next_state, done))
+            assert isinstance(self.memory_buffer, deque)
+            self.memory_buffer.append((state, action, reward, next_state, done))
+
+    def _get_memory_size(self) -> int:
+        """Obtiene el tamaño actual de la memoria de reproducción."""
+        return len(self.memory_buffer)
+
+    def _get_memory_capacity(self) -> int:
+        """Obtiene la capacidad máxima de la memoria de reproducción."""
+        if self.use_prioritized_replay:
+            assert isinstance(self.memory_buffer, PrioritizedReplayBuffer)
+            return self.memory_buffer.capacity
+        else:
+            assert isinstance(self.memory_buffer, deque)
+            maxlen = self.memory_buffer.maxlen
+            return maxlen if maxlen is not None else 0
 
     def _select_action(self, state: NDArray) -> tuple[int, float, float]:
         """
@@ -893,6 +911,9 @@ class DQNTrainer:
             action = int(np.random.choice(len(self._action_space)))
             max_q_value = 0.0  # No hay Q-value para acciones aleatorias
         else:
+            assert (
+                self.model is not None
+            ), "Model must be initialized before selecting actions"
             # Reshape para predicción en lote (más eficiente)
             state_batch = np.expand_dims(state, axis=0)  # (12,) -> (1, 12)
             act_values = self.model.predict(state_batch, verbose=0)
@@ -928,6 +949,10 @@ class DQNTrainer:
         """
         Replay con Prioritized Experience Replay (PER).
         """
+        assert isinstance(
+            self.memory_buffer, PrioritizedReplayBuffer
+        ), "Prioritized replay requires PrioritizedReplayBuffer"
+
         if len(self.memory_buffer) < self.batch_size:
             return
 
@@ -955,7 +980,14 @@ class DQNTrainer:
         """
         Replay estándar sin priorización.
         """
-        minibatch = random.sample(self.memory, self.batch_size)
+        assert isinstance(
+            self.memory_buffer, deque
+        ), "Standard replay requires deque memory buffer"
+        assert self.model is not None, "Model must be initialized before replay"
+
+        minibatch: list[tuple[NDArray, int, float, NDArray, bool]] = random.sample(
+            self.memory_buffer, self.batch_size
+        )
 
         # Preparar datos de manera más eficiente
         if self.use_gpu:
@@ -980,6 +1012,9 @@ class DQNTrainer:
                 current_q_values = self.model(batch_states, training=False)
 
                 if self.use_double_dqn and hasattr(self, "target_model"):
+                    assert (
+                        self.target_model is not None
+                    ), "Target model must be initialized for Double DQN"
                     # Double DQN: usar online network para seleccionar acción, target network para evaluar
                     next_q_values_online = self.model(batch_next_states, training=False)
                     next_q_values_target = self.target_model(
@@ -1037,6 +1072,9 @@ class DQNTrainer:
             )
 
             if self.use_double_dqn and hasattr(self, "target_model"):
+                assert (
+                    self.target_model is not None
+                ), "Target model must be initialized for Double DQN"
                 # Double DQN: usar online network para seleccionar, target network para evaluar
                 next_q_values_online = self.model.predict(
                     next_states, verbose=0, batch_size=self.batch_size
@@ -1080,6 +1118,10 @@ class DQNTrainer:
         """
         Calcula TD-errors para Prioritized Experience Replay.
         """
+        assert (
+            self.model is not None
+        ), "Model must be initialized before calculating TD errors"
+
         td_errors = []
         states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
         next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
@@ -1088,6 +1130,9 @@ class DQNTrainer:
         next_q_values = self.model.predict(next_states, verbose=0)
 
         if self.use_double_dqn and hasattr(self, "target_model"):
+            assert (
+                self.target_model is not None
+            ), "Target model must be initialized for Double DQN"
             next_q_values_target = self.target_model.predict(next_states, verbose=0)
 
         for i, (_, action, reward, _, done) in enumerate(minibatch):
@@ -1113,6 +1158,8 @@ class DQNTrainer:
         """
         Entrena el modelo con importance sampling weights para PER.
         """
+        assert self.model is not None, "Model must be initialized before training"
+
         # Implementación simplificada - en production se usaría weighted loss
         # Por ahora entrenar normalmente pero podríamos aplicar weights al loss
         states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
@@ -1122,6 +1169,9 @@ class DQNTrainer:
         next_q_values = self.model.predict(next_states, verbose=0)
 
         if self.use_double_dqn and hasattr(self, "target_model"):
+            assert (
+                self.target_model is not None
+            ), "Target model must be initialized for Double DQN"
             next_q_values_target = self.target_model.predict(next_states, verbose=0)
 
         targets = current_q_values.copy()
@@ -1175,6 +1225,9 @@ class DQNTrainer:
                 )
 
             if new_learning_rate != self.learning_rate:
+                assert (
+                    self.model is not None
+                ), "Model must be initialized before updating learning rate"
                 self.learning_rate = new_learning_rate
                 self.model.optimizer.learning_rate.assign(self.learning_rate)
 
@@ -1184,6 +1237,12 @@ class DQNTrainer:
         Solo se ejecuta si Double DQN está habilitado.
         """
         if hasattr(self, "target_model"):
+            assert (
+                self.model is not None
+            ), "Model must be initialized before updating target model"
+            assert (
+                self.target_model is not None
+            ), "Target model must be initialized before updating"
             logger = logging.getLogger(
                 f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
             )
@@ -1240,7 +1299,7 @@ class DQNTrainer:
                 self._remember(state, action_index, reward, next_state, done)
 
                 state = next_state
-                if len(self.memory) > self.batch_size:
+                if self._get_memory_size() > self.batch_size:
                     self._replay()
                     replay_count += 1
 
@@ -1249,6 +1308,7 @@ class DQNTrainer:
                         self._log_gpu_usage(f"Época {e+1} - Replay {replay_count}")
 
             #! Guardar los datos de entrenamiento por epoca en formato Keras moderno
+            assert self.model is not None, "Model must be initialized before saving"
             self.model.save(self._save_path + f"/epoca_{e+1}.h5")
             self.model.save(self._save_path + f"/epoca_{e+1}.keras")
 
@@ -1676,7 +1736,7 @@ class DQNTrainer:
                 self.epsilon_decay,
                 self.epsilon_min,
                 self.gamma,
-                self.memory.maxlen,
+                self._get_memory_capacity(),
                 layers,
             ]
 
@@ -1761,6 +1821,9 @@ class DQNTrainer:
         if self.use_double_dqn:
             logger.info(" 🎯 Inicializando red target para Double DQN")
             self.target_model = self._build_model()  # Crear red target idéntica
+            assert (
+                self.model is not None
+            ), "Model must be initialized before copying weights"
             self.target_model.set_weights(
                 self.model.get_weights()
             )  # Copiar pesos iniciales
@@ -1769,9 +1832,9 @@ class DQNTrainer:
                 f" 🔄 Red target se actualizará cada {self.target_update_frequency} pasos"
             )
 
-        # Solo entrenar si auto_train es True (para evitar entrenamiento en tests)
-        if self.auto_train:
-            self._train_agent()
+        # Iniciar el entrenamiento del agente después de tener todo configurado
+        logger.info(" 🚀 Iniciando entrenamiento del agente DQN...")
+        self._train_agent()
 
     def _simulate_evaluation(self) -> dict[str, float]:
         """

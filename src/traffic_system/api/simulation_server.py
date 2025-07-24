@@ -12,6 +12,7 @@ from src.traffic_system.core.api_models import (
     SynchronizationResponse,
     TrafficLightStateResponse,
     TrafficLightStatesResponse,
+    VehicleQuantitiesResponse,
     WaitTimesResponse,
 )
 from src.traffic_system.simulation.app import SumoApp
@@ -52,6 +53,10 @@ class SumoAPI(Flask):
         self.route("/espera", methods=["GET"])(self.get_wait_times)
         self.route("/espera2", methods=["GET"])(self.get_wait_times_s2)
         self.route("/espera/<zone_id>", methods=["GET"])(self.get_zone_wait_time)
+        self.route("/cantidad", methods=["GET"])(self.get_vehicle_quantities)
+        self.route("/cantidad/<zone_id>", methods=["GET"])(
+            self.get_zone_vehicle_quantity
+        )
         self.route("/sincronizacion", methods=["GET"])(self.get_synchronization_status)
 
         self.route("/avanzar", methods=["PUT"])(self.step_simulation)
@@ -326,6 +331,38 @@ class SumoAPI(Flask):
             jsonify({"tiempo_espera": self.app_s1.get_zone_wait_time(zone_id=zone_id)}),
             200,
         )
+
+    def get_vehicle_quantities(self) -> tuple[Response, int]:
+        """Obtener cantidades de vehículos de todas las zonas en S1."""
+        vehicle_counts = self.app_s1.get_vehicle_counts_by_zone()
+        total_vehicles = self.app_s1.get_vehicle_count()
+
+        response = VehicleQuantitiesResponse(
+            cantidades=vehicle_counts,
+            total_vehicles=total_vehicles,
+        )
+
+        return jsonify(response.model_dump()), 200
+
+    def get_zone_vehicle_quantity(self, zone_id: str) -> tuple[Response, int]:
+        """Obtener cantidad de vehículos de una zona específica en S1."""
+        try:
+            zone_count = self.app_s1.get_zone_vehicle_count(zone_id)
+
+            response = VehicleQuantitiesResponse(
+                cantidades={zone_id: zone_count},
+                total_vehicles=zone_count,
+            )
+
+            return jsonify(response.model_dump()), 200
+        except Exception as e:
+            self.logger.error(
+                f"❌ Error obteniendo cantidad de vehículos para zona {zone_id}: {e}"
+            )
+            error_response = ErrorResponse(
+                error=f"Error obteniendo cantidad de vehículos para zona {zone_id}"
+            )
+            return jsonify(error_response.model_dump()), 500
 
     def get_all_traffic_light_states(self) -> tuple[Response, int]:
         """Obtener estados de semáforos de S1."""
