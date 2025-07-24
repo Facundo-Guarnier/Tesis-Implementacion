@@ -46,6 +46,20 @@ class EntrenamientoSettings(BaseModel):
     use_dueling_dqn: bool = True  # * Activar Dueling DQN (separar valor y ventaja)
     target_update_frequency: int = 100  # * Frecuencia de actualización red target
 
+    # FASE 3: Optimizaciones avanzadas
+    use_prioritized_replay: bool = True  # * Activar Prioritized Experience Replay (PER)
+    per_alpha: float = 0.6  # * Priorización exponent (0=uniform, 1=full priority)
+    per_beta_start: float = 0.4  # * Importance sampling beta inicial
+    per_beta_frames: int = 100000  # * Frames para llegar a beta=1.0
+    use_noisy_networks: bool = True  # * Activar Noisy Networks para exploración
+    noise_std: float = 0.5  # * Desviación estándar del ruido
+    use_dropout: bool = True  # * Activar Dropout para regularización
+    dropout_rate: float = 0.1  # * Tasa de dropout
+    adaptive_lr: bool = True  # * Learning rate adaptativo
+    lr_schedule_type: str = (
+        "cosine"  # * Tipo de schedule: "exponential", "cosine", "plateau"
+    )
+
 
 class DecisionSettings(BaseModel):
     decision: bool  # * Iniciar la toma de decisiones

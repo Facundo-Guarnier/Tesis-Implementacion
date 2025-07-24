@@ -67,6 +67,18 @@ decision:
     use_dueling_dqn: True #* Activar Dueling DQN (separar valor del estado y ventaja de acciones)
     target_update_frequency: 100 #* Frecuencia de actualización de red target (cada N pasos)
 
+    # FASE 3: Optimizaciones avanzadas
+    use_prioritized_replay: True #* Activar Prioritized Experience Replay (PER)
+    per_alpha: 0.6 #* Priorización exponent (0=uniform, 1=full priority)
+    per_beta_start: 0.4 #* Importance sampling beta inicial
+    per_beta_frames: 100000 #* Frames para llegar a beta=1.0
+    use_noisy_networks: True #* Activar Noisy Networks para exploración
+    noise_std: 0.5 #* Desviación estándar del ruido
+    use_dropout: True #* Activar Dropout para regularización
+    dropout_rate: 0.1 #* Tasa de dropout
+    adaptive_lr: True #* Learning rate adaptativo
+    lr_schedule_type: "cosine" #* Tipo de schedule: "exponential", "cosine", "plateau"
+
 sumo:
   simular: True #* Iniciar la simulación en SUMO
   gui: False #! Mostrar la interfaz gráfica de SUMO

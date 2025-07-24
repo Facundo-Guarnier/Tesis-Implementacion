@@ -21,6 +21,75 @@ from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DecisionSettings
 
 
+class PrioritizedReplayBuffer:
+    """
+    Buffer de experiencia con priorización para Prioritized Experience Replay (PER).
+
+    Implementa muestreo basado en TD-error con importance sampling para corregir bias.
+    """
+
+    def __init__(self, capacity: int, alpha: float = 0.6):
+        self.capacity = capacity
+        self.alpha = (
+            alpha  # Grado de priorización (0 = uniforme, 1 = completamente priorizado)
+        )
+        self.buffer: list = []
+        self.priorities: list[float] = []
+        self.position = 0
+
+    def add(
+        self,
+        state: NDArray,
+        action: int,
+        reward: float,
+        next_state: NDArray,
+        done: bool,
+        td_error: float = 1.0,
+    ) -> None:
+        """Añade nueva experiencia con prioridad basada en TD-error."""
+        priority = (abs(td_error) + 1e-6) ** self.alpha  # Evitar prioridad 0
+
+        if len(self.buffer) < self.capacity:
+            self.buffer.append((state, action, reward, next_state, done))
+            self.priorities.append(priority)
+        else:
+            self.buffer[self.position] = (state, action, reward, next_state, done)
+            self.priorities[self.position] = priority
+
+        self.position = (self.position + 1) % self.capacity
+
+    def sample(self, batch_size: int, beta: float = 0.4) -> tuple:
+        """Muestrea experiencias basadas en prioridades con importance sampling."""
+        if len(self.buffer) < batch_size:
+            return [], [], []
+
+        # Calcular probabilidades de muestreo
+        priorities = np.array(self.priorities[: len(self.buffer)])
+        probabilities = priorities / priorities.sum()
+
+        # Muestrear índices basados en probabilidades
+        indices = np.random.choice(len(self.buffer), batch_size, p=probabilities)
+
+        # Calcular importance sampling weights
+        total = len(self.buffer)
+        weights = (total * probabilities[indices]) ** (-beta)
+        weights /= weights.max()  # Normalizar
+
+        # Extraer experiencias
+        samples = [self.buffer[idx] for idx in indices]
+
+        return samples, indices, weights
+
+    def update_priorities(self, indices: list[int], td_errors: list[float]) -> None:
+        """Actualiza las prioridades basadas en nuevos TD-errors."""
+        for idx, td_error in zip(indices, td_errors, strict=True):
+            if idx < len(self.priorities):
+                self.priorities[idx] = (abs(td_error) + 1e-6) ** self.alpha
+
+    def __len__(self) -> int:
+        return len(self.buffer)
+
+
 class DQNTrainer:
     """
     Entrenamiento de un agente utilizando el algoritmo DQN (Deep Q-Learning).
@@ -58,9 +127,23 @@ class DQNTrainer:
         self._configure_gpu()
 
         logging.basicConfig(level=logging.DEBUG)
-        self.memory: deque = deque(
-            maxlen=self.decision_settings.entrenamiento.memory
-        )  #! Memoria de reproducción
+
+        # FASE 3: Configurar memoria de reproducción (estándar o priorizada)
+        if (
+            hasattr(self.decision_settings.entrenamiento, "use_prioritized_replay")
+            and self.decision_settings.entrenamiento.use_prioritized_replay
+        ):
+            self.memory_buffer = PrioritizedReplayBuffer(
+                capacity=self.decision_settings.entrenamiento.memory,
+                alpha=getattr(self.decision_settings.entrenamiento, "per_alpha", 0.6),
+            )
+            self.use_prioritized_replay = True
+        else:
+            self.memory: deque = deque(
+                maxlen=self.decision_settings.entrenamiento.memory
+            )  #! Memoria de reproducción estándar
+            self.use_prioritized_replay = False
+
         self._api = DecisionAPI(self.settings.base_url)
 
         self._set_action_space()
@@ -105,6 +188,48 @@ class DQNTrainer:
         self.use_dueling_dqn = getattr(
             self.decision_settings.entrenamiento, "use_dueling_dqn", True
         )
+
+        # FASE 3: Configuración para optimizaciones avanzadas
+        self.use_prioritized_replay = getattr(
+            self.decision_settings.entrenamiento, "use_prioritized_replay", True
+        )
+        self.per_alpha = getattr(self.decision_settings.entrenamiento, "per_alpha", 0.6)
+        self.per_beta_start = getattr(
+            self.decision_settings.entrenamiento, "per_beta_start", 0.4
+        )
+        self.per_beta_frames = getattr(
+            self.decision_settings.entrenamiento, "per_beta_frames", 100000
+        )
+        self.use_noisy_networks = getattr(
+            self.decision_settings.entrenamiento, "use_noisy_networks", True
+        )
+        self.noise_std = getattr(self.decision_settings.entrenamiento, "noise_std", 0.5)
+        self.use_dropout = getattr(
+            self.decision_settings.entrenamiento, "use_dropout", True
+        )
+        self.dropout_rate = getattr(
+            self.decision_settings.entrenamiento, "dropout_rate", 0.1
+        )
+        self.adaptive_lr = getattr(
+            self.decision_settings.entrenamiento, "adaptive_lr", True
+        )
+        self.lr_schedule_type = getattr(
+            self.decision_settings.entrenamiento, "lr_schedule_type", "cosine"
+        )
+
+        # Inicializar variables para PER
+        if self.use_prioritized_replay:
+            self.per_beta = self.per_beta_start
+            self.per_beta_increment_per_frame = (
+                1.0 - self.per_beta_start
+            ) / self.per_beta_frames
+            # Inicializar memory prioritizada (se reemplazará después)
+            self.priority_memory: list[tuple] = (
+                []
+            )  # Se implementará como estructura específica
+
+        # Contador de frames para ajustes adaptativos
+        self.frame_count = 0
 
         # Configuración para testing con modelo más grande
         self.test_large_model = False  # Cambiar a True para probar modelo grande
@@ -493,62 +618,204 @@ class DQNTrainer:
 
         return model
 
-    def _build_standard_model(self) -> tf.keras.Model:
+    def _create_noisy_layer(
+        self, units: int, input_dim: int | None = None, activation: str = "relu"
+    ) -> tf.keras.layers.Layer:
         """
-        Construye el modelo DQN estándar (secuencial).
+        Crea una Noisy Layer para exploración automática.
+
+        Las Noisy Networks reemplazan epsilon-greedy con ruido paramétrico en los pesos.
+        Esto permite exploración más sofisticada y específica por estado.
+
+        Args:
+            units: Número de neuronas en la capa
+            input_dim: Dimensión de entrada (solo para primera capa)
+            activation: Función de activación
 
         Returns:
-            tf.keras.Model: Modelo DQN estándar
+            tf.keras.layers.Layer: Capa con ruido paramétrico
         """
-        model = tf.keras.Sequential()
-        model.add(
-            tf.keras.layers.Dense(
-                self.hidden_layers[0], input_dim=self.state_size, activation="relu"
+        if not self.use_noisy_networks:
+            # Si no se usan noisy networks, crear capa estándar
+            if input_dim is not None:
+                return tf.keras.layers.Dense(
+                    units, input_dim=input_dim, activation=activation
+                )
+            else:
+                return tf.keras.layers.Dense(units, activation=activation)
+
+        # Implementación simplificada de Noisy Layer usando Gaussian Noise
+        # En una implementación completa, se usarían NoisyLinear layers customizadas
+        if input_dim is not None:
+            dense = tf.keras.layers.Dense(
+                units, input_dim=input_dim, activation=activation
             )
+        else:
+            dense = tf.keras.layers.Dense(units, activation=activation)
+
+        # Añadir ruido gaussiano para simular exploración
+        # Nota: En production se implementaría NoisyLinear completa con factorized gaussian noise
+        return tf.keras.Sequential(
+            [
+                dense,
+                (
+                    tf.keras.layers.GaussianNoise(stddev=self.noise_std)
+                    if activation != "linear"
+                    else dense
+                ),
+            ]
         )
 
-        for i in range(1, len(self.hidden_layers)):
-            model.add(tf.keras.layers.Dense(self.hidden_layers[i], activation="relu"))
+    def _build_standard_model(self) -> tf.keras.Model:
+        """
+        Construye el modelo DQN estándar con mejoras de Fase 3.
 
-        model.add(tf.keras.layers.Dense(len(self._action_space), activation="linear"))
+        Returns:
+            tf.keras.Model: Modelo DQN estándar con Dropout y Noisy Layers
+        """
+        model = tf.keras.Sequential()
+
+        # Primera capa con input_dim
+        if self.use_noisy_networks:
+            model.add(
+                self._create_noisy_layer(
+                    self.hidden_layers[0], input_dim=self.state_size
+                )
+            )
+        else:
+            model.add(
+                tf.keras.layers.Dense(
+                    self.hidden_layers[0], input_dim=self.state_size, activation="relu"
+                )
+            )
+
+        # Dropout después de la primera capa si está habilitado
+        if self.use_dropout:
+            model.add(tf.keras.layers.Dropout(self.dropout_rate))
+
+        # Capas ocultas restantes
+        for i in range(1, len(self.hidden_layers)):
+            if self.use_noisy_networks:
+                model.add(self._create_noisy_layer(self.hidden_layers[i]))
+            else:
+                model.add(
+                    tf.keras.layers.Dense(self.hidden_layers[i], activation="relu")
+                )
+
+            # Dropout entre capas si está habilitado
+            if self.use_dropout:
+                model.add(tf.keras.layers.Dropout(self.dropout_rate))
+
+        # Capa de salida (sin dropout)
+        if self.use_noisy_networks:
+            model.add(
+                self._create_noisy_layer(len(self._action_space), activation="linear")
+            )
+        else:
+            model.add(
+                tf.keras.layers.Dense(len(self._action_space), activation="linear")
+            )
 
         return model
 
     def _build_dueling_model(self) -> tf.keras.Model:
         """
-        Construye el modelo Dueling DQN.
+        Construye el modelo Dueling DQN con mejoras de Fase 3.
 
         Arquitectura:
-        - Capas compartidas (shared layers)
+        - Capas compartidas (shared layers) con Dropout y Noisy Layers
         - Stream de valor del estado V(s)
         - Stream de ventaja de acciones A(s,a)
         - Combinación: Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
 
         Returns:
-            tf.keras.Model: Modelo Dueling DQN
+            tf.keras.Model: Modelo Dueling DQN con optimizaciones
         """
         # Input layer
         inputs = tf.keras.layers.Input(shape=(self.state_size,))
 
-        # Capas compartidas (shared layers)
+        # Capas compartidas (shared layers) con mejoras de Fase 3
         shared = inputs
         for i, units in enumerate(
             self.hidden_layers[:-2]
         ):  # Usar todas menos las últimas 2
-            shared = tf.keras.layers.Dense(
-                units, activation="relu", name=f"shared_{i}"
-            )(shared)
+            if self.use_noisy_networks:
+                # Crear capa noisy usando Sequential como workaround
+                noisy_layer = tf.keras.Sequential(
+                    [
+                        tf.keras.layers.Dense(
+                            units, activation="relu", name=f"shared_{i}_dense"
+                        ),
+                        tf.keras.layers.GaussianNoise(
+                            stddev=self.noise_std, name=f"shared_{i}_noise"
+                        ),
+                    ],
+                    name=f"shared_{i}",
+                )
+                shared = noisy_layer(shared)
+            else:
+                shared = tf.keras.layers.Dense(
+                    units, activation="relu", name=f"shared_{i}"
+                )(shared)
+
+            # Añadir Dropout si está habilitado
+            if self.use_dropout:
+                shared = tf.keras.layers.Dropout(
+                    self.dropout_rate, name=f"shared_{i}_dropout"
+                )(shared)
 
         # Stream de valor del estado V(s)
-        value_stream = tf.keras.layers.Dense(
-            self.hidden_layers[-2], activation="relu", name="value_hidden"
-        )(shared)
+        if self.use_noisy_networks:
+            value_stream = tf.keras.Sequential(
+                [
+                    tf.keras.layers.Dense(
+                        self.hidden_layers[-2],
+                        activation="relu",
+                        name="value_hidden_dense",
+                    ),
+                    tf.keras.layers.GaussianNoise(
+                        stddev=self.noise_std, name="value_hidden_noise"
+                    ),
+                ],
+                name="value_stream",
+            )(shared)
+        else:
+            value_stream = tf.keras.layers.Dense(
+                self.hidden_layers[-2], activation="relu", name="value_hidden"
+            )(shared)
+
+        if self.use_dropout:
+            value_stream = tf.keras.layers.Dropout(
+                self.dropout_rate, name="value_dropout"
+            )(value_stream)
+
         value = tf.keras.layers.Dense(1, name="value")(value_stream)
 
         # Stream de ventaja de acciones A(s,a)
-        advantage_stream = tf.keras.layers.Dense(
-            self.hidden_layers[-1], activation="relu", name="advantage_hidden"
-        )(shared)
+        if self.use_noisy_networks:
+            advantage_stream = tf.keras.Sequential(
+                [
+                    tf.keras.layers.Dense(
+                        self.hidden_layers[-1],
+                        activation="relu",
+                        name="advantage_hidden_dense",
+                    ),
+                    tf.keras.layers.GaussianNoise(
+                        stddev=self.noise_std, name="advantage_hidden_noise"
+                    ),
+                ],
+                name="advantage_stream",
+            )(shared)
+        else:
+            advantage_stream = tf.keras.layers.Dense(
+                self.hidden_layers[-1], activation="relu", name="advantage_hidden"
+            )(shared)
+
+        if self.use_dropout:
+            advantage_stream = tf.keras.layers.Dropout(
+                self.dropout_rate, name="advantage_dropout"
+            )(advantage_stream)
+
         advantage = tf.keras.layers.Dense(len(self._action_space), name="advantage")(
             advantage_stream
         )
@@ -579,11 +846,16 @@ class DQNTrainer:
         reward: float,
         next_state: NDArray,
         done: bool,
+        td_error: float = 1.0,
     ) -> None:
         """
         Almacena la experiencia del agente en la memoria de reproducción.
+        FASE 3: Soporte para Prioritized Experience Replay.
         """
-        self.memory.append((state, action, reward, next_state, done))
+        if self.use_prioritized_replay:
+            self.memory_buffer.add(state, action, reward, next_state, done, td_error)
+        else:
+            self.memory.append((state, action, reward, next_state, done))
 
     def _select_action(self, state: NDArray) -> tuple[int, float, float]:
         """
@@ -612,6 +884,54 @@ class DQNTrainer:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
         FASE 2: Soporte para Double DQN y actualización de red target.
+        FASE 3: Soporte para Prioritized Experience Replay.
+        """
+        if self.use_prioritized_replay:
+            self._replay_prioritized()
+        else:
+            self._replay_standard()
+
+        # Actualizar red target si es necesario (Double DQN)
+        if self.use_double_dqn and hasattr(self, "target_model"):
+            if hasattr(self, "target_update_counter"):
+                self.target_update_counter += 1
+                if self.target_update_counter >= self.target_update_frequency:
+                    self._update_target_model()
+                    self.target_update_counter = 0
+
+        # FASE 3: Actualizar parámetros adaptativos
+        self._update_adaptive_parameters()
+
+    def _replay_prioritized(self) -> None:
+        """
+        Replay con Prioritized Experience Replay (PER).
+        """
+        if len(self.memory_buffer) < self.batch_size:
+            return
+
+        # Actualizar beta para importance sampling
+        self.per_beta = min(1.0, self.per_beta + self.per_beta_increment_per_frame)
+
+        # Muestrear experiencias con prioridades
+        minibatch, indices, weights = self.memory_buffer.sample(
+            self.batch_size, self.per_beta
+        )
+
+        if not minibatch:
+            return
+
+        # Calcular TD-errors para actualizar prioridades
+        td_errors = self._calculate_td_errors(minibatch)
+
+        # Actualizar prioridades en el buffer
+        self.memory_buffer.update_priorities(indices, td_errors)
+
+        # Entrenar con importance sampling weights
+        self._train_batch_with_weights(minibatch, weights)
+
+    def _replay_standard(self) -> None:
+        """
+        Replay estándar sin priorización.
         """
         minibatch = random.sample(self.memory, self.batch_size)
 
@@ -734,26 +1054,106 @@ class DQNTrainer:
                 states, targets, epochs=1, verbose=0, batch_size=self.batch_size
             )
 
-        # Actualizar red target si es necesario (Double DQN)
-        if self.use_double_dqn and hasattr(self, "target_model"):
-            if hasattr(self, "target_update_counter"):
-                self.target_update_counter += 1
-                if self.target_update_counter >= self.target_update_frequency:
-                    self._update_target_model()
-                    self.target_update_counter = 0
+    def _calculate_td_errors(self, minibatch: list) -> list[float]:
+        """
+        Calcula TD-errors para Prioritized Experience Replay.
+        """
+        td_errors = []
+        states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
+        next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
 
-        # Actualizar parámetros - epsilon y learning rate
+        current_q_values = self.model.predict(states, verbose=0)
+        next_q_values = self.model.predict(next_states, verbose=0)
+
+        if self.use_double_dqn and hasattr(self, "target_model"):
+            next_q_values_target = self.target_model.predict(next_states, verbose=0)
+
+        for i, (_, action, reward, _, done) in enumerate(minibatch):
+            current_q = current_q_values[i][action]
+
+            if done:
+                target_q = reward
+            else:
+                if self.use_double_dqn and hasattr(self, "target_model"):
+                    best_action = np.argmax(next_q_values[i])
+                    target_q = (
+                        reward + self.gamma * next_q_values_target[i][best_action]
+                    )
+                else:
+                    target_q = reward + self.gamma * np.max(next_q_values[i])
+
+            td_error = abs(target_q - current_q)
+            td_errors.append(td_error)
+
+        return td_errors
+
+    def _train_batch_with_weights(self, minibatch: list, weights: NDArray) -> None:
+        """
+        Entrena el modelo con importance sampling weights para PER.
+        """
+        # Implementación simplificada - en production se usaría weighted loss
+        # Por ahora entrenar normalmente pero podríamos aplicar weights al loss
+        states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
+        next_states = np.array([ns for _, _, _, ns, _ in minibatch], dtype=np.float32)
+
+        current_q_values = self.model.predict(states, verbose=0)
+        next_q_values = self.model.predict(next_states, verbose=0)
+
+        if self.use_double_dqn and hasattr(self, "target_model"):
+            next_q_values_target = self.target_model.predict(next_states, verbose=0)
+
+        targets = current_q_values.copy()
+        for i, (_, action, reward, _, done) in enumerate(minibatch):
+            if done:
+                targets[i][action] = reward
+            else:
+                if self.use_double_dqn and hasattr(self, "target_model"):
+                    best_action = np.argmax(next_q_values[i])
+                    targets[i][action] = (
+                        reward + self.gamma * next_q_values_target[i][best_action]
+                    )
+                else:
+                    targets[i][action] = reward + self.gamma * np.max(next_q_values[i])
+
+        # Entrenar con importance sampling (simplificado)
+        self.model.fit(states, targets, epochs=1, verbose=0, sample_weight=weights)
+
+    def _update_adaptive_parameters(self) -> None:
+        """
+        Actualiza parámetros adaptativos para Fase 3.
+        """
+        self.frame_count += 1
+
+        # Actualizar epsilon y learning rate (mantener lógica existente)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-        # Actualizar learning rate del optimizador si está configurado el decay
-        if self.learning_rate > self.learning_rate_min:
-            new_learning_rate = max(
-                self.learning_rate * self.learning_rate_decay, self.learning_rate_min
-            )
+        # FASE 3: Learning rate adaptativo
+        if self.adaptive_lr and self.learning_rate > self.learning_rate_min:
+            if self.lr_schedule_type == "exponential":
+                new_learning_rate = max(
+                    self.learning_rate * self.learning_rate_decay,
+                    self.learning_rate_min,
+                )
+            elif self.lr_schedule_type == "cosine":
+                # Cosine annealing
+                progress = self.frame_count / (self.num_epocas * 1000)  # Estimación
+                new_learning_rate = (
+                    self.learning_rate_min
+                    + (self.learning_rate - self.learning_rate_min)
+                    * (1 + np.cos(np.pi * progress))
+                    / 2
+                )
+                new_learning_rate = max(new_learning_rate, self.learning_rate_min)
+            else:
+                # Default: exponential
+                new_learning_rate = max(
+                    self.learning_rate * self.learning_rate_decay,
+                    self.learning_rate_min,
+                )
+
             if new_learning_rate != self.learning_rate:
                 self.learning_rate = new_learning_rate
-                # Actualizar el learning rate del optimizador
                 self.model.optimizer.learning_rate.assign(self.learning_rate)
 
     def _update_target_model(self) -> None:
