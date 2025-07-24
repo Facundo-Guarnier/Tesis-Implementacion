@@ -41,6 +41,11 @@ class EntrenamientoSettings(BaseModel):
     gamma: float
     hidden_layers: list[int]
 
+    # FASE 2: Mejoras algorítmicas DQN
+    use_double_dqn: bool = True  # * Activar Double DQN (reduce sobreestimación)
+    use_dueling_dqn: bool = True  # * Activar Dueling DQN (separar valor y ventaja)
+    target_update_frequency: int = 100  # * Frecuencia de actualización red target
+
 
 class DecisionSettings(BaseModel):
     decision: bool  # * Iniciar la toma de decisiones

@@ -46,10 +46,13 @@ class DQNTrainer:
         gamma (float): Factor de descuento, que determina la importancia de las recompensas futuras.
     """
 
-    def __init__(self, decision_settings: DecisionSettings | None = None) -> None:
+    def __init__(
+        self, decision_settings: DecisionSettings | None = None, auto_train: bool = True
+    ) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings()
         self.decision_settings = load_app_settings().decision
+        self.auto_train = auto_train  # Almacenar parámetro para usar al final
 
         # Configurar GPU para entrenamiento óptimo
         self._configure_gpu()
@@ -90,6 +93,19 @@ class DQNTrainer:
         self.gamma = self.decision_settings.entrenamiento.gamma
         self.hidden_layers = self.decision_settings.entrenamiento.hidden_layers
 
+        # FASE 2: Configuración para Double DQN
+        self.use_double_dqn = getattr(
+            self.decision_settings.entrenamiento, "use_double_dqn", True
+        )
+        self.target_update_frequency = getattr(
+            self.decision_settings.entrenamiento, "target_update_frequency", 100
+        )
+
+        # FASE 2: Configuración para Dueling DQN
+        self.use_dueling_dqn = getattr(
+            self.decision_settings.entrenamiento, "use_dueling_dqn", True
+        )
+
         # Configuración para testing con modelo más grande
         self.test_large_model = False  # Cambiar a True para probar modelo grande
 
@@ -98,6 +114,26 @@ class DQNTrainer:
             logger.info(" 🧪 MODO TESTING: Usando modelo DQN más grande")
             # Modelo mucho más grande para testing de GPU
             self.hidden_layers = [512, 512, 256, 256, 128, 128, 64]
+
+        # Construir el modelo principal
+        self.model = self._build_model()
+
+        # FASE 2: Inicializar red target y contador para Double DQN
+        if self.use_double_dqn:
+            logger = logging.getLogger(f" {self.__class__.__name__}.__init__")
+            logger.info(" 🎯 Inicializando red target para Double DQN")
+            self.target_model = self._build_model()  # Crear red target idéntica
+            self.target_model.set_weights(
+                self.model.get_weights()
+            )  # Copiar pesos iniciales
+            self.target_update_counter = 0  # Contador para actualizaciones
+            logger.info(
+                f" 🔄 Red target se actualizará cada {self.target_update_frequency} pasos"
+            )
+
+        # Solo entrenar si auto_train es True (para evitar entrenamiento en tests)
+        if self.auto_train:
+            self._train_agent()
 
     def _configure_gpu(self) -> None:
         """
@@ -413,9 +449,10 @@ class DQNTrainer:
     def _build_model(self) -> tf.keras.Model:
         """
         Define la arquitectura de la red neuronal utilizando TensorFlow.
+        FASE 2: Soporte para Dueling DQN y modelo estándar.
 
         Returns:
-            tf.keras.Model: Modelo de la red neuronal.
+            tf.keras.Model: Modelo de la red neuronal (estándar o Dueling).
         """
         logger = logging.getLogger(
             f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
@@ -423,31 +460,21 @@ class DQNTrainer:
 
         # Usar el dispositivo detectado (GPU o CPU)
         with tf.device(self.device):
-            #! Construir el modelo en base a self.hidden_layers
-            model = tf.keras.Sequential()
-            model.add(
-                tf.keras.layers.Dense(
-                    self.hidden_layers[0], input_dim=self.state_size, activation="relu"
-                )
-            )
+            if self.use_dueling_dqn:
+                model = self._build_dueling_model()
+                logger.info(" 🔀 Usando arquitectura Dueling DQN")
+            else:
+                model = self._build_standard_model()
+                logger.info(" 📊 Usando arquitectura DQN estándar")
 
-            for i in range(1, len(self.hidden_layers)):
-                model.add(
-                    tf.keras.layers.Dense(self.hidden_layers[i], activation="relu")
-                )
-
-            model.add(
-                tf.keras.layers.Dense(len(self._action_space), activation="linear")
-            )
-
-            # Usar learning_rate en lugar de lr (deprecado)
-            # Deshabilitar XLA compilation temporalmente para evitar problemas
+            # Compilar modelo
             model.compile(
                 loss="mse",
                 optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
                 jit_compile=False,  # Deshabilitar XLA temporalmente
             )
 
+        # Mostrar resumen del modelo
         stream = io.StringIO()
         with redirect_stdout(stream):
             model.summary()
@@ -463,6 +490,85 @@ class DQNTrainer:
             logger.info(f" 🎯 Modelo creado en: {device_info}")
         except Exception:
             logger.info(f" 🎯 Modelo configurado para: {self.device}")
+
+        return model
+
+    def _build_standard_model(self) -> tf.keras.Model:
+        """
+        Construye el modelo DQN estándar (secuencial).
+
+        Returns:
+            tf.keras.Model: Modelo DQN estándar
+        """
+        model = tf.keras.Sequential()
+        model.add(
+            tf.keras.layers.Dense(
+                self.hidden_layers[0], input_dim=self.state_size, activation="relu"
+            )
+        )
+
+        for i in range(1, len(self.hidden_layers)):
+            model.add(tf.keras.layers.Dense(self.hidden_layers[i], activation="relu"))
+
+        model.add(tf.keras.layers.Dense(len(self._action_space), activation="linear"))
+
+        return model
+
+    def _build_dueling_model(self) -> tf.keras.Model:
+        """
+        Construye el modelo Dueling DQN.
+
+        Arquitectura:
+        - Capas compartidas (shared layers)
+        - Stream de valor del estado V(s)
+        - Stream de ventaja de acciones A(s,a)
+        - Combinación: Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
+
+        Returns:
+            tf.keras.Model: Modelo Dueling DQN
+        """
+        # Input layer
+        inputs = tf.keras.layers.Input(shape=(self.state_size,))
+
+        # Capas compartidas (shared layers)
+        shared = inputs
+        for i, units in enumerate(
+            self.hidden_layers[:-2]
+        ):  # Usar todas menos las últimas 2
+            shared = tf.keras.layers.Dense(
+                units, activation="relu", name=f"shared_{i}"
+            )(shared)
+
+        # Stream de valor del estado V(s)
+        value_stream = tf.keras.layers.Dense(
+            self.hidden_layers[-2], activation="relu", name="value_hidden"
+        )(shared)
+        value = tf.keras.layers.Dense(1, name="value")(value_stream)
+
+        # Stream de ventaja de acciones A(s,a)
+        advantage_stream = tf.keras.layers.Dense(
+            self.hidden_layers[-1], activation="relu", name="advantage_hidden"
+        )(shared)
+        advantage = tf.keras.layers.Dense(len(self._action_space), name="advantage")(
+            advantage_stream
+        )
+
+        # Combinar valor y ventaja: Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
+        # Esto asegura que V(s) representa realmente el valor del estado
+        advantage_mean = tf.keras.layers.Lambda(
+            lambda x: tf.reduce_mean(x, axis=1, keepdims=True), name="advantage_mean"
+        )(advantage)
+
+        q_values = tf.keras.layers.Add(name="q_values")(
+            [
+                value,
+                tf.keras.layers.Subtract(name="advantage_centered")(
+                    [advantage, advantage_mean]
+                ),
+            ]
+        )
+
+        model = tf.keras.Model(inputs=inputs, outputs=q_values, name="Dueling_DQN")
 
         return model
 
@@ -505,7 +611,7 @@ class DQNTrainer:
     def _replay(self) -> None:
         """
         Realiza el proceso de repetición, donde la red neuronal se entrena utilizando muestras de experiencia de la memoria de reproducción.
-        Optimizado para reducir conversiones y cálculos redundantes.
+        FASE 2: Soporte para Double DQN y actualización de red target.
         """
         minibatch = random.sample(self.memory, self.batch_size)
 
@@ -530,10 +636,31 @@ class DQNTrainer:
 
                 # Predicciones en lote
                 current_q_values = self.model(batch_states, training=False)
-                next_q_values = self.model(batch_next_states, training=False)
+
+                if self.use_double_dqn and hasattr(self, "target_model"):
+                    # Double DQN: usar online network para seleccionar acción, target network para evaluar
+                    next_q_values_online = self.model(batch_next_states, training=False)
+                    next_q_values_target = self.target_model(
+                        batch_next_states, training=False
+                    )
+
+                    # Seleccionar mejores acciones usando la red online
+                    best_actions = tf.argmax(
+                        next_q_values_online, axis=1, output_type=tf.int32
+                    )
+
+                    # Evaluar las acciones seleccionadas usando la red target
+                    batch_indices = tf.range(self.batch_size)
+                    best_action_indices = tf.stack(
+                        [batch_indices, best_actions], axis=1
+                    )
+                    max_next_q = tf.gather_nd(next_q_values_target, best_action_indices)
+                else:
+                    # DQN estándar: usar la misma red para seleccionar y evaluar
+                    next_q_values = self.model(batch_next_states, training=False)
+                    max_next_q = tf.reduce_max(next_q_values, axis=1)
 
                 # Calcular targets
-                max_next_q = tf.reduce_max(next_q_values, axis=1)
                 targets = tf.where(
                     batch_dones, batch_rewards, batch_rewards + self.gamma * max_next_q
                 )
@@ -556,7 +683,7 @@ class DQNTrainer:
                     batch_size=self.batch_size,
                 )
         else:
-            # Versión CPU optimizada - sin copias innecesarias
+            # Versión CPU optimizada
             states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
             next_states = np.array(
                 [ns for _, _, _, ns, _ in minibatch], dtype=np.float32
@@ -566,22 +693,54 @@ class DQNTrainer:
             current_q_values = self.model.predict(
                 states, verbose=0, batch_size=self.batch_size
             )
-            next_q_values = self.model.predict(
-                next_states, verbose=0, batch_size=self.batch_size
-            )
 
-            # Preparar targets directamente
-            targets = current_q_values.copy()
-            for i, (_, action, reward, _, done) in enumerate(minibatch):
-                if done:
-                    targets[i][action] = reward
-                else:
-                    targets[i][action] = reward + self.gamma * np.max(next_q_values[i])
+            if self.use_double_dqn and hasattr(self, "target_model"):
+                # Double DQN: usar online network para seleccionar, target network para evaluar
+                next_q_values_online = self.model.predict(
+                    next_states, verbose=0, batch_size=self.batch_size
+                )
+                next_q_values_target = self.target_model.predict(
+                    next_states, verbose=0, batch_size=self.batch_size
+                )
+
+                # Preparar targets con Double DQN
+                targets = current_q_values.copy()
+                for i, (_, action, reward, _, done) in enumerate(minibatch):
+                    if done:
+                        targets[i][action] = reward
+                    else:
+                        # Seleccionar acción con red online, evaluar con red target
+                        best_action = np.argmax(next_q_values_online[i])
+                        targets[i][action] = (
+                            reward + self.gamma * next_q_values_target[i][best_action]
+                        )
+            else:
+                # DQN estándar
+                next_q_values = self.model.predict(
+                    next_states, verbose=0, batch_size=self.batch_size
+                )
+
+                targets = current_q_values.copy()
+                for i, (_, action, reward, _, done) in enumerate(minibatch):
+                    if done:
+                        targets[i][action] = reward
+                    else:
+                        targets[i][action] = reward + self.gamma * np.max(
+                            next_q_values[i]
+                        )
 
             # Entrenar
             self.model.fit(
                 states, targets, epochs=1, verbose=0, batch_size=self.batch_size
             )
+
+        # Actualizar red target si es necesario (Double DQN)
+        if self.use_double_dqn and hasattr(self, "target_model"):
+            if hasattr(self, "target_update_counter"):
+                self.target_update_counter += 1
+                if self.target_update_counter >= self.target_update_frequency:
+                    self._update_target_model()
+                    self.target_update_counter = 0
 
         # Actualizar parámetros - epsilon y learning rate
         if self.epsilon > self.epsilon_min:
@@ -596,6 +755,18 @@ class DQNTrainer:
                 self.learning_rate = new_learning_rate
                 # Actualizar el learning rate del optimizador
                 self.model.optimizer.learning_rate.assign(self.learning_rate)
+
+    def _update_target_model(self) -> None:
+        """
+        Actualiza la red target copiando los pesos de la red principal (online).
+        Solo se ejecuta si Double DQN está habilitado.
+        """
+        if hasattr(self, "target_model"):
+            logger = logging.getLogger(
+                f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+            )
+            self.target_model.set_weights(self.model.get_weights())
+            logger.info(" 🎯 Red target actualizada con pesos de la red principal")
 
     def _train_agent(self) -> None:
         """
@@ -1106,4 +1277,18 @@ class DQNTrainer:
 
         self.model = self._build_model()
 
-        self._train_agent()
+        # FASE 2: Inicializar red target y contador para Double DQN
+        if self.use_double_dqn:
+            logger.info(" 🎯 Inicializando red target para Double DQN")
+            self.target_model = self._build_model()  # Crear red target idéntica
+            self.target_model.set_weights(
+                self.model.get_weights()
+            )  # Copiar pesos iniciales
+            self.target_update_counter = 0  # Contador para actualizaciones
+            logger.info(
+                f" 🔄 Red target se actualizará cada {self.target_update_frequency} pasos"
+            )
+
+        # Solo entrenar si auto_train es True (para evitar entrenamiento en tests)
+        if self.auto_train:
+            self._train_agent()
