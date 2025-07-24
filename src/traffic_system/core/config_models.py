@@ -60,6 +60,16 @@ class EntrenamientoSettings(BaseModel):
         "cosine"  # * Tipo de schedule: "exponential", "cosine", "plateau"
     )
 
+    # FASE 4: Evaluación y métricas
+    enable_evaluation: bool = True  # * Activar sistema de evaluación
+    evaluation_episodes: int = 10  # * Número de episodios para evaluación
+    evaluation_frequency: int = 5  # * Evaluar cada N épocas
+    baseline_comparison: bool = True  # * Comparar con modelo baseline
+    save_evaluation_data: bool = True  # * Guardar datos de evaluación
+    metrics_window_size: int = 100  # * Ventana para métricas deslizantes
+    statistical_tests: bool = True  # * Realizar pruebas estadísticas
+    generate_plots: bool = True  # * Generar gráficos de progreso
+
 
 class DecisionSettings(BaseModel):
     decision: bool  # * Iniciar la toma de decisiones

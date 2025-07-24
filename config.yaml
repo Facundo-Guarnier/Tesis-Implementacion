@@ -79,6 +79,16 @@ decision:
     adaptive_lr: True #* Learning rate adaptativo
     lr_schedule_type: "cosine" #* Tipo de schedule: "exponential", "cosine", "plateau"
 
+    # FASE 4: Evaluación y métricas
+    enable_evaluation: True #* Activar sistema de evaluación
+    evaluation_episodes: 10 #* Número de episodios para evaluación
+    evaluation_frequency: 5 #* Evaluar cada N épocas
+    baseline_comparison: True #* Comparar con modelo baseline
+    save_evaluation_data: True #* Guardar datos de evaluación
+    metrics_window_size: 100 #* Ventana para métricas deslizantes
+    statistical_tests: True #* Realizar pruebas estadísticas
+    generate_plots: True #* Generar gráficos de progreso
+
 sumo:
   simular: True #* Iniciar la simulación en SUMO
   gui: False #! Mostrar la interfaz gráfica de SUMO
