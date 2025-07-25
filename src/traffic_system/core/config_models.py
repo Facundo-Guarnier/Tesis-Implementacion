@@ -70,6 +70,9 @@ class EntrenamientoSettings(BaseModel):
     statistical_tests: bool = True  # * Realizar pruebas estadísticas
     generate_plots: bool = True  # * Generar gráficos de progreso
 
+    # ESTABILIDAD DEL ENTRENAMIENTO
+    warmup_steps: int = 250  # * Pasos de simulación a omitir al inicio de cada época
+
     # OPTIMIZACIONES DE RENDIMIENTO (Bajo Riesgo)
     enable_jit_compilation: bool = True  # * Activar XLA/JIT para optimización GPU
     dropout_mode: str = "optimized"  # * "full", "optimized", "minimal"

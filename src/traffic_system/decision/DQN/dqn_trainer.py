@@ -635,10 +635,18 @@ class DQNTrainer:
                 self.enable_jit_compilation and self.use_gpu
             )  # JIT más eficaz en GPU
 
+            # Crear optimizador con gradient clipping para estabilidad
+            optimizer = tf.keras.optimizers.Adam(
+                learning_rate=self.learning_rate,
+                clipnorm=1.0,  # Gradient clipping por norma L2
+                clipvalue=0.5,  # Gradient clipping por valor
+            )
+
             model.compile(
-                loss="mse",
-                optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
+                loss=tf.keras.losses.Huber(delta=1.0),  # Huber Loss más robusto que MSE
+                optimizer=optimizer,
                 jit_compile=jit_compile_enabled,
+                metrics=["mae"],
             )
 
             if jit_compile_enabled:
@@ -1323,6 +1331,30 @@ class DQNTrainer:
             self.target_model.set_weights(self.model.get_weights())
             logger.info(" 🎯 Red target actualizada con pesos de la red principal")
 
+    def _skip_warmup_steps(self, warmup_steps: int = 250) -> int:
+        """
+        Avanza la simulación los primeros pasos sin entrenar para esperar que lleguen vehículos.
+
+        Args:
+            warmup_steps: Número de pasos a avanzar sin entrenamiento (default: 250)
+
+        Returns:
+            int: Número real de pasos avanzados durante warm-up
+        """
+        logger = logging.getLogger(f" {self.__class__.__name__}._skip_warmup_steps")
+        logger.info(
+            f" 🔄 Iniciando warm-up: avanzando {warmup_steps} pasos sin entrenamiento"
+        )
+
+        # Avanzar directamente todos los pasos de warm-up en una sola llamada
+        response = self._api.advance_simulation(steps=warmup_steps)
+        if response is None:
+            logger.warning(" ⚠️ No se pudo avanzar simulación durante warm-up")
+            return 0
+
+        logger.info(f" ✅ Warm-up completado: {warmup_steps} pasos avanzados")
+        return warmup_steps
+
     def _train_agent(self) -> None:
         """
         Entrena el agente utilizando el algoritmo DQN.
@@ -1341,6 +1373,12 @@ class DQNTrainer:
 
         for e in range(self.num_epocas):
             logger.info(f" 🏁 Iniciando época {e+1}/{self.num_epocas}")
+
+            # FASE DE WARM-UP: Avanzar pasos iniciales sin entrenamiento
+            warmup_steps = getattr(
+                self.decision_settings.entrenamiento, "warmup_steps", 250
+            )
+            self._skip_warmup_steps(warmup_steps)
 
             # Inicializar métricas de la época
             epoch_rewards = []
@@ -1362,15 +1400,21 @@ class DQNTrainer:
                     action_index
                 )
 
-                # Recopilar métricas de la acción
-                epoch_rewards.append(reward)
+                # Normalizar recompensa para mayor estabilidad
+                normalized_reward = self._normalize_reward(reward)
+
+                # Recopilar métricas de la acción (usar recompensa original para métricas)
+                epoch_rewards.append(
+                    reward
+                )  # Mantener recompensa original para análisis
                 epoch_actions.append(action_index)
                 epoch_q_values.append(max_q_value)
                 inference_times.append(inference_time)
 
-                total_reward += reward
+                total_reward += reward  # Acumulación con recompensa original
                 total_steps += 1
-                self._remember(state, action_index, reward, next_state, done)
+                # Usar recompensa normalizada para entrenamiento
+                self._remember(state, action_index, normalized_reward, next_state, done)
 
                 state = next_state
                 if self._get_memory_size() > self.batch_size:
@@ -1677,6 +1721,28 @@ class DQNTrainer:
 
         return self._get_current_state(), self._calculate_reward(), done
 
+    def _normalize_reward(self, reward: float) -> float:
+        """
+        Normaliza las recompensas para mayor estabilidad del entrenamiento.
+
+        Args:
+            reward: Recompensa original (típicamente negativa)
+
+        Returns:
+            float: Recompensa normalizada en rango [-1, 0]
+        """
+        # Clipping de recompensas extremas
+        reward = np.clip(reward, -50000, 0)  # Evitar recompensas demasiado negativas
+
+        # Normalización logarítmica para valores negativos grandes
+        if reward < -1000:
+            normalized = -np.log10(abs(reward) / 1000) / 10  # Escala logarítmica
+        else:
+            normalized = reward / 1000  # Escala lineal para valores pequeños
+
+        # Asegurar rango [-1, 0]
+        return float(np.clip(normalized, -1.0, 0.0))
+
     def _calculate_reward(self) -> float:
         """
         Calcula la recompensa mejorada en función del estado actual.
@@ -1886,6 +1952,14 @@ class DQNTrainer:
         total_reward = 0.0
         done = False
         logger.info(" Calculando recompensa con semaforos con tiempo fijo.")
+
+        # WARM-UP: Aplicar el mismo skip de pasos iniciales para mantener coherencia
+        warmup_steps = getattr(
+            self.decision_settings.entrenamiento, "warmup_steps", 250
+        )
+        logger.info(f" 🔄 Aplicando warm-up de {warmup_steps} pasos para tiempo fijo")
+        self._skip_warmup_steps(warmup_steps)
+
         fixed_time_start = time.time()
         while not done:
             total_reward += self._calculate_reward()

@@ -51,11 +51,11 @@ decision:
     batch_size: 256
     steps: 10
     memory: 5000
-    learning_rate: 0.001              # Reducido de 0.15 a 0.001 (más conservador)
-    learning_rate_decay: 0.95          # Cambiado de 0.99995 a 0.95 (decay por época)
-    learning_rate_min: 0.0001
+    learning_rate: 0.0005 # Reducido aún más para mayor estabilidad
+    learning_rate_decay: 0.95 # Cambiado de 0.99995 a 0.95 (decay por época)
+    learning_rate_min: 0.00001 # Mínimo más bajo para permitir decay gradual
     epsilon: 1
-    epsilon_decay: 0.999995
+    epsilon_decay: 0.9995 # Decay más lento para exploración gradual
     epsilon_min: 0.005
     gamma: 0.85
     # hidden_layers: [10, 10, 10]
@@ -78,6 +78,12 @@ decision:
     dropout_rate: 0.05 #* Tasa de dropout (reducido de 0.1)
     adaptive_lr: True #* Learning rate adaptativo
     lr_schedule_type: "cosine" #* Tipo de schedule: "exponential", "cosine", "plateau"
+
+    # OPTIMIZACIONES DE ESTABILIDAD (nuevas)
+    warmup_steps: 250 #* Número de pasos de simulación a saltar al inicio (warm-up)
+    use_gradient_clipping: True #* Activar gradient clipping para controlar Q-values
+    use_huber_loss: True #* Usar Huber Loss en lugar de MSE para mayor robustez
+    normalize_rewards: True #* Normalizar recompensas para mayor estabilidad
 
     # FASE 4: Evaluación y métricas
     enable_evaluation: True #* Activar sistema de evaluación
