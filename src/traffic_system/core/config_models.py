@@ -72,12 +72,37 @@ class EntrenamientoSettings(BaseModel):
 
     # ESTABILIDAD DEL ENTRENAMIENTO
     warmup_steps: int = 250  # * Pasos de simulación a omitir al inicio de cada época
+    min_replay_size: int = (
+        32  # * Mínimo de experiencias para empezar entrenamiento (batch dinámico)
+    )
 
     # OPTIMIZACIONES DE RENDIMIENTO (Bajo Riesgo)
     enable_jit_compilation: bool = True  # * Activar XLA/JIT para optimización GPU
     dropout_mode: str = "optimized"  # * "full", "optimized", "minimal"
     dropout_layers: str = "strategic"  # * "all_layers", "strategic", "output_only"
     noisy_implementation: str = "efficient"  # * "gaussian_noise", "efficient"
+
+    # OPTIMIZACIONES AVANZADAS (Riesgo Moderado)
+    # Double DQN Optimization
+    double_dqn_batch_optimization: bool = (
+        False  # * Procesar actualizaciones target en lotes
+    )
+    target_update_batch_size: int = 512  # * Tamaño del lote para actualizaciones target
+
+    # Prioritized Experience Replay Optimization
+    per_batch_processing: bool = False  # * Procesar TD-errors en lotes más grandes
+    per_update_frequency: int = (
+        4  # * Actualizar prioridades cada N steps (no cada step)
+    )
+    per_importance_annealing: bool = (
+        False  # * Annealing automático de importance sampling
+    )
+
+    # Architecture Simplification
+    dueling_stream_simplification: bool = False  # * Simplificar streams de Dueling DQN
+    hidden_layers_optimization: bool = (
+        False  # * Optimizar número de capas automáticamente
+    )
 
 
 class DecisionSettings(BaseModel):

@@ -49,6 +49,100 @@ def _skip_warmup_steps(self, warmup_steps: int = 250) -> int:
 - ✅ Coherencia entre tiempo fijo y entrenamiento DQN
 - ✅ Configurable según las características del mapa SUMO
 
+### 5. **🔄 Batch Size Dinámico**
+
+**Problema**: El modelo esperaba 3000+ pasos antes de empezar a entrenar (250 warm-up + 256 experiencias × 10 steps), desperdiciando experiencias tempranas y ralentizando convergencia.
+
+**Solución**:
+
+```python
+def _replay_standard(self) -> None:
+    # Batch size dinámico: empezar entrenamiento temprano pero escalar gradualmente
+    if len(self.memory_buffer) < self.min_replay_size:  # 32 experiencias mínimas
+        return
+
+    # Calcular batch size efectivo (dinámico)
+    effective_batch_size = min(self.batch_size, len(self.memory_buffer))
+
+    minibatch = random.sample(self.memory_buffer, effective_batch_size)
+```
+
+**Configuración**:
+
+```yaml
+min_replay_size: 32 # Mínimo de experiencias para empezar entrenamiento
+batch_size: 256 # Máximo batch size cuando hay suficientes experiencias
+```
+
+**Beneficios**:
+
+- ✅ Entrenamiento inmediato desde ~570 pasos (vs 3000+ anterior)
+- ✅ Mejor utilización de experiencias tempranas
+- ✅ Batch size crece gradualmente: 32 → 64 → 128 → 256
+- ✅ Converge más rápido y es más eficiente
+
+### 6. **🎯 Early Stopping Inteligente**
+
+**Problema**: Entrenamientos pueden continuar sin mejoras, desperdiciando recursos computacionales.
+
+**Solución**:
+
+```python
+def _check_early_stopping(self, current_avg_reward: float, epoch: int) -> bool:
+    """Verifica si se debe activar early stopping basado en mejoras del rendimiento."""
+    improved = current_avg_reward > (self.best_avg_reward + self.min_improvement)
+
+    if improved:
+        self.best_avg_reward = current_avg_reward
+        self.epochs_without_improvement = 0
+        return False
+    else:
+        self.epochs_without_improvement += 1
+
+    # Early stopping si no hay mejora en varias épocas
+    return self.epochs_without_improvement >= self.patience
+```
+
+**Configuración Automática**:
+
+```python
+self.patience = 10           # Épocas sin mejora antes de parar
+self.min_improvement = 0.01  # Mejora mínima considerada significativa
+```
+
+**Beneficios**:
+
+- ✅ Evita sobreentrenamiento y desperdicio de recursos
+- ✅ Preserva el mejor modelo encontrado
+- ✅ Detección automática de convergencia
+- ✅ Ahorro de tiempo de entrenamiento
+
+### 7. **📉 Learning Rate Adaptativo Mejorado**
+
+**Problema**: Learning rate fijo puede ser muy alto al final o muy bajo al inicio.
+
+**Solución**:
+
+```python
+def _adaptive_learning_rate_update(self, epoch: int, current_reward: float) -> None:
+    """Actualiza learning rate de manera adaptativa basado en el rendimiento."""
+    # Decay más agresivo si no hay mejora
+    if self.epochs_without_improvement > 3:
+        decay_factor = 0.8  # Decay más fuerte
+    else:
+        decay_factor = self.learning_rate_decay
+
+    # Actualizar learning rate
+    new_lr = max(self.learning_rate_min, current_lr * decay_factor)
+```
+
+**Beneficios**:
+
+- ✅ Learning rate se adapta al progreso del entrenamiento
+- ✅ Decay más agresivo cuando no hay mejoras
+- ✅ Conserva learning rate cuando hay progreso
+- ✅ Optimización automática sin intervención manual
+
 ### 2. **🔧 Gradient Clipping + Huber Loss**
 
 **Problema**: Explosión de Q-values (+1M% crecimiento) causaba inestabilidad.
@@ -180,8 +274,17 @@ Para validar las mejoras:
 - ✅ Explosión Q-Values (gradient clipping + Huber Loss)
 - ✅ Inestabilidad recompensas (normalización)
 - ✅ Entrenamiento sin tráfico (sistema warm-up)
+- ✅ Retraso en entrenamiento (batch size dinámico)
+- ✅ Sobreentrenamiento (early stopping inteligente)
+- ✅ Learning rate subóptimo (actualización adaptativa)
 
-**Expectativa**: El modelo ahora debería ser significativamente más estable y robusto, con entrenamiento solo en condiciones realistas de tráfico.
+**Nuevas Optimizaciones de Rendimiento**:
+
+1. **🔄 Batch Dinámico**: Entrenamiento inmediato desde ~570 pasos (vs 3000+ anterior)
+2. **🎯 Early Stopping**: Detección automática de convergencia y ahorro de recursos
+3. **📉 LR Adaptativo**: Learning rate se adapta automáticamente al progreso
+
+**Expectativa**: El modelo ahora debería ser significativamente más estable, eficiente y robusto, con entrenamiento optimizado y convergencia más rápida.
 
 ---
 

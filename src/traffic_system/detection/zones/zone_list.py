@@ -25,7 +25,7 @@ class ZoneList:
 
     def _load_zones(self) -> list[Zone]:
         # TODO: Cambiar la ruta por una ruta relativa en config.yaml
-        with open("assets/detection_zones/zones.yaml") as file:
+        with open("assets/detection_zones/zones.yaml", encoding="utf-8") as file:
             yaml_data = yaml.safe_load(file)
             return [
                 Zone(

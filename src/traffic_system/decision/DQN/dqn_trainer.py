@@ -170,6 +170,9 @@ class DQNTrainer:
         #! Hiperparámetros
         self.num_epocas = self.decision_settings.entrenamiento.num_epocas
         self.batch_size = self.decision_settings.entrenamiento.batch_size
+        self.min_replay_size = getattr(
+            self.decision_settings.entrenamiento, "min_replay_size", 32
+        )  # * Mínimo para batch dinámico
         self.steps = self.decision_settings.entrenamiento.steps
 
         self.learning_rate = self.decision_settings.entrenamiento.learning_rate
@@ -254,6 +257,38 @@ class DQNTrainer:
             self.decision_settings.entrenamiento, "noisy_implementation", "efficient"
         )
 
+        # OPTIMIZACIONES AVANZADAS (Riesgo Moderado)
+        # Double DQN Optimization
+        self.double_dqn_batch_optimization = getattr(
+            self.decision_settings.entrenamiento, "double_dqn_batch_optimization", False
+        )
+        self.target_update_batch_size = getattr(
+            self.decision_settings.entrenamiento, "target_update_batch_size", 512
+        )
+
+        # Prioritized Experience Replay Optimization
+        self.per_batch_processing = getattr(
+            self.decision_settings.entrenamiento, "per_batch_processing", False
+        )
+        self.per_update_frequency = getattr(
+            self.decision_settings.entrenamiento, "per_update_frequency", 4
+        )
+        self.per_importance_annealing = getattr(
+            self.decision_settings.entrenamiento, "per_importance_annealing", False
+        )
+
+        # Architecture Simplification
+        self.dueling_stream_simplification = getattr(
+            self.decision_settings.entrenamiento, "dueling_stream_simplification", False
+        )
+        self.hidden_layers_optimization = getattr(
+            self.decision_settings.entrenamiento, "hidden_layers_optimization", False
+        )
+
+        # Contadores para optimizaciones avanzadas
+        self.per_update_counter = 0  # Para per_update_frequency
+        self.target_update_batch_counter = 0  # Para batch optimization
+
         # Configuración para testing con modelo más grande
         self.test_large_model = False  # Cambiar a True para probar modelo grande
 
@@ -273,6 +308,12 @@ class DQNTrainer:
         if self.use_double_dqn:
             self.target_model = None  # Se inicializará junto con el modelo principal
             self.target_update_counter = 0  # Contador para actualizaciones
+
+        # OPTIMIZACIONES ADICIONALES: Early stopping inteligente
+        self.best_avg_reward = float("-inf")
+        self.epochs_without_improvement = 0
+        self.patience = 10  # Épocas sin mejora antes de early stopping
+        self.min_improvement = 0.01  # Mejora mínima considerada significativa
 
         # FASE 4: Inicializar sistema de evaluación
         if getattr(self.decision_settings.entrenamiento, "enable_evaluation", True):
@@ -638,8 +679,7 @@ class DQNTrainer:
             # Crear optimizador con gradient clipping para estabilidad
             optimizer = tf.keras.optimizers.Adam(
                 learning_rate=self.learning_rate,
-                clipnorm=1.0,  # Gradient clipping por norma L2
-                clipvalue=0.5,  # Gradient clipping por valor
+                clipnorm=1.0,  # Gradient clipping por norma L2 (más efectivo para DQN)
             )
 
             model.compile(
@@ -840,17 +880,44 @@ class DQNTrainer:
         - Stream de ventaja de acciones A(s,a)
         - Combinación: Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
 
+        OPTIMIZACIÓN AVANZADA: Soporte para simplificación de streams y optimización automática de capas.
+
         Returns:
             tf.keras.Model: Modelo Dueling DQN con optimizaciones
         """
+        # OPTIMIZACIÓN: Hidden layers optimization automática
+        if self.hidden_layers_optimization:
+            # Optimizar automáticamente el número de capas basado en el tamaño del problema
+            optimized_layers = self._optimize_hidden_layers()
+            logger = logging.getLogger(
+                f" {self.__class__.__name__}._build_dueling_model"
+            )
+            logger.info(
+                f" 🏗️⚡ Capas optimizadas: {self.hidden_layers} → {optimized_layers}"
+            )
+            working_layers = optimized_layers
+        else:
+            working_layers = self.hidden_layers
+
         # Input layer
         inputs = tf.keras.layers.Input(shape=(self.state_size,))
 
         # Capas compartidas (shared layers) con mejoras de Fase 3
         shared = inputs
-        for i, units in enumerate(
-            self.hidden_layers[:-2]
-        ):  # Usar todas menos las últimas 2
+
+        # OPTIMIZACIÓN: Determinar número de capas compartidas de forma inteligente
+        if self.dueling_stream_simplification:
+            # Simplificación: usar menos capas compartidas, streams más directos
+            shared_layers_count = max(
+                1, len(working_layers) // 3
+            )  # Solo el primer tercio
+        else:
+            # Comportamiento original: usar todas menos las últimas 2
+            shared_layers_count = max(1, len(working_layers) - 2)
+
+        for i in range(shared_layers_count):
+            units = working_layers[i] if i < len(working_layers) else working_layers[-1]
+
             if self.use_noisy_networks:
                 # Crear capa noisy usando Sequential como workaround
                 noisy_layer = tf.keras.Sequential(
@@ -876,11 +943,20 @@ class DQNTrainer:
                     self.dropout_rate, name=f"shared_{i}_dropout"
                 )(shared)
 
-        # Stream de valor del estado V(s)
+        # OPTIMIZACIÓN: Streams simplificados cuando está habilitado
+        if self.dueling_stream_simplification:
+            # Simplificación: streams más directos con menos capas
+            value_units = working_layers[-2] if len(working_layers) >= 2 else 64
+            advantage_units = working_layers[-1] if len(working_layers) >= 1 else 64
+        else:
+            # Comportamiento original
+            value_units = working_layers[-2] if len(working_layers) >= 2 else 128
+            advantage_units = working_layers[-1] if len(working_layers) >= 1 else 128
+
+        # Stream de valor del estado V(s) - Simplificado
         if self.use_noisy_networks and self.noisy_implementation == "efficient":
-            # Implementación eficiente para Noisy Networks
             value_stream = tf.keras.layers.Dense(
-                self.hidden_layers[-2],
+                value_units,
                 activation="relu",
                 name="value_hidden",
                 kernel_initializer=tf.keras.initializers.RandomNormal(
@@ -888,11 +964,10 @@ class DQNTrainer:
                 ),
             )(shared)
         elif self.use_noisy_networks:
-            # Implementación original menos eficiente
             value_stream = tf.keras.Sequential(
                 [
                     tf.keras.layers.Dense(
-                        self.hidden_layers[-2],
+                        value_units,
                         activation="relu",
                         name="value_hidden_dense",
                     ),
@@ -904,21 +979,23 @@ class DQNTrainer:
             )(shared)
         else:
             value_stream = tf.keras.layers.Dense(
-                self.hidden_layers[-2], activation="relu", name="value_hidden"
+                value_units, activation="relu", name="value_hidden"
             )(shared)
 
-        if self.use_dropout and self.dropout_mode in ["full", "strategic"]:
+        # Dropout para value stream solo si no es simplificado o si es necesario
+        if self.use_dropout and (
+            not self.dueling_stream_simplification or self.dropout_mode == "full"
+        ):
             value_stream = tf.keras.layers.Dropout(
                 self.dropout_rate, name="value_dropout"
             )(value_stream)
 
         value = tf.keras.layers.Dense(1, name="value")(value_stream)
 
-        # Stream de ventaja de acciones A(s,a)
+        # Stream de ventaja de acciones A(s,a) - Simplificado
         if self.use_noisy_networks and self.noisy_implementation == "efficient":
-            # Implementación eficiente para Noisy Networks
             advantage_stream = tf.keras.layers.Dense(
-                self.hidden_layers[-1],
+                advantage_units,
                 activation="relu",
                 name="advantage_hidden",
                 kernel_initializer=tf.keras.initializers.RandomNormal(
@@ -926,11 +1003,10 @@ class DQNTrainer:
                 ),
             )(shared)
         elif self.use_noisy_networks:
-            # Implementación original menos eficiente
             advantage_stream = tf.keras.Sequential(
                 [
                     tf.keras.layers.Dense(
-                        self.hidden_layers[-1],
+                        advantage_units,
                         activation="relu",
                         name="advantage_hidden_dense",
                     ),
@@ -942,10 +1018,13 @@ class DQNTrainer:
             )(shared)
         else:
             advantage_stream = tf.keras.layers.Dense(
-                self.hidden_layers[-1], activation="relu", name="advantage_hidden"
+                advantage_units, activation="relu", name="advantage_hidden"
             )(shared)
 
-        if self.use_dropout and self.dropout_mode in ["full", "strategic"]:
+        # Dropout para advantage stream solo si no es simplificado o si es necesario
+        if self.use_dropout and (
+            not self.dueling_stream_simplification or self.dropout_mode == "full"
+        ):
             advantage_stream = tf.keras.layers.Dropout(
                 self.dropout_rate, name="advantage_dropout"
             )(advantage_stream)
@@ -969,9 +1048,70 @@ class DQNTrainer:
             ]
         )
 
-        model = tf.keras.Model(inputs=inputs, outputs=q_values, name="Dueling_DQN")
+        model_name = (
+            "Dueling_DQN_Simplified"
+            if self.dueling_stream_simplification
+            else "Dueling_DQN"
+        )
+        model = tf.keras.Model(inputs=inputs, outputs=q_values, name=model_name)
 
         return model
+
+    def _optimize_hidden_layers(self) -> list[int]:
+        """
+        Optimiza automáticamente el número y tamaño de capas ocultas.
+
+        OPTIMIZACIÓN AVANZADA: Algoritmo heurístico para determinar arquitectura óptima.
+
+        Returns:
+            list[int]: Lista optimizada de tamaños de capas ocultas
+        """
+        # Heurísticas basadas en el tamaño del problema
+        input_size = self.state_size
+        output_size = len(self._action_space)
+
+        # Cálculo de complejidad del problema
+        problem_complexity = input_size * output_size
+
+        if problem_complexity < 100:
+            # Problema simple: arquitectura más ligera
+            optimized = [64, 32]
+        elif problem_complexity < 500:
+            # Problema moderado: arquitectura mediana
+            optimized = [128, 64, 32]
+        elif problem_complexity < 1000:
+            # Problema complejo: arquitectura robusta pero optimizada
+            optimized = [256, 128, 64]
+        else:
+            # Problema muy complejo: usar arquitectura original pero simplificada
+            # Reducir hasta 75% del tamaño original
+            scale_factor = 0.75
+            optimized = [
+                max(32, int(layer * scale_factor)) for layer in self.hidden_layers[:5]
+            ]
+
+        # Asegurar que tenemos al menos 2 capas para Dueling DQN
+        if len(optimized) < 2:
+            optimized.append(max(32, optimized[-1] // 2))
+
+        # Log de la optimización
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}._optimize_hidden_layers"
+        )
+        total_params_original = sum(self.hidden_layers)
+        total_params_optimized = sum(optimized)
+        reduction_pct = (
+            (total_params_original - total_params_optimized) / total_params_original
+        ) * 100
+
+        logger.info(
+            f" 🏗️ Problema: {input_size}→{output_size} (complejidad: {problem_complexity})"
+        )
+        logger.info(
+            f" 🏗️ Reducción de parámetros: {reduction_pct:.1f}% ({total_params_original}→{total_params_optimized})"
+        )
+
+        return optimized
 
     def _remember(
         self,
@@ -1057,46 +1197,121 @@ class DQNTrainer:
 
     def _replay_prioritized(self) -> None:
         """
-        Replay con Prioritized Experience Replay (PER).
+        Replay con Prioritized Experience Replay (PER) y batch size dinámico.
+
+        OPTIMIZACIÓN AVANZADA: Soporte para batch processing y actualización eficiente de prioridades.
         """
         assert isinstance(
             self.memory_buffer, PrioritizedReplayBuffer
         ), "Prioritized replay requires PrioritizedReplayBuffer"
 
-        if len(self.memory_buffer) < self.batch_size:
+        # Batch size dinámico: empezar entrenamiento temprano pero escalar gradualmente
+        if len(self.memory_buffer) < self.min_replay_size:
             return
 
-        # Actualizar beta para importance sampling
-        self.per_beta = min(1.0, self.per_beta + self.per_beta_increment_per_frame)
+        # Calcular batch size efectivo (dinámico)
+        effective_batch_size = min(self.batch_size, len(self.memory_buffer))
 
-        # Muestrear experiencias con prioridades
+        # OPTIMIZACIÓN: Batch processing para TD-errors
+        if self.per_batch_processing:
+            # Procesar lotes más grandes para mejor eficiencia
+            batch_multiplier = min(4, len(self.memory_buffer) // self.batch_size)
+            effective_batch_size = min(
+                effective_batch_size * max(1, batch_multiplier), len(self.memory_buffer)
+            )
+
+        # Log del progreso del batch dinámico (solo ocasionalmente para no saturar logs)
+        if len(self.memory_buffer) % 50 == 0:  # Cada 50 experiencias
+            logger = logging.getLogger(
+                f" {self.__class__.__name__}._replay_prioritized"
+            )
+            progress_pct = min(100, (len(self.memory_buffer) / self.batch_size) * 100)
+            opt_info = " (Batch Opt)" if self.per_batch_processing else ""
+            logger.info(
+                f" � PER Batch dinámico ENTRENANDO: {effective_batch_size}/{self.batch_size} "
+                f"({progress_pct:.1f}%){opt_info} - Memoria: {len(self.memory_buffer)}"
+            )
+
+        # OPTIMIZACIÓN: Importance sampling annealing inteligente
+        if self.per_importance_annealing:
+            # Annealing adaptativo basado en progreso del entrenamiento
+            training_progress = (
+                len(self.memory_buffer) / self.decision_settings.entrenamiento.memory
+            )
+            # Annealing más rápido al inicio, más lento después
+            adaptive_increment = self.per_beta_increment_per_frame * (
+                1 + training_progress
+            )
+            self.per_beta = min(1.0, self.per_beta + adaptive_increment)
+        else:
+            # Annealing estándar
+            self.per_beta = min(1.0, self.per_beta + self.per_beta_increment_per_frame)
+
+        # Muestrear experiencias con prioridades usando batch size dinámico
         minibatch, indices, weights = self.memory_buffer.sample(
-            self.batch_size, self.per_beta
+            effective_batch_size, self.per_beta
         )
 
         if not minibatch:
             return
 
-        # Calcular TD-errors para actualizar prioridades
-        td_errors = self._calculate_td_errors(minibatch)
+        # OPTIMIZACIÓN: Actualizar prioridades menos frecuentemente
+        self.per_update_counter += 1
+        should_update_priorities = (
+            self.per_update_counter % self.per_update_frequency == 0
+        )
 
-        # Actualizar prioridades en el buffer
-        self.memory_buffer.update_priorities(indices, td_errors)
+        if should_update_priorities:
+            # Calcular TD-errors para actualizar prioridades (solo cuando sea necesario)
+            if self.per_batch_processing:
+                # Procesamiento optimizado de TD-errors en chunks
+                td_errors = self._calculate_td_errors_batch_optimized(minibatch)
+            else:
+                # Cálculo estándar de TD-errors
+                td_errors = self._calculate_td_errors(minibatch)
+
+            # Actualizar prioridades en el buffer
+            self.memory_buffer.update_priorities(indices, td_errors)
+
+            # Log ocasional del estado de PER optimizaciones
+            if self.per_update_counter % (self.per_update_frequency * 20) == 0:
+                logger = logging.getLogger(
+                    f" {self.__class__.__name__}._replay_prioritized"
+                )
+                logger.debug(
+                    f" 🎯⚡ PER optimizado: freq={self.per_update_frequency}, beta={self.per_beta:.3f}"
+                )
 
         # Entrenar con importance sampling weights
         self._train_batch_with_weights(minibatch, weights)
 
     def _replay_standard(self) -> None:
         """
-        Replay estándar sin priorización.
+        Replay estándar sin priorización con batch size dinámico.
         """
         assert isinstance(
             self.memory_buffer, deque
         ), "Standard replay requires deque memory buffer"
         assert self.model is not None, "Model must be initialized before replay"
 
+        # Batch size dinámico: empezar entrenamiento temprano pero escalar gradualmente
+        if len(self.memory_buffer) < self.min_replay_size:
+            return
+
+        # Calcular batch size efectivo (dinámico)
+        effective_batch_size = min(self.batch_size, len(self.memory_buffer))
+
+        # Log del progreso del batch dinámico (solo ocasionalmente para no saturar logs)
+        if len(self.memory_buffer) % 50 == 0:  # Cada 50 experiencias
+            logger = logging.getLogger(f" {self.__class__.__name__}._replay_standard")
+            progress_pct = min(100, (len(self.memory_buffer) / self.batch_size) * 100)
+            logger.info(
+                f" � Batch dinámico ENTRENANDO: {effective_batch_size}/{self.batch_size} "
+                f"({progress_pct:.1f}%) - Memoria: {len(self.memory_buffer)}"
+            )
+
         minibatch: list[tuple[NDArray, int, float, NDArray, bool]] = random.sample(
-            self.memory_buffer, self.batch_size
+            self.memory_buffer, effective_batch_size
         )
 
         # Preparar datos de manera más eficiente
@@ -1264,6 +1479,69 @@ class DQNTrainer:
 
         return td_errors
 
+    def _calculate_td_errors_batch_optimized(self, minibatch: list) -> list[float]:
+        """
+        Calcula TD-errors de forma optimizada para lotes grandes (PER optimization).
+
+        OPTIMIZACIÓN AVANZADA: Procesamiento en chunks para mejor eficiencia de memoria y GPU.
+        """
+        assert (
+            self.model is not None
+        ), "Model must be initialized before calculating TD errors"
+
+        if not minibatch:
+            return []
+
+        # Procesar en chunks para optimizar memoria
+        chunk_size = min(128, len(minibatch))  # Chunks más pequeños para eficiencia
+        all_td_errors = []
+
+        for i in range(0, len(minibatch), chunk_size):
+            chunk = minibatch[i : i + chunk_size]
+
+            # Procesar chunk
+            states = np.array([s for s, _, _, _, _ in chunk], dtype=np.float32)
+            next_states = np.array([ns for _, _, _, ns, _ in chunk], dtype=np.float32)
+
+            # Predicciones en lote para eficiencia
+            current_q_values = self.model.predict(
+                states, verbose=0, batch_size=len(states)
+            )
+            next_q_values = self.model.predict(
+                next_states, verbose=0, batch_size=len(next_states)
+            )
+
+            if self.use_double_dqn and hasattr(self, "target_model"):
+                assert (
+                    self.target_model is not None
+                ), "Target model must be initialized for Double DQN"
+                next_q_values_target = self.target_model.predict(
+                    next_states, verbose=0, batch_size=len(next_states)
+                )
+
+            # Calcular TD-errors para el chunk
+            chunk_td_errors = []
+            for j, (_, action, reward, _, done) in enumerate(chunk):
+                current_q = current_q_values[j][action]
+
+                if done:
+                    target_q = reward
+                else:
+                    if self.use_double_dqn and hasattr(self, "target_model"):
+                        best_action = np.argmax(next_q_values[j])
+                        target_q = (
+                            reward + self.gamma * next_q_values_target[j][best_action]
+                        )
+                    else:
+                        target_q = reward + self.gamma * np.max(next_q_values[j])
+
+                td_error = abs(target_q - current_q)
+                chunk_td_errors.append(td_error)
+
+            all_td_errors.extend(chunk_td_errors)
+
+        return all_td_errors
+
     def _train_batch_with_weights(self, minibatch: list, weights: NDArray) -> None:
         """
         Entrena el modelo con importance sampling weights para PER.
@@ -1317,6 +1595,8 @@ class DQNTrainer:
         """
         Actualiza la red target copiando los pesos de la red principal (online).
         Solo se ejecuta si Double DQN está habilitado.
+
+        OPTIMIZACIÓN AVANZADA: Soporte para batch optimization cuando está habilitado.
         """
         if hasattr(self, "target_model"):
             assert (
@@ -1325,11 +1605,127 @@ class DQNTrainer:
             assert (
                 self.target_model is not None
             ), "Target model must be initialized before updating"
+
             logger = logging.getLogger(
                 f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
             )
-            self.target_model.set_weights(self.model.get_weights())
-            logger.info(" 🎯 Red target actualizada con pesos de la red principal")
+
+            if self.double_dqn_batch_optimization:
+                # OPTIMIZACIÓN: Actualización por lotes para mejor eficiencia
+                # Acumular actualizaciones y procesarlas en lotes
+                self.target_update_batch_counter += 1
+
+                if self.target_update_batch_counter >= self.target_update_batch_size:
+                    # Realizar actualización por lotes
+                    weights = self.model.get_weights()
+                    # Procesamiento optimizado de pesos en chunks
+                    chunk_size = max(1, len(weights) // 4)  # Procesar en 4 chunks
+
+                    for i in range(0, len(weights), chunk_size):
+                        chunk = weights[i : i + chunk_size]
+                        target_chunk = self.target_model.get_weights()[
+                            i : i + chunk_size
+                        ]
+
+                        # Aplicar actualización suave (tau=1.0 para copia completa, <1.0 para suave)
+                        tau = 1.0  # Copia completa por defecto
+                        for j, (w, t_w) in enumerate(
+                            zip(chunk, target_chunk, strict=False)
+                        ):
+                            target_chunk[j] = tau * w + (1 - tau) * t_w
+
+                        # Actualizar chunk en el modelo target
+                        self.target_model.set_weights(
+                            self.target_model.get_weights()[:i]
+                            + target_chunk
+                            + self.target_model.get_weights()[i + len(target_chunk) :]
+                        )
+
+                    self.target_update_batch_counter = 0
+                    logger.info(
+                        f" 🎯⚡ Red target actualizada (Batch Opt: {self.target_update_batch_size})"
+                    )
+                else:
+                    # Acumular para próxima actualización por lotes
+                    if self.target_update_batch_counter % 100 == 0:  # Log ocasional
+                        progress = (
+                            self.target_update_batch_counter
+                            / self.target_update_batch_size
+                        ) * 100
+                        logger.debug(
+                            f" 🎯📊 Acumulando para batch update: {progress:.1f}%"
+                        )
+            else:
+                # Actualización estándar (comportamiento original)
+                self.target_model.set_weights(self.model.get_weights())
+                logger.info(" 🎯 Red target actualizada con pesos de la red principal")
+
+    def _check_early_stopping(self, current_avg_reward: float, epoch: int) -> bool:
+        """
+        Verifica si se debe activar early stopping basado en mejoras del rendimiento.
+
+        Args:
+            current_avg_reward: Recompensa promedio de la época actual
+            epoch: Número de época actual
+
+        Returns:
+            bool: True si se debe detener el entrenamiento
+        """
+        improved = current_avg_reward > (self.best_avg_reward + self.min_improvement)
+
+        if improved:
+            self.best_avg_reward = current_avg_reward
+            self.epochs_without_improvement = 0
+            return False
+        else:
+            self.epochs_without_improvement += 1
+
+        # Early stopping si no hay mejora en varias épocas
+        if self.epochs_without_improvement >= self.patience:
+            logger = logging.getLogger(
+                f" {self.__class__.__name__}._check_early_stopping"
+            )
+            logger.info(f" 🛑 Early stopping activado en época {epoch}")
+            logger.info(f" 📈 Sin mejora por {self.epochs_without_improvement} épocas")
+            logger.info(f" 🏆 Mejor recompensa promedio: {self.best_avg_reward:.2f}")
+            return True
+
+        return False
+
+    def _adaptive_learning_rate_update(self, epoch: int, current_reward: float) -> None:
+        """
+        Actualiza learning rate de manera adaptativa basado en el rendimiento.
+
+        Args:
+            epoch: Número de época actual
+            current_reward: Recompensa de la época actual
+        """
+        # Solo actualizar si el modelo está inicializado
+        if self.model is None:
+            return
+
+        # Aplicar decay programado
+        if self.adaptive_lr and hasattr(self.model, "optimizer"):
+            # Decay más agresivo si no hay mejora
+            if self.epochs_without_improvement > 3:
+                decay_factor = 0.8  # Decay más fuerte
+            else:
+                decay_factor = self.learning_rate_decay
+
+            # Actualizar learning rate
+            new_lr = max(
+                self.learning_rate_min,
+                float(self.model.optimizer.learning_rate) * decay_factor,
+            )
+
+            if new_lr != float(self.model.optimizer.learning_rate):
+                self.model.optimizer.learning_rate.assign(new_lr)
+                self.learning_rate = new_lr  # Actualizar atributo para métricas
+
+                logger = logging.getLogger(
+                    f" {self.__class__.__name__}._adaptive_learning_rate_update"
+                )
+                logger.debug(f" 📉 Learning rate actualizado: {new_lr:.6f}")
 
     def _skip_warmup_steps(self, warmup_steps: int = 250) -> int:
         """
@@ -1378,7 +1774,15 @@ class DQNTrainer:
             warmup_steps = getattr(
                 self.decision_settings.entrenamiento, "warmup_steps", 250
             )
-            self._skip_warmup_steps(warmup_steps)
+            actual_warmup = self._skip_warmup_steps(warmup_steps)
+
+            # Log del estado inicial del entrenamiento
+            memory_size = self._get_memory_size()
+            logger.info(
+                f" 📊 Estado inicial época {e+1}: Memoria={memory_size}, "
+                f"Min_replay={self.min_replay_size}, Batch_size={self.batch_size}, "
+                f"Warmup_completado={actual_warmup} pasos"
+            )
 
             # Inicializar métricas de la época
             epoch_rewards = []
@@ -1417,7 +1821,17 @@ class DQNTrainer:
                 self._remember(state, action_index, normalized_reward, next_state, done)
 
                 state = next_state
-                if self._get_memory_size() > self.batch_size:
+
+                # 🚀 CRÍTICO: Usar min_replay_size para entrenamiento temprano (batch dinámico)
+                if self._get_memory_size() >= self.min_replay_size:
+                    # Log cuando se inicia el entrenamiento por primera vez
+                    if replay_count == 0:
+                        memory_size = self._get_memory_size()
+                        logger.info(
+                            f" 🎯 ¡ENTRENAMIENTO INICIADO! Memoria: {memory_size}/{self.min_replay_size} "
+                            f"(Paso total: {total_steps + warmup_steps}, Época: {e+1})"
+                        )
+
                     self._replay()
                     replay_count += 1
 
@@ -1516,40 +1930,17 @@ class DQNTrainer:
             if hasattr(self, "frame_count"):
                 self._update_adaptive_parameters()
 
-            # FASE 3: Learning rate adaptativo (solo al final de cada época)
-            if self.adaptive_lr and self.learning_rate > self.learning_rate_min:
-                old_lr = self.learning_rate
-                if self.lr_schedule_type == "exponential":
-                    new_learning_rate = max(
-                        self.learning_rate * self.learning_rate_decay,
-                        self.learning_rate_min,
-                    )
-                elif self.lr_schedule_type == "cosine":
-                    # Cosine annealing basado en progreso por épocas, no por steps
-                    progress = (e + 1) / self.num_epocas
-                    new_learning_rate = (
-                        self.learning_rate_min
-                        + (self.learning_rate - self.learning_rate_min)
-                        * (1 + np.cos(np.pi * progress))
-                        / 2
-                    )
-                    new_learning_rate = max(new_learning_rate, self.learning_rate_min)
-                else:
-                    # Default: exponential
-                    new_learning_rate = max(
-                        self.learning_rate * self.learning_rate_decay,
-                        self.learning_rate_min,
-                    )
+            # FASE 3: Learning rate adaptativo mejorado (reemplaza lógica anterior)
+            current_avg_reward = np.mean(epoch_rewards) if epoch_rewards else 0.0
+            self._adaptive_learning_rate_update(e, current_avg_reward)
 
-                if new_learning_rate != self.learning_rate:
-                    assert (
-                        self.model is not None
-                    ), "Model must be initialized before updating learning rate"
-                    self.learning_rate = new_learning_rate
-                    self.model.optimizer.learning_rate.assign(self.learning_rate)
+            # Early stopping inteligente basado en rendimiento
+            if e > 5:  # Permitir al menos 5 épocas antes de evaluar early stopping
+                if self._check_early_stopping(current_avg_reward, e):
                     logger.info(
-                        f" 📉 Learning rate actualizado: {old_lr:.8f} → {new_learning_rate:.8f}"
+                        f" � Entrenamiento detenido early stopping en época {e}"
                     )
+                    break
 
         logger.info(" ✅ Entrenamiento finalizado.")
 

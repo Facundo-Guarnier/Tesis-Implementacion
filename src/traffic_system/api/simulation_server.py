@@ -82,6 +82,7 @@ class SumoAPI(Flask):
             error_response = ErrorResponse(error="Falta el parámetro 'steps'.")
             return jsonify(error_response.model_dump()), 400
 
+        print("++++++++++++++++ Avanzando pasos: ", steps)
         # VERIFICAR PRIMERO si la simulación terminó en una operación anterior de semáforos
         if self._simulation_ended_during_traffic_light_change:
             self.logger.info(
