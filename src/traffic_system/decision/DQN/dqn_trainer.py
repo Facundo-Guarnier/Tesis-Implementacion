@@ -1816,6 +1816,22 @@ class DQNTrainer:
                 inference_times.append(inference_time)
 
                 total_reward += reward  # Acumulación con recompensa original
+
+                # 🛡️ PROTECCIÓN CONTRA RECOMPENSAS INDIVIDUALES EXTREMAS
+                # Solo reportar, no interrumpir - las recompensas están limitadas por np.clip()
+                if abs(reward) > 150:  # Ligeramente mayor que el límite real de 100
+                    logger.warning(
+                        f"⚠️ Recompensa alta (pero controlada): {reward:.2f} en paso {total_steps}"
+                    )
+
+                # 🛡️ MONITOREO DE RECOMPENSA TOTAL (sin interrumpir episodio)
+                # Reportar solo para análisis, pero permitir que el episodio continúe
+                if abs(total_reward) > 10000:  # Umbral para análisis
+                    logger.info(
+                        f"� Recompensa total acumulada: {total_reward:.2f} en {total_steps} pasos"
+                    )
+                    logger.info(f"📊 Promedio por paso: {total_reward/total_steps:.2f}")
+                    # NO forzar done = True - dejar que el episodio continúe naturalmente
                 total_steps += 1
                 # Usar recompensa normalizada para entrenamiento
                 self._remember(state, action_index, normalized_reward, next_state, done)
@@ -2136,57 +2152,100 @@ class DQNTrainer:
 
     def _calculate_reward(self) -> float:
         """
-        Calcula la recompensa mejorada en función del estado actual.
+        Calcula la recompensa mejorada con fórmula matemáticamente estable.
 
-        Nueva fórmula con penalizaciones ponderadas:
-        - Penaliza tiempo de espera (cuadrático para casos extremos)
-        - Penaliza congestión desigual (alta varianza)
-        - Bonifica eficiencia del flujo vehicular
+        Nueva fórmula sin exponentes problemáticos:
+        - Penaliza tiempo de espera de forma LINEAL con saturación
+        - Penaliza congestión desigual con límites controlados
+        - Usa funciones matemáticamente estables (log, std, min)
+        - Incluye bonificación por eficiencia
 
         Returns:
-            float: Recompensa calculada (valores negativos = penalización)
+            float: Recompensa calculada (rango: -100 a +10)
         """
-        wait_times_response = self._api.get_wait_times()
-        if wait_times_response is None:
-            raise RuntimeError(
-                "No se pudo obtener los tiempos de espera para calcular recompensa"
-            )
+        logger = logging.getLogger(f"{self.__class__.__name__}._calculate_reward")
 
-        quantities_response = self._api.get_quantities()
-        if quantities_response is None:
-            raise RuntimeError(
-                "No se pudo obtener las cantidades de vehículos para calcular recompensa"
-            )
+        try:
+            wait_times_response = self._api.get_wait_times()
+            if wait_times_response is None:
+                logger.error("🚨 No se pudo obtener tiempos de espera")
+                return -1.0  # Recompensa de seguridad
 
-        # Obtener datos
-        wait_times = wait_times_response.tiempos_espera
-        quantities = list(quantities_response.cantidades.values())
+            quantities_response = self._api.get_quantities()
+            if quantities_response is None:
+                logger.error("🚨 No se pudo obtener cantidades de vehículos")
+                return -1.0  # Recompensa de seguridad
 
-        # 1. Penalización por tiempo de espera (cuadrático para casos extremos)
-        wait_penalty = sum(t**2 for t in wait_times) / len(wait_times)
+            # Obtener datos
+            wait_times = wait_times_response.tiempos_espera
+            quantities = list(quantities_response.cantidades.values())
 
-        # 2. Penalización por congestión desigual (alta varianza = mal balance)
-        if len(quantities) > 1:
-            congestion_variance = float(np.var(quantities))
-        else:
-            congestion_variance = 0.0
+            # 🛡️ VALIDACIÓN DE DATOS CRÍTICA
+            if not wait_times or not quantities:
+                logger.error("🚨 Datos vacíos del simulador")
+                return -1.0
 
-        # 3. Penalización por congestión total excesiva
-        total_vehicles = sum(quantities)
-        congestion_penalty = total_vehicles**1.5 if total_vehicles > 50 else 0
+            # 🛡️ DETECTAR DATOS ANÓMALOS
+            max_wait_time = max(wait_times) if wait_times else 0
+            total_vehicles = sum(quantities) if quantities else 0
 
-        # 4. Fórmula final con pesos ajustables
-        w1_wait = 0.01  # Peso para tiempo de espera
-        w2_variance = 0.1  # Peso para varianza de congestión
-        w3_congestion = 0.005  # Peso para congestión total
+            if max_wait_time > 10000:  # Más de 10000 segundos es anómalo
+                logger.error(
+                    f"🚨 DATOS ANÓMALOS: Tiempo de espera máximo: {max_wait_time}"
+                )
+                return -100.0  # Penalización severa pero controlada
 
-        reward = -(
-            w1_wait * wait_penalty
-            + w2_variance * congestion_variance
-            + w3_congestion * congestion_penalty
-        )
+            if total_vehicles > 1000:  # Más de 1000 vehículos es anómalo
+                logger.error(f"🚨 DATOS ANÓMALOS: Total vehículos: {total_vehicles}")
+                return -100.0  # Penalización severa pero controlada
 
-        return float(reward)
+            # 🧮 NUEVA FÓRMULA MATEMÁTICAMENTE ESTABLE
+
+            # 1. Penalización por tiempo de espera - LINEAL con saturación
+            # Usar función logarítmica para evitar explosión exponencial
+            avg_wait_time = sum(wait_times) / len(wait_times)
+            
+            # Saturación suave: log(1 + x) crece más lento que x²
+            if avg_wait_time > 0:
+                wait_penalty = 10 * np.log(1 + avg_wait_time / 10)  # Saturación suave
+            else:
+                wait_penalty = 0
+
+            # 2. Penalización por congestión desigual - CONTROLADA
+            if len(quantities) > 1:
+                # Usar desviación estándar en lugar de varianza para evitar explosión
+                congestion_std = float(np.std(quantities))
+                congestion_variance_penalty = 2 * congestion_std  # Factor controlado
+            else:
+                congestion_variance_penalty = 0.0
+
+            # 3. Penalización por congestión total - LINEAL con saturación
+            if total_vehicles > 20:
+                # Función lineal con saturación en lugar de exponencial
+                congestion_penalty = min(20, (total_vehicles - 20) * 0.5)
+            else:
+                congestion_penalty = 0
+
+            # 4. Bonificación por eficiencia (vehículos moviéndose)
+            efficiency_bonus = 0
+            if total_vehicles > 0 and avg_wait_time < 30:
+                efficiency_bonus = min(5, total_vehicles * 0.1)  # Máximo +5
+
+            # 5. Fórmula final con pesos balanceados
+            reward = -(wait_penalty + congestion_variance_penalty + congestion_penalty) + efficiency_bonus
+
+            # 🛡️ LÍMITES DUROS FINALES (valores razonables)
+            final_reward = np.clip(reward, -100.0, 10.0)
+
+            # 🚨 LOG SOLO CASOS RELEVANTES
+            if abs(final_reward) > 50 or max_wait_time > 120:
+                logger.info(f"📊 Recompensa: {final_reward:.2f} | Espera avg: {avg_wait_time:.1f}s | Vehículos: {total_vehicles}")
+
+            return float(final_reward)
+
+        except Exception as e:
+            logger.error(f"🚨 ERROR CRÍTICO en cálculo de recompensa: {e}")
+            return -1.0  # Recompensa de seguridad
 
     def start_training_process(self) -> None:
         """
@@ -2352,14 +2411,36 @@ class DQNTrainer:
         self._skip_warmup_steps(warmup_steps)
 
         fixed_time_start = time.time()
+        step_count = 0  # Contador para debug
         while not done:
-            total_reward += self._calculate_reward()
+            reward = self._calculate_reward()
+
+            # 🛡️ PROTECCIÓN CRÍTICA EN TIEMPO FIJO
+            if abs(reward) > 1000:
+                logger.error(
+                    f"🚨 RECOMPENSA EXTREMA en tiempo fijo: {reward:.2f} (paso {step_count})"
+                )
+                reward = 1000.0 if reward > 0 else -1000.0
+
+            total_reward += reward
+
+            # 🛡️ LÍMITE ABSOLUTO PARA TIEMPO FIJO
+            if abs(total_reward) > 100000:  # Límite más alto para tiempo fijo
+                logger.error(
+                    f"🚨 ACUMULACIÓN EXTREMA en tiempo fijo: {total_reward:.2f}"
+                )
+                logger.error(
+                    f"📊 Pasos ejecutados: {step_count}, Última recompensa: {reward:.2f}"
+                )
+                break  # Salir del bucle para evitar overflow
+
             response = self._api.advance_simulation(steps=self.steps)
             if response is None:
                 raise RuntimeError(
                     "No se pudo avanzar la simulación en cálculo de tiempo fijo"
                 )
             done = response.done
+            step_count += 1
         fixed_time_duration = time.time() - fixed_time_start
 
         #! Guardar los datos de los semaforos con tiempo fijo

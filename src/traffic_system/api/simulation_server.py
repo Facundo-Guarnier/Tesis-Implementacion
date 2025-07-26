@@ -82,7 +82,6 @@ class SumoAPI(Flask):
             error_response = ErrorResponse(error="Falta el parámetro 'steps'.")
             return jsonify(error_response.model_dump()), 400
 
-        print("++++++++++++++++ Avanzando pasos: ", steps)
         # VERIFICAR PRIMERO si la simulación terminó en una operación anterior de semáforos
         if self._simulation_ended_during_traffic_light_change:
             self.logger.info(
@@ -117,6 +116,22 @@ class SumoAPI(Flask):
 
         # Avanzar simulación principal (controlada por el agente)
         done_s1 = self.app_s1.advance(steps=steps)
+
+        # � VALIDACIÓN POST-AVANCE: Solo logging informativo
+        try:
+            # Verificar tiempos de espera después del avance
+            current_wait_times = self.app_s1.get_wait_times()
+            max_wait = max(current_wait_times) if current_wait_times else 0
+            
+            # Verificar cantidad de vehículos
+            current_vehicles = self.app_s1.get_vehicle_count()
+            
+            if max_wait > 300 or current_vehicles > 80:
+                self.logger.info("� Estado post-avance:")
+                self.logger.info(f"📊 Max wait time: {max_wait:.1f}s, Total vehicles: {current_vehicles}")
+                
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error en validación post-avance: {e}")
 
         done_s2 = False
 
@@ -299,6 +314,12 @@ class SumoAPI(Flask):
         wait_times = self.app_s1.get_wait_times()
         total_wait_time = self.app_s1.get_total_wait_time()
 
+        # � LOGGING INFORMATIVO de tiempos altos (sin reiniciar automáticamente)
+        max_wait_time = max(wait_times) if wait_times else 0
+        if max_wait_time > 300:  # Más de 5 minutos - reportar pero no reiniciar
+            self.logger.info(f"� Tiempo de espera alto detectado: {max_wait_time:.1f}s")
+            self.logger.info(f"📊 Todos los tiempos: {wait_times}")
+
         response = WaitTimesResponse(
             tiempos_espera=wait_times,
             tiempo_espera_total=total_wait_time,
@@ -337,6 +358,13 @@ class SumoAPI(Flask):
         """Obtener cantidades de vehículos de todas las zonas en S1."""
         vehicle_counts = self.app_s1.get_vehicle_counts_by_zone()
         total_vehicles = self.app_s1.get_vehicle_count()
+
+        # � LOGGING INFORMATIVO de congestión alta (sin reiniciar automáticamente)
+        max_vehicles_per_zone = max(vehicle_counts.values()) if vehicle_counts else 0
+        if total_vehicles > 80 or max_vehicles_per_zone > 40:
+            self.logger.info("� Congestión alta detectada:")
+            self.logger.info(f"📊 Total vehículos: {total_vehicles}")
+            self.logger.info(f"📊 Por zona: {vehicle_counts}")
 
         response = VehicleQuantitiesResponse(
             cantidades=vehicle_counts,
