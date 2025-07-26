@@ -51,7 +51,7 @@ decision:
     path_resultado: "results/training/" #! Directorio donde se guardan modelos, logs y métricas de entrenamiento
 
     # === HIPERPARÁMETROS BÁSICOS ===
-    num_epocas: 35 #! Número total de épocas de entrenamiento (35 épocas ≈ 2-3 horas)
+    num_epocas: 35 #! Número total de épocas de entrenamiento
     batch_size: 256 #! Tamaño de lote para entrenamiento (potencia de 2, balance memoria/convergencia)
     steps: 10 #! Pasos de simulación por acción del agente (reduce frecuencia de decisiones)
     memory: 5000 #! Capacidad máxima del buffer de experiencias (5000 = ~20 épocas de memoria)
@@ -90,11 +90,11 @@ decision:
 
     # === NOISY NETWORKS PARA EXPLORACIÓN ===
     use_noisy_networks: True #* Noisy Networks: Exploración mediante ruido en pesos (sin epsilon)
-    noise_std: 0.3 #* Desviación estándar del ruido paramétrico (0.3 = conservador vs 0.5)
+    noise_std: 0.3 #* Desviación estándar del ruido paramétrico
 
     # === REGULARIZACIÓN ===
     use_dropout: True #* Dropout: Previene overfitting desactivando neuronas aleatoriamente
-    dropout_rate: 0.05 #* Probabilidad de dropout (5% conservador vs 10% agresivo)
+    dropout_rate: 0.05 #* Probabilidad de dropout
 
     # === LEARNING RATE ADAPTATIVO ===
     adaptive_lr: True #* Learning Rate Scheduling: Ajusta LR según progreso del entrenamiento
@@ -111,8 +111,8 @@ decision:
     generate_plots: True #* Generar gráficos automáticos de progreso y convergencia
 
     # === OPTIMIZACIONES DE RENDIMIENTO (BAJO RIESGO) ===
-    enable_jit_compilation: True #* 🚀 JIT Compilation: TensorFlow XLA para +10-15% velocidad GPU
-    dropout_mode: "optimized" #* 🚀 Dropout Inteligente: Solo en training, OFF en inference (+20-25%)
+    enable_jit_compilation: True #* JIT Compilation: TensorFlow XLA para acelerar entrenamiento
+    dropout_mode: "optimized" #* Dropout Inteligente: Solo en capas estratégicas
     dropout_layers: "strategic" #* Aplicar dropout solo en capas críticas vs todas las capas
     noisy_implementation: "efficient" #* 🚀 Noisy Networks: Implementación optimizada (+15-20% velocidad)
 
