@@ -57,17 +57,17 @@ decision:
     memory: 5000 #! Capacidad máxima del buffer de experiencias (5000 = ~20 épocas de memoria)
 
     # === OPTIMIZACIÓN Y LEARNING RATE ===
-    learning_rate: 0.0005 #! Tasa de aprendizaje inicial (0.0005 = estable, 0.001 = más agresivo)
-    learning_rate_decay: 0.95 #! Factor de decay por época (0.95 = moderado, 0.99 = conservador)
-    learning_rate_min: 0.00001 #! Tasa mínima para evitar learning rate excesivamente pequeño
+    learning_rate: 0.002 #! Tasa de aprendizaje inicial (0.0005 = estable, 0.001 = más agresivo)
+    learning_rate_decay: 0.98 #! Factor de decay por época (0.95 = moderado, 0.99 = conservador)
+    learning_rate_min: 0.0001 #! Tasa mínima (0.001 = Mantener aprendizaje relativamente activo, 0.00001 = muy conservador)
 
     # === EXPLORACIÓN (EPSILON-GREEDY) ===
     epsilon: 1 #! Probabilidad inicial de exploración (1.0 = 100% exploración al inicio)
-    epsilon_decay: 0.9999 #! Factor de decay por step (0.9995 = decay gradual a lo largo del entrenamiento)
-    epsilon_min: 0.005 #! Probabilidad mínima de exploración (0.5% exploración residual)
+    epsilon_decay: 0.99995 #! Factor de decay por step (0.99995 = decay gradual a lo largo del entrenamiento)
+    epsilon_min: 0.1 #! Probabilidad mínima de exploración (10% exploración residual)
 
     # === DESCUENTO Y ARQUITECTURA ===
-    gamma: 0.85 #! Factor de descuento para recompensas futuras (0.85 = horizonte medio-largo)
+    gamma: 0.45 #! Factor de descuento para recompensas futuras (0.45 = horizonte corto, 0.85 = horizonte medio-largo, 0.99 = horizonte largo)
     hidden_layers: [512, 512, 256, 128, 128, 64] #! Arquitectura de red neuronal (neuronas por capa oculta)
 
     # === MEJORAS ALGORÍTMICAS DQN (FASE 2) ===

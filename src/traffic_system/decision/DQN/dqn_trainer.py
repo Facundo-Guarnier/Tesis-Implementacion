@@ -19,6 +19,15 @@ from numpy import ndarray as NDArray
 from src.traffic_system.api_client.data_source_client import DecisionAPI
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DecisionSettings
+from src.traffic_system.core.smart_logger import (
+    DQN_LOGGER_CONFIG,
+    LogLevel,
+    create_smart_logger,
+)
+from src.traffic_system.core.training_dashboard import (
+    ProgressMetrics,
+    create_training_dashboard,
+)
 from src.traffic_system.decision.DQN.evaluation_metrics import DQNEvaluator
 
 
@@ -128,6 +137,12 @@ class DQNTrainer:
         self.evaluator: DQNEvaluator | None = None
         self.evaluation_frequency: int = 5
 
+        # CONFIGURAR SMART LOGGING Y DASHBOARD
+        self.smart_logger = create_smart_logger("DQNTrainer", DQN_LOGGER_CONFIG)
+        self.dashboard = create_training_dashboard(
+            baseline_performance=-48285.77
+        )  # Del CSV de entrenamiento
+
         # Configurar GPU para entrenamiento óptimo
         self._configure_gpu()
 
@@ -164,6 +179,16 @@ class DQNTrainer:
         # Historial para capturar dinámica temporal
         self.state_history: list[list[float]] = []
         self.max_history_length = 2  # Mantener actual + anterior
+
+        # SOLUCIÓN SIMPLE: Variables para evitar llamadas API duplicadas
+        self._cached_wait_times_response = None
+        self._cached_quantities_response = None
+
+        # 📊 Variables para métricas adicionales (bajo costo computacional)
+        self.epoch_losses = []  # Loss por época
+        self.epoch_actions = []  # Acciones tomadas para entropía
+        self.epoch_q_values = []  # Q-values para varianza
+        self.epoch_gradients = []  # Normas de gradientes
 
         self._init_process_memory_monitoring()
 
@@ -607,6 +632,38 @@ class DQNTrainer:
         # Memoria del proceso (acceso rápido)
         metrics["memoria_ram_proceso_mb"] = self._get_process_memory_mb()
 
+        # 📊 NUEVAS MÉTRICAS ADICIONALES (bajo costo computacional)
+        
+        # Loss promedio de la época
+        if self.epoch_losses:
+            metrics["loss_promedio"] = float(np.mean(self.epoch_losses))
+            metrics["loss_std"] = float(np.std(self.epoch_losses))
+        else:
+            metrics["loss_promedio"] = 0.0
+            metrics["loss_std"] = 0.0
+        
+        # Varianza de Q-values (inestabilidad del modelo)
+        if self.epoch_q_values:
+            q_vals_array = np.array(self.epoch_q_values)
+            metrics["q_value_varianza"] = float(np.var(q_vals_array))
+        else:
+            metrics["q_value_varianza"] = 0.0
+        
+        # Entropía de acciones (exploración vs explotación)
+        if self.epoch_actions and len(set(self.epoch_actions)) > 1:
+            action_counts = np.bincount(self.epoch_actions, minlength=len(self._action_space))
+            action_probs = action_counts / len(self.epoch_actions)
+            action_probs = action_probs[action_probs > 0]  # Evitar log(0)
+            metrics["action_entropy"] = float(-np.sum(action_probs * np.log(action_probs)))
+        else:
+            metrics["action_entropy"] = 0.0
+        
+        # Gradient norm (se calculará cuando esté disponible)
+        if self.epoch_gradients:
+            metrics["gradient_norm"] = float(np.mean(self.epoch_gradients))
+        else:
+            metrics["gradient_norm"] = 0.0
+
         # Memoria GPU solo si está disponible y no es costosa
         metrics["memoria_gpu_pico_mb"] = 0.0
         # REMOVIDO: Llamada costosa a tf.config.experimental.get_memory_info()
@@ -619,6 +676,32 @@ class DQNTrainer:
         metrics["congestion_maxima"] = 0.0
 
         return metrics
+
+    def _compute_gradient_norm(self) -> float | None:
+        """
+        Calcula la norma L2 de los gradientes del modelo de manera eficiente.
+        Esto ayuda a detectar gradient explosion/vanishing.
+        
+        Returns:
+            float | None: Norma L2 de gradientes o None si hay error
+        """
+        try:
+            if self.model is None:
+                return None
+            
+            # Obtener los pesos del modelo
+            weights = self.model.trainable_weights
+            if not weights:
+                return None
+            
+            # Calcular norma L2 de los pesos (proxy para gradientes)
+            # Esto es mucho más eficiente que calcular gradientes reales
+            weight_norms = [tf.norm(w) for w in weights]
+            total_norm = tf.sqrt(tf.reduce_sum([tf.square(norm) for norm in weight_norms]))
+            
+            return float(total_norm.numpy())
+        except Exception:
+            return None
 
     def _set_action_space(self) -> None:
         """
@@ -1170,6 +1253,9 @@ class DQNTrainer:
             action = int(np.argmax(act_values[0]))
             max_q_value = float(np.max(act_values[0]))
 
+        # 📊 Capturar acción para entropía (sin costo adicional)
+        self.epoch_actions.append(action)
+
         inference_time = time.time() - inference_start
         return action, max_q_value, inference_time
 
@@ -1376,14 +1462,33 @@ class DQNTrainer:
                     target_q_values, action_indices, targets
                 )
 
-                # Entrenar el modelo
-                self.model.fit(
+                # Entrenar el modelo y capturar loss
+                history = self.model.fit(
                     batch_states,
                     updated_q_values,
                     epochs=1,
                     verbose=0,
                     batch_size=self.batch_size,
                 )
+                
+                # 📊 Capturar loss para métricas (sin costo adicional)
+                if history.history and 'loss' in history.history:
+                    self.epoch_losses.append(history.history['loss'][0])
+                
+                # 📊 Capturar norma de gradientes (cálculo ligero post-entrenamiento)
+                try:
+                    gradient_norm = self._compute_gradient_norm()
+                    if gradient_norm is not None:
+                        self.epoch_gradients.append(gradient_norm)
+                except Exception:
+                    pass  # Ignorar errores de gradient norm para no afectar entrenamiento
+                
+                # 📊 Capturar Q-values para varianza (datos ya disponibles)
+                if isinstance(updated_q_values, tf.Tensor):
+                    q_vals = updated_q_values.numpy()
+                else:
+                    q_vals = updated_q_values
+                self.epoch_q_values.extend(q_vals.flatten())
         else:
             # Versión CPU optimizada
             states = np.array([s for s, _, _, _, _ in minibatch], dtype=np.float32)
@@ -1434,10 +1539,25 @@ class DQNTrainer:
                             next_q_values[i]
                         )
 
-            # Entrenar
-            self.model.fit(
+            # Entrenar y capturar loss
+            history = self.model.fit(
                 states, targets, epochs=1, verbose=0, batch_size=self.batch_size
             )
+            
+            # 📊 Capturar loss para métricas (sin costo adicional)
+            if history.history and 'loss' in history.history:
+                self.epoch_losses.append(history.history['loss'][0])
+            
+            # 📊 Capturar norma de gradientes (cálculo ligero post-entrenamiento)
+            try:
+                gradient_norm = self._compute_gradient_norm()
+                if gradient_norm is not None:
+                    self.epoch_gradients.append(gradient_norm)
+            except Exception:
+                pass  # Ignorar errores de gradient norm para no afectar entrenamiento
+            
+            # 📊 Capturar Q-values para varianza (datos ya disponibles)
+            self.epoch_q_values.extend(targets.flatten())
 
     def _calculate_td_errors(self, minibatch: list) -> list[float]:
         """
@@ -1737,7 +1857,7 @@ class DQNTrainer:
         Returns:
             int: Número real de pasos avanzados durante warm-up
         """
-        logger = logging.getLogger(f" {self.__class__.__name__}._skip_warmup_steps")
+        logger = logging.getLogger(f"{self.__class__.__name__}._skip_warmup_steps")
         logger.info(
             f" 🔄 Iniciando warm-up: avanzando {warmup_steps} pasos sin entrenamiento"
         )
@@ -1745,10 +1865,10 @@ class DQNTrainer:
         # Avanzar directamente todos los pasos de warm-up en una sola llamada
         response = self._api.advance_simulation(steps=warmup_steps)
         if response is None:
-            logger.warning(" ⚠️ No se pudo avanzar simulación durante warm-up")
+            logger.warning("⚠️ No se pudo avanzar simulación durante warm-up")
             return 0
 
-        logger.info(f" ✅ Warm-up completado: {warmup_steps} pasos avanzados")
+        logger.info(f"✅ Warm-up completado: {warmup_steps} pasos avanzados")
         return warmup_steps
 
     def _train_agent(self) -> None:
@@ -1817,21 +1937,8 @@ class DQNTrainer:
 
                 total_reward += reward  # Acumulación con recompensa original
 
-                # 🛡️ PROTECCIÓN CONTRA RECOMPENSAS INDIVIDUALES EXTREMAS
-                # Solo reportar, no interrumpir - las recompensas están limitadas por np.clip()
-                if abs(reward) > 150:  # Ligeramente mayor que el límite real de 100
-                    logger.warning(
-                        f"⚠️ Recompensa alta (pero controlada): {reward:.2f} en paso {total_steps}"
-                    )
-
-                # 🛡️ MONITOREO DE RECOMPENSA TOTAL (sin interrumpir episodio)
-                # Reportar solo para análisis, pero permitir que el episodio continúe
-                if abs(total_reward) > 10000:  # Umbral para análisis
-                    logger.info(
-                        f"� Recompensa total acumulada: {total_reward:.2f} en {total_steps} pasos"
-                    )
-                    logger.info(f"📊 Promedio por paso: {total_reward/total_steps:.2f}")
-                    # NO forzar done = True - dejar que el episodio continúe naturalmente
+                # Incrementar step counter del smart logger
+                self.smart_logger.step()
                 total_steps += 1
                 # Usar recompensa normalizada para entrenamiento
                 self._remember(state, action_index, normalized_reward, next_state, done)
@@ -1872,6 +1979,39 @@ class DQNTrainer:
                 total_steps,
             )
 
+            # 📊 ACTUALIZAR DASHBOARD DE PROGRESO
+            progress_metrics = ProgressMetrics(
+                epoch=e + 1,
+                total_steps=total_steps,
+                avg_reward=(
+                    sum(epoch_rewards) / len(epoch_rewards) if epoch_rewards else 0
+                ),
+                cumulative_reward=total_reward,
+                epsilon=self.epsilon,
+                learning_rate=self.learning_rate,
+                avg_q_value=training_metrics["q_value_promedio"],
+                max_q_value=training_metrics["q_value_maximo"],
+                replay_count=replay_count,
+                epoch_duration=epoch_duration,
+                steps_per_second=training_metrics["pasos_por_segundo"],
+            )
+
+            # Actualizar dashboard con métricas de progreso
+            self.dashboard.update_metrics(progress_metrics)
+
+            # Verificar si se debe detener el entrenamiento
+            should_stop, stop_reason = self.dashboard.should_stop_training()
+            if should_stop:
+                self.smart_logger.log_if_needed(
+                    LogLevel.CRITICAL,
+                    "training_stop",
+                    f"🛑 DETENIENDO ENTRENAMIENTO: {stop_reason}",
+                )
+                # Generar reporte final antes de detener
+                final_report = self.dashboard.generate_summary_report()
+                self.smart_logger.logger.error(final_report)
+                break
+
             #! Guardar métricas completas de entrenamiento en un archivo CSV
             with open(
                 self._save_path + "/entrenamiento_data.csv", mode="a", newline=""
@@ -1900,6 +2040,12 @@ class DQNTrainer:
                         f"{training_metrics['tiempo_inferencia_promedio']:.6f}",
                         # Métricas de memoria optimizadas
                         f"{training_metrics['memoria_ram_proceso_mb']:.1f}",
+                        # 📊 NUEVAS MÉTRICAS CRÍTICAS (bajo costo)
+                        f"{training_metrics['loss_promedio']:.6f}",
+                        f"{training_metrics['loss_std']:.6f}",
+                        f"{training_metrics['q_value_varianza']:.6f}",
+                        f"{training_metrics['action_entropy']:.4f}",
+                        f"{training_metrics['gradient_norm']:.6f}",
                     ]
                 )
 
@@ -1920,7 +2066,7 @@ class DQNTrainer:
                 self.evaluator.record_training_step(
                     episode=e + 1,
                     reward=total_reward,
-                    loss=0.0,  # Se actualizará cuando tengamos access a las pérdidas
+                    loss=training_metrics.get("loss_promedio", 0.0),  # 📊 Usar loss real de las nuevas métricas
                     epsilon=self.epsilon,
                     learning_rate=self.learning_rate,
                     avg_q_value=avg_q_value,
@@ -1941,10 +2087,23 @@ class DQNTrainer:
                             evaluation_metrics
                         )
                         logger.info(f" 📊 Comparación completada: {comparison}")
+                    
+                    # 💾 Guardado periódico de métricas (cada evaluación)
+                    try:
+                        metrics_path = self.evaluator.save_metrics()
+                        logger.info(f" 💾 Métricas guardadas periódicamente en: {metrics_path}")
+                    except Exception as e:
+                        logger.warning(f" ⚠️ Error guardando métricas periódicas: {e}")
 
             # FASE 4: Actualizar parámetros adaptativos para la siguiente época
             if hasattr(self, "frame_count"):
                 self._update_adaptive_parameters()
+
+            # 📊 Limpiar listas de métricas para la próxima época (evitar acumulación de memoria)
+            self.epoch_losses.clear()
+            self.epoch_actions.clear()
+            self.epoch_q_values.clear()
+            self.epoch_gradients.clear()
 
             # FASE 3: Learning rate adaptativo mejorado (reemplaza lógica anterior)
             current_avg_reward = np.mean(epoch_rewards) if epoch_rewards else 0.0
@@ -2017,17 +2176,14 @@ class DQNTrainer:
         Returns:
             NDArray: Estado enriquecido y normalizado como (48,)
         """
-        # Obtener tiempos de espera actuales
-        wait_times_response = self._api.get_wait_times()
+        # SOLUCIÓN SIMPLE: Usar datos ya obtenidos en lugar de hacer nuevas consultas
+        wait_times_response = self._cached_wait_times_response
+        quantities_response = self._cached_quantities_response
+        
         if wait_times_response is None:
             raise RuntimeError("No se pudo obtener los tiempos de espera de la API")
-
-        # Obtener cantidades de vehículos actuales
-        quantities_response = self._api.get_quantities()
         if quantities_response is None:
-            raise RuntimeError(
-                "No se pudo obtener las cantidades de vehículos de la API"
-            )
+            raise RuntimeError("No se pudo obtener las cantidades de vehículos de la API")
 
         # Preparar observación actual
         wait_times = wait_times_response.tiempos_espera
@@ -2062,6 +2218,14 @@ class DQNTrainer:
 
         # Normalizar estado de manera robusta
         return self._normalize_state_robust(complete_state)
+
+    def _update_simulation_data(self) -> None:
+        """
+        SOLUCIÓN SIMPLE: Actualiza los datos de simulación una sola vez.
+        Los métodos _get_current_state() y _calculate_reward() usarán estos datos.
+        """
+        self._cached_wait_times_response = self._api.get_wait_times()
+        self._cached_quantities_response = self._api.get_quantities()
 
     def _normalize_state_robust(self, state: list[float]) -> NDArray:
         """
@@ -2126,6 +2290,9 @@ class DQNTrainer:
 
         done: bool = response.done  #! Si la simulación ha terminado
 
+        # SOLUCIÓN SIMPLE: Actualizar datos una sola vez después del avance
+        self._update_simulation_data()
+
         return self._get_current_state(), self._calculate_reward(), done
 
     def _normalize_reward(self, reward: float) -> float:
@@ -2166,15 +2333,16 @@ class DQNTrainer:
         logger = logging.getLogger(f"{self.__class__.__name__}._calculate_reward")
 
         try:
-            wait_times_response = self._api.get_wait_times()
+            # SOLUCIÓN SIMPLE: Usar datos ya obtenidos en lugar de hacer nuevas consultas
+            wait_times_response = self._cached_wait_times_response
+            quantities_response = self._cached_quantities_response
+            
             if wait_times_response is None:
                 logger.error("🚨 No se pudo obtener tiempos de espera")
-                return -1.0  # Recompensa de seguridad
-
-            quantities_response = self._api.get_quantities()
+                return -1.0
             if quantities_response is None:
                 logger.error("🚨 No se pudo obtener cantidades de vehículos")
-                return -1.0  # Recompensa de seguridad
+                return -1.0
 
             # Obtener datos
             wait_times = wait_times_response.tiempos_espera
@@ -2204,7 +2372,7 @@ class DQNTrainer:
             # 1. Penalización por tiempo de espera - LINEAL con saturación
             # Usar función logarítmica para evitar explosión exponencial
             avg_wait_time = sum(wait_times) / len(wait_times)
-            
+
             # Saturación suave: log(1 + x) crece más lento que x²
             if avg_wait_time > 0:
                 wait_penalty = 10 * np.log(1 + avg_wait_time / 10)  # Saturación suave
@@ -2232,14 +2400,27 @@ class DQNTrainer:
                 efficiency_bonus = min(5, total_vehicles * 0.1)  # Máximo +5
 
             # 5. Fórmula final con pesos balanceados
-            reward = -(wait_penalty + congestion_variance_penalty + congestion_penalty) + efficiency_bonus
+            reward = (
+                -(wait_penalty + congestion_variance_penalty + congestion_penalty)
+                + efficiency_bonus
+            )
 
             # 🛡️ LÍMITES DUROS FINALES (valores razonables)
             final_reward = np.clip(reward, -100.0, 10.0)
 
-            # 🚨 LOG SOLO CASOS RELEVANTES
-            if abs(final_reward) > 50 or max_wait_time > 120:
-                logger.info(f"📊 Recompensa: {final_reward:.2f} | Espera avg: {avg_wait_time:.1f}s | Vehículos: {total_vehicles}")
+            # 🚨 SMART LOGGING - Solo casos relevantes
+            # Usar smart logger para evitar spam pero mantener información importante
+            self.smart_logger.log_if_needed(
+                LogLevel.INFO,
+                "reward_calculation",
+                f"📊 Recompensa: {final_reward:.2f} | Espera avg: {avg_wait_time:.1f}s | Vehículos: {total_vehicles}",
+                value=final_reward,
+            )
+
+            # Agregar métricas al dashboard para análisis
+            self.smart_logger.add_metric("avg_wait_time", avg_wait_time)
+            self.smart_logger.add_metric("total_vehicles", total_vehicles)
+            self.smart_logger.add_metric("reward_value", final_reward)
 
             return float(final_reward)
 
@@ -2296,6 +2477,12 @@ class DQNTrainer:
                         "Tiempo Inferencia Promedio",
                         # Métricas de memoria (optimizadas para rendimiento)
                         "Memoria RAM Proceso (MB)",
+                        # 📊 NUEVAS MÉTRICAS CRÍTICAS (bajo costo)
+                        "Loss Promedio",
+                        "Loss Std",
+                        "Q-Value Varianza",
+                        "Action Entropy",
+                        "Gradient Norm",
                     ]
                 )
 

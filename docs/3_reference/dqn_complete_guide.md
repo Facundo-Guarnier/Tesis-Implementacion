@@ -1,8 +1,6 @@
 # 🚀 Guía Completa y Consolidada DQN - Fuente de Verdad Única
 
 > **Documento Master**: Consolidación completa de todas las fases, optimizaciones y mejoras DQN
-> **Fuente de Verdad**: Este documento reemplaza y consolida todos los archivos DQN previos
-> **Archivos Consolidados**: dqn_mejoras_fases.md, dqn_stability_fixes.md, dqn_performance_guide.md
 > **Período**: Enero 2025 - Implementación completa desde errores críticos hasta optimizaciones avanzadas
 > **Estado**: Producción - Todas las optimizaciones validadas y funcionando
 > **Última actualización**: 26 de julio de 2025
@@ -50,8 +48,6 @@
 ---
 
 ## 📖 Glosario de Términos Técnicos
-
-> **Fuente de Verdad Única**: Definiciones completas de todos los conceptos DQN y de optimización utilizados en el proyecto
 
 ### 🧠 **Conceptos Fundamentales DQN**
 
@@ -323,12 +319,24 @@ Vector de 48 dimensiones que describe el estado actual de la intersección:
 
 #### **Acción de Semáforo**
 
-Decisión del agente sobre qué fase de semáforo activar:
+Decisión del agente sobre qué combinación de fases de semáforo activar:
 
-- `0`: Norte-Sur (verde)
-- `1`: Este-Oeste (verde)
-- `2`: Giro izquierda Norte-Sur
-- `3`: Giro izquierda Este-Oeste
+**El agente elige entre 16 acciones posibles (índices 0-15)** que representan todas las combinaciones de estados de los 4 semáforos en las intersecciones:
+
+- **Semáforo 1**: `GGGGGGrrrrr` o `rrrrrrGGgGG`
+- **Semáforo 2**: `GGGrrrrrGGg` o `rrrGGGGGrrr`  
+- **Semáforo 3**: `GGgGGGrrrrr` o `rrrrrrGGGGG`
+- **Semáforo 4**: `GGGrrrrGGg` o `rrrGGGGrrr`
+
+**Ejemplos de acciones:**
+- `0`: `GGGGGGrrrrr-GGGrrrrrGGg-GGgGGGrrrrr-GGGrrrrGGg`
+- `1`: `GGGGGGrrrrr-GGGrrrrrGGg-GGgGGGrrrrr-rrrGGGGrrr`
+- `15`: `rrrrrrGGgGG-rrrGGGGGrrr-rrrrrrGGGGG-rrrGGGGrrr`
+
+Cada estado de semáforo sigue el formato SUMO donde:
+- `G` = Verde (green)
+- `g` = Verde protegido (protected green)  
+- `r` = Rojo (red)
 
 #### **Recompensa Negativa**
 
@@ -445,7 +453,7 @@ ValueError: Only one of clipnorm, clipvalue and global_clipnorm can be set
 - `clipnorm=1.0`
 - `clipvalue=0.5`
 
-### Fase 1: Solución de Crisis (Enero 2025)
+### Fase 1: Solución de Crisis
 
 **Solución Implementada**:
 
@@ -459,7 +467,7 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0)
 
 **Resultado**: Sistema funcional pero con problema de batch size bloqueante.
 
-### Fase 2: Optimización de Batch Dinámico (Enero 2025)
+### Fase 2: Optimización de Batch Dinámico
 
 **Problema**: Entrenamiento no iniciaba hasta tener 256 experiencias (step 3000+).
 
@@ -473,7 +481,7 @@ if len(self.memory_buffer) >= self.min_replay_size:
 
 **Resultado**: Entrenamiento inicia en ~570 steps (5.3x mejora).
 
-### Fase 3: Optimizaciones de Estabilidad (Enero 2025)
+### Fase 3: Optimizaciones de Estabilidad
 
 **Implementado**:
 
@@ -492,6 +500,7 @@ if len(self.memory_buffer) >= self.min_replay_size:
    ```
 
 2. **Learning Rate Adaptativo**:
+
    ```python
    def _adaptive_learning_rate_update(self, improved: bool):
        if improved:
@@ -503,6 +512,7 @@ if len(self.memory_buffer) >= self.min_replay_size:
    ```
 
 3. **Sistema de Warm-up**:
+
    ```python
    def _skip_warmup_steps(self, warmup_steps: int = 250) -> int:
        """Avanza la simulación los primeros pasos sin entrenar."""
@@ -514,13 +524,15 @@ if len(self.memory_buffer) >= self.min_replay_size:
            steps_advanced += self.steps
        return steps_advanced
    ```
-   
+
    **Beneficios**:
+
    - ✅ Evita entrenar con escenarios sin tráfico
    - ✅ El agente aprende solo con tráfico real desde el primer paso
    - ✅ Coherencia entre tiempo fijo y entrenamiento DQN
 
 4. **Normalización de Recompensas**:
+
    ```python
    def _normalize_reward(self, reward: float) -> float:
        """Normaliza recompensas para mayor estabilidad."""
@@ -533,6 +545,7 @@ if len(self.memory_buffer) >= self.min_replay_size:
    ```
 
 5. **Gradient Clipping + Huber Loss**:
+
    ```python
    optimizer = tf.keras.optimizers.Adam(
        learning_rate=self.learning_rate,
@@ -544,7 +557,7 @@ if len(self.memory_buffer) >= self.min_replay_size:
    )
    ```
 
-### Fase 4: Optimizaciones de Rendimiento (Enero 2025)
+### Fase 4: Optimizaciones de Rendimiento
 
 **Problemas Identificados Post-Optimización**:
 
@@ -556,13 +569,16 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **Soluciones Implementadas**:
 
 1. **JIT Compilation Condicional**:
+
    ```python
    jit_compile_enabled = self.enable_jit_compilation and self.use_gpu
    model.compile(jit_compile=jit_compile_enabled)
    ```
+
    **Beneficio**: +10-15% velocidad en GPU
 
 2. **Dropout Mode Optimizado**:
+
    ```python
    def _should_add_dropout(self, layer_index: int) -> bool:
        if self.dropout_mode == "optimized":
@@ -573,9 +589,11 @@ if len(self.memory_buffer) >= self.min_replay_size:
                or layer_index == total_layers - 1   # Antes de output
            )
    ```
+
    **Beneficio**: +20-25% mejora manteniendo regularización
 
 3. **Noisy Networks Eficientes**:
+
    ```python
    if self.noisy_implementation == "efficient":
        layer = tf.keras.layers.Dense(
@@ -584,25 +602,27 @@ if len(self.memory_buffer) >= self.min_replay_size:
            )
        )
    ```
+
    **Beneficio**: +15-20% mejora sin perder exploración
 
 4. **Evaluación Menos Frecuente**:
+
    ```yaml
-   evaluation_frequency: 10  # Cambiado de 5 a 10 épocas
+   evaluation_frequency: 10 # Cambiado de 5 a 10 épocas
    ```
+
    **Beneficio**: +2-5% mejora en velocidad
 
 ### Resultados Consolidados Fase 1-4
 
-| Métrica | Antes (Problemas) | Después (Optimizado) | Mejora |
-|---------|-------------------|---------------------|--------|
-| **Inicio Entrenamiento** | ~3000+ steps | ~570 steps | **5.3x más rápido** |
-| **Tiempo Total** | 1200s | 400-650s | **50-67% reducción** |
-| **Q-Values** | Explosión +1M% | Controlado [-10,+10] | **Estabilizado** |
-| **Recompensas** | CV=62.9% | CV<25% | **60% más estable** |
-| **Learning Rate** | Decay dramático | Gradual por época | **Corregido** |
-| **GPU Compatibility** | Error crítico | Funcional 100% | **Resuelto** |
-   ```
+| Métrica                  | Antes (Problemas) | Después (Optimizado) | Mejora               |
+| ------------------------ | ----------------- | -------------------- | -------------------- |
+| **Inicio Entrenamiento** | ~3000+ steps      | ~570 steps           | **5.3x más rápido**  |
+| **Tiempo Total**         | 1200s             | 400-650s             | **50-67% reducción** |
+| **Q-Values**             | Explosión +1M%    | Controlado [-10,+10] | **Estabilizado**     |
+| **Recompensas**          | CV=62.9%          | CV<25%               | **60% más estable**  |
+| **Learning Rate**        | Decay dramático   | Gradual por época    | **Corregido**        |
+| **GPU Compatibility**    | Error crítico     | Funcional 100%       | **Resuelto**         |
 
 ### Fase 4: Optimizaciones Avanzadas (Enero 2025)
 
@@ -618,8 +638,7 @@ if len(self.memory_buffer) >= self.min_replay_size:
 
 ### 📋 Guía Completa de Configuraciones DQN
 
-> **Referencias**: Toda configuración corresponde al archivo `config.yaml` → `decision.entrenamiento.*`
-> **Ubicación**: Para cada parámetro se indica la ruta completa en la configuración
+> **Referencias**: Toda configuración corresponde al archivo `config.yaml` → `decision.entrenamiento.*` > **Ubicación**: Para cada parámetro se indica la ruta completa en la configuración
 
 ---
 
@@ -630,16 +649,19 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.min_replay_size`
 
 **Valores disponibles**:
+
 - `32` (actual) - Inicio temprano, batch dinámico
 - `256` (clásico) - Esperar batch completo
 - `64`, `128` - Opciones intermedias
 
 **Impacto en tiempo de entrenamiento**:
+
 - **Con 32**: Inicia entrenamiento en ~570 steps (5.3x más rápido)
-- **Con 256**: Inicia entrenamiento en ~3000+ steps 
+- **Con 256**: Inicia entrenamiento en ~3000+ steps
 - **Diferencia**: 2430 steps = ~4-5 minutos ahorrados al inicio
 
 **Impacto en aprendizaje final**:
+
 - ✅ **Positivo**: Mejor utilización de experiencias tempranas
 - ✅ **Positivo**: Convergencia más rápida
 - ⚠️ **Neutral**: Calidad final del modelo equivalente
@@ -654,15 +676,18 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.enable_jit_compilation`
 
 **Valores disponibles**:
+
 - `True` (actual) - JIT activado automáticamente en GPU
 - `False` - Sin optimización JIT
 
 **Impacto en tiempo de entrenamiento**:
+
 - **Con True en GPU**: +10-15% velocidad (+60-90s ahorrados en 35 épocas)
 - **Con True en CPU**: Mejora mínima (~1-2%)
 - **Con False**: Sin optimización
 
 **Impacto en aprendizaje final**:
+
 - ✅ **Neutral**: Sin impacto en calidad del modelo
 - ✅ **Positivo**: Permite más experimentos en menos tiempo
 - ❌ **Ningún riesgo**: Optimización puramente técnica
@@ -676,16 +701,19 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.dropout_mode`
 
 **Valores disponibles**:
+
 - `"optimized"` (actual) - Dropout solo en capas estratégicas
 - `"full"` - Dropout en todas las capas
 - `"minimal"` - Dropout solo en capa final
 
 **Impacto en tiempo de entrenamiento**:
+
 - **"optimized"**: +20-25% velocidad (120-150s ahorrados)
 - **"full"**: Velocidad base (más lento)
 - **"minimal"**: +30-35% velocidad pero menor regularización
 
 **Impacto en aprendizaje final**:
+
 - **"optimized"**: ✅ Balance óptimo entre regularización y velocidad
 - **"full"**: ✅ Máxima regularización, ❌ más lento
 - **"minimal"**: ❌ Riesgo de overfitting, ✅ más rápido
@@ -699,14 +727,17 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.noisy_implementation`
 
 **Valores disponibles**:
+
 - `"efficient"` (actual) - Ruido en inicialización de pesos
 - `"gaussian_noise"` - Ruido dinámico en activaciones
 
 **Impacto en tiempo de entrenamiento**:
+
 - **"efficient"**: +15-20% velocidad (90-120s ahorrados)
 - **"gaussian_noise"**: Velocidad base con overhead por grafo complejo
 
 **Impacto en aprendizaje final**:
+
 - **"efficient"**: ✅ Exploración equivalente, más rápido
 - **"gaussian_noise"**: ✅ Exploración efectiva, ❌ más lento
 
@@ -719,16 +750,19 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.evaluation_frequency`
 
 **Valores disponibles**:
+
 - `10` (actual) - Evaluar cada 10 épocas
 - `5` - Evaluar cada 5 épocas (más frecuente)
 - `15`, `20` - Evaluaciones menos frecuentes
 
 **Impacto en tiempo de entrenamiento**:
+
 - **10**: +2-5% velocidad (12-30s ahorrados)
 - **5**: Velocidad base con más evaluaciones
 - **15-20**: +3-8% velocidad adicional pero menos monitoreo
 
 **Impacto en aprendizaje final**:
+
 - ✅ **Sin impacto**: Solo afecta frecuencia de métricas
 - ⚠️ **Monitoreo**: Menos frecuencia = menos datos para análisis
 - ✅ **Detección temprana**: 10 épocas suficiente para detectar problemas
@@ -744,14 +778,17 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.double_dqn_batch_optimization`
 
 **Valores disponibles**:
+
 - `False` (actual) - Actualizaciones individuales de red target
 - `True` - Actualizaciones en lotes optimizadas
 
 **Impacto en tiempo de entrenamiento**:
+
 - **True**: +10-15% velocidad adicional (60-90s ahorrados)
 - **False**: Velocidad estándar
 
 **Impacto en aprendizaje final**:
+
 - ✅ **Neutral/Positivo**: Posible mejora en estabilidad
 - ⚠️ **Riesgo bajo**: Cambio en dinámica de actualización
 - 🔬 **Experimental**: Requiere validación adicional
@@ -765,14 +802,17 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.per_batch_processing`
 
 **Valores disponibles**:
+
 - `False` (actual) - Cálculo secuencial de TD-errors
 - `True` - Cálculo paralelo en lotes
 
 **Impacto en tiempo de entrenamiento**:
+
 - **True**: +5-10% velocidad adicional (30-60s ahorrados)
 - **False**: Velocidad estándar
 
 **Impacto en aprendizaje final**:
+
 - ✅ **Neutral**: Sin cambio en algoritmo PER
 - ✅ **Optimización pura**: Solo mejora técnica
 - ❌ **Sin riesgo**: Equivalencia matemática
@@ -786,14 +826,17 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.dueling_stream_simplification`
 
 **Valores disponibles**:
+
 - `False` (actual) - Arquitectura Dueling DQN completa
 - `True` - Streams simplificados para velocidad
 
 **Impacto en tiempo de entrenamiento**:
+
 - **True**: +15-25% velocidad adicional (90-150s ahorrados)
 - **False**: Velocidad estándar con arquitectura completa
 
 **Impacto en aprendizaje final**:
+
 - ❌ **Posible degradación**: Menor capacidad de representación
 - ⚠️ **Trade-off**: Velocidad vs calidad del modelo
 - 🔬 **Experimental**: Requiere benchmarking específico
@@ -809,16 +852,19 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.hidden_layers`
 
 **Valores disponibles**:
+
 - `[512, 512, 256, 128, 128, 64]` (actual) - Arquitectura completa
 - `[256, 256, 128, 64]` - Arquitectura ligera
 - `[1024, 512, 256, 128]` - Arquitectura pesada
 
 **Impacto en tiempo de entrenamiento**:
+
 - **Actual**: Tiempo base de referencia
 - **Ligera**: +40-50% velocidad, menor capacidad
 - **Pesada**: -30-40% velocidad, mayor capacidad
 
 **Impacto en aprendizaje final**:
+
 - **Actual**: ✅ Balance óptimo validado
 - **Ligera**: ❌ Posible underfitting en problemas complejos
 - **Pesada**: ❌ Posible overfitting, ✅ mayor representación
@@ -832,16 +878,19 @@ if len(self.memory_buffer) >= self.min_replay_size:
 **📍 Configuración**: `decision.entrenamiento.learning_rate`
 
 **Valores disponibles**:
+
 - `0.0005` (actual) - Conservador y estable
 - `0.001` - Más agresivo, convergencia rápida
 - `0.0001` - Muy conservador, convergencia lenta
 
 **Impacto en tiempo de entrenamiento**:
+
 - **0.001**: Convergencia ~20% más rápida pero posible inestabilidad
 - **0.0005**: Balance óptimo validado
 - **0.0001**: Convergencia ~50% más lenta pero muy estable
 
 **Impacto en aprendizaje final**:
+
 - **0.001**: ⚠️ Riesgo de divergencia, ✅ convergencia rápida
 - **0.0005**: ✅ Estabilidad probada, convergencia confiable
 - **0.0001**: ✅ Muy estable, ❌ puede no converger en tiempo limitado
@@ -852,54 +901,57 @@ if len(self.memory_buffer) >= self.min_replay_size:
 
 #### 📊 **TABLA RESUMEN DE CONFIGURACIONES**
 
-| Configuración | Valor Actual | Alternativas | Impacto Tiempo | Impacto Calidad | Riesgo |
-|---------------|--------------|--------------|-----------------|-----------------|--------|
-| `min_replay_size` | `32` | `64`, `128`, `256` | **🚀 +5.3x inicio** | ✅ Equivalente | 🟢 Ninguno |
-| `enable_jit_compilation` | `True` | `False` | **🚀 +10-15%** | ✅ Sin impacto | 🟢 Ninguno |
-| `dropout_mode` | `"optimized"` | `"full"`, `"minimal"` | **🚀 +20-25%** | ✅ Balance óptimo | 🟢 Ninguno |
-| `noisy_implementation` | `"efficient"` | `"gaussian_noise"` | **🚀 +15-20%** | ✅ Equivalente | 🟢 Ninguno |
-| `evaluation_frequency` | `10` | `5`, `15`, `20` | **🚀 +2-5%** | ✅ Sin impacto | 🟢 Ninguno |
-| `double_dqn_batch_optimization` | `False` | `True` | **🧪 +10-15%** | ⚠️ Experimental | 🟡 Bajo |
-| `per_batch_processing` | `False` | `True` | **🧪 +5-10%** | ✅ Sin impacto | 🟢 Ninguno |
-| `dueling_stream_simplification` | `False` | `True` | **🧪 +15-25%** | ❌ Posible degradación | 🟡 Moderado |
+| Configuración                   | Valor Actual  | Alternativas          | Impacto Tiempo      | Impacto Calidad        | Riesgo      |
+| ------------------------------- | ------------- | --------------------- | ------------------- | ---------------------- | ----------- |
+| `min_replay_size`               | `32`          | `64`, `128`, `256`    | **🚀 +5.3x inicio** | ✅ Equivalente         | 🟢 Ninguno  |
+| `enable_jit_compilation`        | `True`        | `False`               | **🚀 +10-15%**      | ✅ Sin impacto         | 🟢 Ninguno  |
+| `dropout_mode`                  | `"optimized"` | `"full"`, `"minimal"` | **🚀 +20-25%**      | ✅ Balance óptimo      | 🟢 Ninguno  |
+| `noisy_implementation`          | `"efficient"` | `"gaussian_noise"`    | **🚀 +15-20%**      | ✅ Equivalente         | 🟢 Ninguno  |
+| `evaluation_frequency`          | `10`          | `5`, `15`, `20`       | **🚀 +2-5%**        | ✅ Sin impacto         | 🟢 Ninguno  |
+| `double_dqn_batch_optimization` | `False`       | `True`                | **🧪 +10-15%**      | ⚠️ Experimental        | 🟡 Bajo     |
+| `per_batch_processing`          | `False`       | `True`                | **🧪 +5-10%**       | ✅ Sin impacto         | 🟢 Ninguno  |
+| `dueling_stream_simplification` | `False`       | `True`                | **🧪 +15-25%**      | ❌ Posible degradación | 🟡 Moderado |
 
 ---
 
 #### 🎛️ **PERFILES DE CONFIGURACIÓN RECOMENDADOS**
 
 ### **🐌 MODO CONSERVADOR (Máxima Estabilidad)**
+
 ```yaml
 # Tiempo estimado: ~650s (10.8 min)
-min_replay_size: 32                      # Mantener optimización crítica
-enable_jit_compilation: True             # Sin riesgo
-dropout_mode: "full"                     # Máxima regularización
-noisy_implementation: "gaussian_noise"   # Implementación probada
-evaluation_frequency: 5                 # Monitoreo frecuente
+min_replay_size: 32 # Mantener optimización crítica
+enable_jit_compilation: True # Sin riesgo
+dropout_mode: "full" # Máxima regularización
+noisy_implementation: "gaussian_noise" # Implementación probada
+evaluation_frequency: 5 # Monitoreo frecuente
 # Todas las optimizaciones avanzadas: False
 ```
 
 ### **⚡ MODO BALANCEADO (Configuración Actual)**
+
 ```yaml
 # Tiempo estimado: ~550-650s (9-11 min)
-min_replay_size: 32                    # ✅ Activado
-enable_jit_compilation: True           # ✅ Activado  
-dropout_mode: "optimized"              # ✅ Activado
-noisy_implementation: "efficient"      # ✅ Activado
-evaluation_frequency: 10               # ✅ Activado
+min_replay_size: 32 # ✅ Activado
+enable_jit_compilation: True # ✅ Activado
+dropout_mode: "optimized" # ✅ Activado
+noisy_implementation: "efficient" # ✅ Activado
+evaluation_frequency: 10 # ✅ Activado
 # Optimizaciones avanzadas: False (seguras para activar)
 ```
 
 ### **🚀 MODO MÁXIMO RENDIMIENTO (Experimental)**
+
 ```yaml
 # Tiempo estimado: ~400-500s (7-8 min)
-min_replay_size: 32                           # ✅ Crítico
-enable_jit_compilation: True                  # ✅ Seguro
-dropout_mode: "optimized"                     # ✅ Seguro
-noisy_implementation: "efficient"             # ✅ Seguro
-evaluation_frequency: 15                      # 🧪 Menos frecuente
-double_dqn_batch_optimization: True           # 🧪 Experimental
-per_batch_processing: True                    # 🧪 Seguro
-dueling_stream_simplification: True           # ⚠️ Riesgo calidad
+min_replay_size: 32 # ✅ Crítico
+enable_jit_compilation: True # ✅ Seguro
+dropout_mode: "optimized" # ✅ Seguro
+noisy_implementation: "efficient" # ✅ Seguro
+evaluation_frequency: 15 # 🧪 Menos frecuente
+double_dqn_batch_optimization: True # 🧪 Experimental
+per_batch_processing: True # 🧪 Seguro
+dueling_stream_simplification: True # ⚠️ Riesgo calidad
 ```
 
 ---
@@ -907,24 +959,28 @@ dueling_stream_simplification: True           # ⚠️ Riesgo calidad
 #### 🔧 **GUÍA DE TROUBLESHOOTING DE CONFIGURACIONES**
 
 ### **Problema: Entrenamiento muy lento**
+
 1. Verificar `enable_jit_compilation: True` en GPU
 2. Cambiar `dropout_mode: "optimized"`
 3. Cambiar `noisy_implementation: "efficient"`
 4. Aumentar `evaluation_frequency: 15`
 
 ### **Problema: Modelo no converge**
+
 1. Reducir `learning_rate` de 0.0005 a 0.0001
 2. Cambiar `dropout_mode: "full"`
 3. Reducir `learning_rate_decay` de 0.95 a 0.99
 4. Verificar `min_replay_size: 32` (no aumentar)
 
 ### **Problema: Overfitting**
+
 1. Cambiar `dropout_mode: "full"`
 2. Aumentar `dropout_rate` de 0.05 a 0.1
 3. Reducir complejidad `hidden_layers`
 4. Activar `dueling_stream_simplification: False`
 
 ### **Problema: Underfitting**
+
 1. Aumentar complejidad `hidden_layers`
 2. Aumentar `learning_rate` de 0.0005 a 0.001
 3. Cambiar `dropout_mode: "minimal"`
@@ -1008,7 +1064,8 @@ entrenamiento:
 
 **Fundamento**: La compilación JIT optimiza automáticamente las operaciones de TensorFlow mediante XLA (Accelerated Linear Algebra), convirtiendo el grafo computacional en código máquina optimizado.
 
-**Principio científico**: 
+**Principio científico**:
+
 - **Fusión de operaciones**: Combina múltiples operaciones en kernels únicos
 - **Optimización de memoria**: Reduce transfers GPU↔CPU
 - **Paralelización automática**: Aprovecha mejor los cores de GPU
@@ -1020,6 +1077,7 @@ entrenamiento:
 **Fundamento**: El dropout tradicional aplica regularización en todas las capas, pero esto introduce overhead computacional innecesario.
 
 **Principio científico**:
+
 - **Ley de Pareto en regularización**: 80% del beneficio viene del 20% de las capas
 - **Posiciones críticas**: Primera capa (entrada), capa media (representación), capa final (decisión)
 - **Overhead vs beneficio**: 6 capas dropout → 2-3 capas estratégicas
@@ -1031,6 +1089,7 @@ entrenamiento:
 **Fundamento**: Las Noisy Networks añaden ruido para exploración, pero `GaussianNoise` en TensorFlow crea un grafo computacional complejo.
 
 **Principio científico**:
+
 - **Inicialización vs runtime**: Ruido en pesos (inicialización) vs ruido en activaciones (runtime)
 - **Complejidad computacional**: O(1) inicialización vs O(n) por forward pass
 - **Equivalencia matemática**: Ambos métodos logran el mismo efecto exploratorio
@@ -1042,6 +1101,7 @@ entrenamiento:
 **Fundamento**: La evaluación frecuente interrumpe el flujo de entrenamiento y consume recursos computacionales.
 
 **Principio científico**:
+
 - **Learning curve theory**: El aprendizaje es más estable en épocas tardías
 - **Overhead de context switching**: Cambiar entre entrenamiento y evaluación tiene costo
 - **Información vs costo**: Evaluación cada 10 épocas vs cada 5 tiene mínima pérdida informativa
@@ -1050,13 +1110,13 @@ entrenamiento:
 
 ### 📊 Análisis de Cuellos de Botella
 
-| Componente | Overhead Estimado | Optimización Disponible |
-|------------|-------------------|-------------------------|
-| **Dueling DQN + Dropout (6 capas) + Noisy Networks** | ~70% | Dropout estratégico + Noisy eficiente |
-| **Double DQN (doble computación forward)** | ~15% | Optimización de batch processing |
-| **Prioritized Experience Replay** | ~10% | Cálculo de TD-errors en lotes |
-| **JIT compilation deshabilitado** | ~3% | Activar JIT en GPU |
-| **Sistema de evaluación frecuente** | ~2% | Reducir frecuencia |
+| Componente                                           | Overhead Estimado | Optimización Disponible               |
+| ---------------------------------------------------- | ----------------- | ------------------------------------- |
+| **Dueling DQN + Dropout (6 capas) + Noisy Networks** | ~70%              | Dropout estratégico + Noisy eficiente |
+| **Double DQN (doble computación forward)**           | ~15%              | Optimización de batch processing      |
+| **Prioritized Experience Replay**                    | ~10%              | Cálculo de TD-errors en lotes         |
+| **JIT compilation deshabilitado**                    | ~3%               | Activar JIT en GPU                    |
+| **Sistema de evaluación frecuente**                  | ~2%               | Reducir frecuencia                    |
 
 ### Categoría 1: Optimizaciones de Estabilidad (✅ Activas por defecto)
 
@@ -1235,12 +1295,12 @@ python test_dqn_advanced_optimizations.py
 
 ### Resultados de Validación
 
-| Categoría   | Tests     | Éxito    | Estado                           |
-| ----------- | --------- | -------- | -------------------------------- |
-| Estabilidad | 3/3       | 100%     | ✅ Producción                    |
-| Rendimiento | 4/4       | 100%     | ✅ Producción                    |
-| Avanzadas   | 3/3       | 100%     | ✅ Listo para activar            |
-| **TOTAL**   | **10/10** | **100%** | ✅ **Sistema completo validado** |
+| Categoría   | Tests     | Éxito    | Estado                          |
+| ----------- | --------- | -------- | ------------------------------- |
+| Estabilidad | 3/3       | 100%     | ✅ Producción                   |
+| Rendimiento | 4/4       | 100%     | ✅ Producción                   |
+| Avanzadas   | 3/3       | 100%     | ✅ Listo para activar           |
+| **TOTAL**   | **10/10** | **100%** | ✅**Sistema completo validado** |
 
 ---
 
@@ -1603,13 +1663,13 @@ Este documento unifica y reemplaza:
 
 ### Estado de la Documentación
 
-| Documento Original                   | Estado        | Contenido Migrado               |
-| ------------------------------------ | ------------- | ------------------------------- |
-| `dqn_stability_fixes.md`             | 📁 Archivado  | ✅ Completo → Secciones 4.1-4.3 |
-| `dqn_performance_guide.md`           | 📁 Archivado  | ✅ Completo → Secciones 4.4-4.6 |
-| `test_dqn_optimizations.py`          | ✅ Activo     | ✅ Referenciado → Sección 5.1   |
-| `test_dqn_advanced_optimizations.py` | ✅ Activo     | ✅ Referenciado → Sección 5.2   |
-| **Este documento**                   | ✅ **MASTER** | **Fuente de verdad única**      |
+| Documento Original                   | Estado       | Contenido Migrado               |
+| ------------------------------------ | ------------ | ------------------------------- |
+| `dqn_stability_fixes.md`             | 📁 Archivado | ✅ Completo → Secciones 4.1-4.3 |
+| `dqn_performance_guide.md`           | 📁 Archivado | ✅ Completo → Secciones 4.4-4.6 |
+| `test_dqn_optimizations.py`          | ✅ Activo    | ✅ Referenciado → Sección 5.1   |
+| `test_dqn_advanced_optimizations.py` | ✅ Activo    | ✅ Referenciado → Sección 5.2   |
+| **Este documento**                   | ✅**MASTER** | **Fuente de verdad única**      |
 
 ### Fundamentos Teóricos
 
@@ -1757,13 +1817,15 @@ tail -f logs/dqn_training.log | grep -E "(Batch dinámico|JIT|Early stopping|opt
 **📚 Este documento es la FUENTE DE VERDAD ÚNICA para todo el trabajo DQN realizado.**
 
 **Archivos eliminados y consolidados**:
+
 - ✅ `docs/dqn_mejoras_fases.md` → Integrado en sección "Historia del Desarrollo"
-- ✅ `docs/3_reference/dqn_stability_fixes.md` → Integrado en "Optimizaciones de Estabilidad" 
+- ✅ `docs/3_reference/dqn_stability_fixes.md` → Integrado en "Optimizaciones de Estabilidad"
 - ✅ `docs/3_reference/dqn_performance_guide.md` → Integrado en "Fundamentos Teóricos" y "Cuellos de Botella"
 
 **Para cualquier modificación futura**: Actualizar ÚNICAMENTE este documento master. No crear archivos adicionales de documentación DQN.
 
 **Beneficios de la consolidación**:
+
 - ✅ **Single Source of Truth**: Toda la información en un lugar
 - ✅ **Eliminación de redundancia**: No hay duplicación de contenido
 - ✅ **Coherencia garantizada**: Una sola versión actualizada
@@ -1772,6 +1834,6 @@ tail -f logs/dqn_training.log | grep -E "(Batch dinámico|JIT|Early stopping|opt
 ---
 
 **📌 Última actualización**: 26 de julio de 2025
-**👤 Autor**: GitHub Copilot  
+**👤 Autor**: GitHub Copilot
 **🔄 Versión**: 2.1 - Guía completa de configuraciones con impactos cuantificados
 **📊 Estado**: Producción - Sistema validado y operativo como fuente de verdad única

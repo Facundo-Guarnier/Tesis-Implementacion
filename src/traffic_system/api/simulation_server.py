@@ -15,6 +15,10 @@ from src.traffic_system.core.api_models import (
     VehicleQuantitiesResponse,
     WaitTimesResponse,
 )
+from src.traffic_system.core.smart_logger import (
+    SIMULATION_LOGGER_CONFIG,
+    create_smart_logger,
+)
 from src.traffic_system.simulation.app import SumoApp
 
 # Constants for simulation defaults when done
@@ -36,6 +40,8 @@ class SumoAPI(Flask):
         self.app_s2 = app_s2
         self.comparison_logger = comparison_logger
 
+        # CONFIGURAR SMART LOGGING para evitar spam
+        self.smart_logger = create_smart_logger("SumoAPI", SIMULATION_LOGGER_CONFIG)
         self.logger = logging.getLogger("SumoAPI")
 
         # Estado interno para rastrear si alguna operación de semáforos terminó la simulación
@@ -77,6 +83,9 @@ class SumoAPI(Flask):
         Avanzar la simulación. Este es ahora el punto de control central.
         Avanza s1 y, si existe, s2 de forma sincronizada.
         """
+        self.logger.info(
+            "------------------------------- Avanzando simulación -------------------------------"
+        )
         steps = request.args.get("steps", type=int)
         if not steps:
             error_response = ErrorResponse(error="Falta el parámetro 'steps'.")
@@ -116,23 +125,6 @@ class SumoAPI(Flask):
 
         # Avanzar simulación principal (controlada por el agente)
         done_s1 = self.app_s1.advance(steps=steps)
-
-        # � VALIDACIÓN POST-AVANCE: Solo logging informativo
-        try:
-            # Verificar tiempos de espera después del avance
-            current_wait_times = self.app_s1.get_wait_times()
-            max_wait = max(current_wait_times) if current_wait_times else 0
-            
-            # Verificar cantidad de vehículos
-            current_vehicles = self.app_s1.get_vehicle_count()
-            
-            if max_wait > 300 or current_vehicles > 80:
-                self.logger.info("� Estado post-avance:")
-                self.logger.info(f"📊 Max wait time: {max_wait:.1f}s, Total vehicles: {current_vehicles}")
-                
-        except Exception as e:
-            self.logger.warning(f"⚠️ Error en validación post-avance: {e}")
-
         done_s2 = False
 
         # Si estamos en modo comparación, avanzar la segunda simulación
@@ -314,11 +306,7 @@ class SumoAPI(Flask):
         wait_times = self.app_s1.get_wait_times()
         total_wait_time = self.app_s1.get_total_wait_time()
 
-        # � LOGGING INFORMATIVO de tiempos altos (sin reiniciar automáticamente)
-        max_wait_time = max(wait_times) if wait_times else 0
-        if max_wait_time > 300:  # Más de 5 minutos - reportar pero no reiniciar
-            self.logger.info(f"� Tiempo de espera alto detectado: {max_wait_time:.1f}s")
-            self.logger.info(f"📊 Todos los tiempos: {wait_times}")
+        self.logger.info(f"::::::::::: Todos los tiempos: {wait_times}")
 
         response = WaitTimesResponse(
             tiempos_espera=wait_times,
@@ -359,12 +347,7 @@ class SumoAPI(Flask):
         vehicle_counts = self.app_s1.get_vehicle_counts_by_zone()
         total_vehicles = self.app_s1.get_vehicle_count()
 
-        # � LOGGING INFORMATIVO de congestión alta (sin reiniciar automáticamente)
-        max_vehicles_per_zone = max(vehicle_counts.values()) if vehicle_counts else 0
-        if total_vehicles > 80 or max_vehicles_per_zone > 40:
-            self.logger.info("� Congestión alta detectada:")
-            self.logger.info(f"📊 Total vehículos: {total_vehicles}")
-            self.logger.info(f"📊 Por zona: {vehicle_counts}")
+        self.logger.info(f"::::::::::: Todas las cantidades : {vehicle_counts}")
 
         response = VehicleQuantitiesResponse(
             cantidades=vehicle_counts,
