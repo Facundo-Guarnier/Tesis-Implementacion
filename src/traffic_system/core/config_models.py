@@ -60,6 +60,18 @@ class EntrenamientoSettings(BaseModel):
         "cosine"  # * Tipo de schedule: "exponential", "cosine", "plateau"
     )
 
+    # === NUEVAS CONFIGURACIONES ANTI-GRADIENT VANISHING ===
+    use_batch_normalization: bool = True  # * Batch Normalization entre capas
+    use_he_initialization: bool = True  # * He initialization para ReLU
+    use_residual_connections: bool = True  # * Skip connections para redes profundas
+    gradient_clip_norm: float = 1.0  # * Norma máxima para gradient clipping
+    use_leaky_relu: bool = True  # * LeakyReLU en lugar de ReLU estándar
+
+    # Configuración adicional para estabilidad
+    use_gradient_clipping: bool = True  # * Gradient clipping activado
+    use_huber_loss: bool = True  # * Huber Loss más robusto que MSE
+    normalize_rewards: bool = True  # * Normalización de recompensas
+
     # FASE 4: Evaluación y métricas
     enable_evaluation: bool = True  # * Activar sistema de evaluación
     evaluation_episodes: int = 10  # * Número de episodios para evaluación

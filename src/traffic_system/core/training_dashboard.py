@@ -153,7 +153,7 @@ class TrainingDashboard:
 
         return TrainingHealth.GOOD
 
-    def _check_alerts(self, metrics: ProgressMetrics):
+    def _check_alerts(self, metrics: ProgressMetrics) -> None:
         """Verificar y generar alertas según configuración."""
         current_time = time.time()
 
@@ -215,7 +215,7 @@ class TrainingDashboard:
                 self.logger.error(f"   {alert}")
             self.last_alert_time = current_time
 
-    def _log_progress(self, metrics: ProgressMetrics):
+    def _log_progress(self, metrics: ProgressMetrics) -> None:
         """Log inteligente de progreso."""
         # Solo log de progreso cada 5 épocas o si hay cambios significativos
         should_log = (

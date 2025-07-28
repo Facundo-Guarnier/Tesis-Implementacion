@@ -57,9 +57,9 @@ decision:
     memory: 5000 #! Capacidad máxima del buffer de experiencias (5000 = ~20 épocas de memoria)
 
     # === OPTIMIZACIÓN Y LEARNING RATE ===
-    learning_rate: 0.002 #! Tasa de aprendizaje inicial (0.0005 = estable, 0.001 = más agresivo)
-    learning_rate_decay: 0.98 #! Factor de decay por época (0.95 = moderado, 0.99 = conservador)
-    learning_rate_min: 0.0001 #! Tasa mínima (0.001 = Mantener aprendizaje relativamente activo, 0.00001 = muy conservador)
+    learning_rate: 0.0005 #! 🔧 AJUSTADO: Tasa más conservadora para evitar gradient vanishing
+    learning_rate_decay: 0.99 #! Factor de decay por época (0.95 = moderado, 0.99 = conservador)
+    learning_rate_min: 0.00005 #! Tasa mínima para mantener aprendizaje gradual
 
     # === EXPLORACIÓN (EPSILON-GREEDY) ===
     epsilon: 1 #! Probabilidad inicial de exploración (1.0 = 100% exploración al inicio)
@@ -67,8 +67,8 @@ decision:
     epsilon_min: 0.1 #! Probabilidad mínima de exploración (10% exploración residual)
 
     # === DESCUENTO Y ARQUITECTURA ===
-    gamma: 0.45 #! Factor de descuento para recompensas futuras (0.45 = horizonte corto, 0.85 = horizonte medio-largo, 0.99 = horizonte largo)
-    hidden_layers: [512, 512, 256, 128, 128, 64] #! Arquitectura de red neuronal (neuronas por capa oculta)
+    gamma: 0.85 #! 🔧 AJUSTADO: Gamma más alto para valorar recompensas futuras (evita Q-values bajos)
+    hidden_layers: [64, 64, 64] #! 🔧 AJUSTADO: Arquitectura menos profunda para evitar gradient vanishing
 
     # === MEJORAS ALGORÍTMICAS DQN (FASE 2) ===
     use_double_dqn: True #* Double DQN: Reduce sobreestimación de Q-values usando red target para evaluación
@@ -94,11 +94,18 @@ decision:
 
     # === REGULARIZACIÓN ===
     use_dropout: True #* Dropout: Previene overfitting desactivando neuronas aleatoriamente
-    dropout_rate: 0.05 #* Probabilidad de dropout
+    dropout_rate: 0.02 #! 🔧 AJUSTADO: Dropout más suave para redes menos profundas
 
     # === LEARNING RATE ADAPTATIVO ===
     adaptive_lr: True #* Learning Rate Scheduling: Ajusta LR según progreso del entrenamiento
-    lr_schedule_type: "cosine" #* Tipo: "exponential"=decay exponencial, "cosine"=suave, "plateau"=adaptativo
+    lr_schedule_type: "plateau" #! 🔧 AJUSTADO: Plateau para adaptar cuando no mejora
+
+    # === NUEVAS CONFIGURACIONES ANTI-GRADIENT VANISHING ===
+    use_batch_normalization: True #! 🆕 Batch Normalization: Normaliza entradas de cada capa
+    use_he_initialization: True #! 🆕 He Initialization: Inicialización óptima para ReLU
+    use_residual_connections: True #! 🆕 Residual Connections: Skip connections para redes profundas
+    gradient_clip_norm: 1.0 #! 🆕 Gradient Clipping: Previene gradient explosion
+    use_leaky_relu: True #! 🆕 LeakyReLU: Evita "dying ReLU" problem
 
     # === EVALUACIÓN Y MÉTRICAS ===
     enable_evaluation: True #* Sistema de evaluación para medir progreso del modelo
@@ -119,7 +126,7 @@ decision:
     # === OPTIMIZACIONES AVANZADAS (RIESGO MODERADO) ===
     # 🧪 Double DQN Batch Optimization - Lotes para actualizaciones target
     double_dqn_batch_optimization: False #* Procesar actualizaciones de red target en lotes (+5-8% velocidad)
-    target_update_batch_size: 512 #* Tamaño de lote para procesamiento de actualizaciones target
+    target_update_batch_size: 1024 #* Tamaño de lote para procesamiento de actualizaciones target
 
     # 🧪 PER Batch Processing - Cálculos TD-error eficientes
     per_batch_processing: False #* Procesar TD-errors en paralelo en lugar de secuencial (+3-5% velocidad)

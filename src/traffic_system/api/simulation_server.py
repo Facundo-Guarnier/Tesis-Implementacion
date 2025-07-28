@@ -15,10 +15,11 @@ from src.traffic_system.core.api_models import (
     VehicleQuantitiesResponse,
     WaitTimesResponse,
 )
-from src.traffic_system.core.smart_logger import (
-    SIMULATION_LOGGER_CONFIG,
-    create_smart_logger,
-)
+
+# from src.traffic_system.core.smart_logger import (
+#     SIMULATION_LOGGER_CONFIG,
+#     create_smart_logger,
+# )
 from src.traffic_system.simulation.app import SumoApp
 
 # Constants for simulation defaults when done
@@ -41,7 +42,7 @@ class SumoAPI(Flask):
         self.comparison_logger = comparison_logger
 
         # CONFIGURAR SMART LOGGING para evitar spam
-        self.smart_logger = create_smart_logger("SumoAPI", SIMULATION_LOGGER_CONFIG)
+        # self.smart_logger = create_smart_logger("SumoAPI", SIMULATION_LOGGER_CONFIG)
         self.logger = logging.getLogger("SumoAPI")
 
         # Estado interno para rastrear si alguna operación de semáforos terminó la simulación
@@ -83,9 +84,6 @@ class SumoAPI(Flask):
         Avanzar la simulación. Este es ahora el punto de control central.
         Avanza s1 y, si existe, s2 de forma sincronizada.
         """
-        self.logger.info(
-            "------------------------------- Avanzando simulación -------------------------------"
-        )
         steps = request.args.get("steps", type=int)
         if not steps:
             error_response = ErrorResponse(error="Falta el parámetro 'steps'.")
@@ -306,8 +304,6 @@ class SumoAPI(Flask):
         wait_times = self.app_s1.get_wait_times()
         total_wait_time = self.app_s1.get_total_wait_time()
 
-        self.logger.info(f"::::::::::: Todos los tiempos: {wait_times}")
-
         response = WaitTimesResponse(
             tiempos_espera=wait_times,
             tiempo_espera_total=total_wait_time,
@@ -346,8 +342,6 @@ class SumoAPI(Flask):
         """Obtener cantidades de vehículos de todas las zonas en S1."""
         vehicle_counts = self.app_s1.get_vehicle_counts_by_zone()
         total_vehicles = self.app_s1.get_vehicle_count()
-
-        self.logger.info(f"::::::::::: Todas las cantidades : {vehicle_counts}")
 
         response = VehicleQuantitiesResponse(
             cantidades=vehicle_counts,
