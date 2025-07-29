@@ -1,0 +1,1081 @@
+"""
+Simplified DQN Trainer para Control de Semáforos - Configuración Base Segura
+
+Este módulo implementa un entrenador DQN SIMPLIFICADO que elimina todas las
+contradicciones y complejidad excesiva del entrenador original.
+
+CONFIGURACIONES HARDCODED - BASE SEGURA:
+- Solo epsilon-greedy (SIN noisy networks)
+- Learning rate fijo (SIN adaptive scheduling)
+- Arquitectura simple pero efectiva [256, 256]
+- Solo técnicas probadas: Double DQN + Dueling DQN
+- Sin optimizaciones prematuras
+
+Objetivo: Tener un modelo base ESTABLE antes de añadir complejidad.
+"""
+
+import csv
+import datetime
+import logging
+import os
+import random
+import time
+from collections import deque
+
+import numpy as np
+import tensorflow as tf
+from numpy import ndarray as NDArray
+
+from src.traffic_system.api_client.data_source_client import DecisionAPI
+from src.traffic_system.core.api_models import (
+    VehicleQuantitiesResponse,
+    WaitTimesResponse,
+)
+from src.traffic_system.core.config_loader import load_app_settings
+
+# =============================================================================
+# 🔧 CONFIGURACIONES HARDCODED - BASE SEGURA Y RECOMENDADA
+# =============================================================================
+
+
+class SimplifiedDQNConfig:
+    """Configuraciones simplificadas hardcoded para entrenamiento estable."""
+
+    # === HIPERPARÁMETROS BÁSICOS ===
+    NUM_EPOCHS = 100  # Suficientes épocas para ver tendencias claras
+    BATCH_SIZE = 256  # Tamaño de lote estándar
+    STEPS = 10  # Pasos de simulación por acción
+    MEMORY_SIZE = 50000  # Buffer de experiencias más grande para diversidad
+    MIN_REPLAY_SIZE = 1000  # Mínimo para empezar entrenamiento (batch dinámico)
+
+    # === OPTIMIZACIÓN Y LEARNING RATE ===
+    LEARNING_RATE = 0.0001  # Punto de partida conservador y seguro
+    # SIN learning_rate_decay - mantener LR fijo inicialmente
+    # SIN adaptive_lr - una cosa a la vez
+
+    # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
+    # USE_NOISY_NETWORKS = False  # ❌ DESACTIVADO: Evitar conflicto con epsilon
+    EPSILON = 1.0  # 100% exploración inicial
+    EPSILON_DECAY = 0.99995  # Decay lento para explorar durante más tiempo
+    EPSILON_MIN = 0.05  # 5% exploración mínima
+
+    # === DESCUENTO Y ARQUITECTURA ===
+    GAMMA = 0.99  # Valor estándar que mira al futuro
+    HIDDEN_LAYERS = [256, 256]  # Red simple pero más potente
+
+    # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
+    USE_DOUBLE_DQN = True  # ✅ Técnica probada y estable
+    USE_DUELING_DQN = True  # ✅ Técnica probada y estable
+    TARGET_UPDATE_FREQUENCY = 1000  # Valor estándar y estable
+
+    # === ESTABILIDAD DEL ENTRENAMIENTO ===
+    WARMUP_STEPS = 1000  # Tiempo para llenar buffer antes de entrenar
+    USE_GRADIENT_CLIPPING = True  # ✅ Previene gradient explosion
+    GRADIENT_CLIP_NORM = 1.0  # Valor estándar
+    USE_HUBER_LOSS = True  # ✅ Más robusto que MSE
+
+    # === TÉCNICAS DESACTIVADAS TEMPORALMENTE ===
+    # USE_PRIORITIZED_REPLAY = False  # ❌ Fuente de complejidad - activar después
+    # USE_DROPOUT = False  # ❌ Red simple no necesita regularización
+    # USE_BATCH_NORMALIZATION = False  # ❌ Innecesario para red pequeña
+    USE_HE_INITIALIZATION = True  # ✅ Segura y estándar
+    # USE_RESIDUAL_CONNECTIONS = False  # ❌ Innecesario para 2 capas
+    # USE_LEAKY_RELU = False  # ❌ ReLU estándar es suficiente
+
+    # === EVALUACIÓN ===
+    ENABLE_EVALUATION = True  # ✅ Importante para monitoreo
+    EVALUATION_EPISODES = 10  # Episodios de evaluación
+    EVALUATION_FREQUENCY = 5  # Evaluar cada 5 épocas
+
+    # === EARLY STOPPING ===
+    PATIENCE = 10  # Épocas sin mejora antes de parar
+    MIN_IMPROVEMENT = 0.01  # Mejora mínima requerida
+
+
+# =============================================================================
+
+
+class SimplifiedDQNTrainer:
+    """
+    Entrenador DQN Simplificado - Configuración Base Segura.
+
+    Elimina todas las contradicciones y complejidad excesiva del entrenador original.
+    Objetivo: modelo base ESTABLE antes de añadir optimizaciones.
+    """
+
+    def __init__(self):
+        """Inicializa el entrenador con configuración simplificada."""
+        # Configurar logging PRIMERO
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
+        # Configuración base
+        self.config = SimplifiedDQNConfig()
+        self.settings = load_app_settings()
+
+        # API y estado
+        self._api = DecisionAPI(self.settings.base_url)
+        self._setup_action_space()
+        self.state_size = (
+            48  # 12 tiempos + 12 cantidades + 12 tiempos_prev + 12 cantidades_prev
+        )
+
+        # Memoria de experiencias (solo deque estándar)
+        self.memory = deque(maxlen=self.config.MEMORY_SIZE)
+
+        # Variables de entrenamiento
+        self.epsilon = self.config.EPSILON
+        self.learning_rate = self.config.LEARNING_RATE
+
+        # Modelos (se inicializan en start_training)
+        self.model: tf.keras.Model | None = None
+        self.target_model: tf.keras.Model | None = None
+        self.target_update_counter = 0
+
+        # Early stopping
+        self.best_avg_reward = float("-inf")
+        self.epochs_without_improvement = 0
+
+        # Historial de estado para dinámica temporal
+        self.state_history = []
+        self.max_history_length = 2
+
+        # Cache de datos API
+        self._cached_wait_times_response: WaitTimesResponse | None = None
+        self._cached_quantities_response: VehicleQuantitiesResponse | None = None
+
+        # Variables para métricas avanzadas por época
+        self.epoch_losses = []
+        self.epoch_gradient_norms = []
+        self.epoch_q_values = []
+        self.epoch_entropies = []
+        self.epoch_wait_penalties = []
+        self.epoch_congestion_penalties = []
+        self.epoch_efficiency_bonuses = []
+        self.initial_state_q_value = 0.0
+        self.step_count = 0
+
+        # Configurar GPU/CPU
+        self._configure_device()
+
+        # Configurar rutas de guardado
+        self._setup_save_path()
+
+    def _configure_device(self):
+        """Configura GPU o CPU para entrenamiento."""
+        gpus = tf.config.experimental.list_physical_devices("GPU")
+
+        if gpus:
+            try:
+                # Configurar crecimiento dinámico de memoria
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+                self.device = "/GPU:0"
+                self.use_gpu = True
+                self.logger.info(f"🚀 GPU configurada: {len(gpus)} dispositivo(s)")
+            except RuntimeError as e:
+                self.logger.warning(f"⚠️ Error configurando GPU: {e}")
+                self.device = "/CPU:0"
+                self.use_gpu = False
+        else:
+            self.device = "/CPU:0"
+            self.use_gpu = False
+            self.logger.info("🖥️ Usando CPU para entrenamiento")
+
+    def _setup_action_space(self):
+        """Establece el espacio de acciones de los semáforos."""
+        traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
+        traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
+        traffic_light_3_phases = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
+        traffic_light_4_phases = ["GGGrrrrGGg", "rrrGGGGrrr"]
+
+        self._action_space = [
+            f"{s1}-{s2}-{s3}-{s4}"
+            for s1 in traffic_light_1_phases
+            for s2 in traffic_light_2_phases
+            for s3 in traffic_light_3_phases
+            for s4 in traffic_light_4_phases
+        ]
+
+        self.logger.info(
+            f"🎯 Espacio de acciones configurado: {len(self._action_space)} acciones"
+        )
+
+    def _setup_save_path(self):
+        """Configura la ruta donde se guardarán los resultados."""
+        timestamp = time.strftime("%Y-%m-%d_%H-%M")
+        self._save_path = os.path.join(
+            "results/training/", f"SimplifiedDQN_{timestamp}"
+        )
+        os.makedirs(self._save_path, exist_ok=True)
+        self.logger.info(f"💾 Ruta de guardado: {self._save_path}")
+
+    def _build_model(self) -> tf.keras.Model:
+        """
+        Construye el modelo DQN simplificado.
+
+        Solo usa técnicas probadas:
+        - Double DQN
+        - Dueling DQN
+        - He initialization
+        - Gradient clipping
+        - Huber loss
+        """
+        with tf.device(self.device):
+            if self.config.USE_DUELING_DQN:
+                model = self._build_dueling_model()
+                self.logger.info("🔀 Usando arquitectura Dueling DQN")
+            else:
+                model = self._build_standard_model()
+                self.logger.info("📊 Usando arquitectura DQN estándar")
+
+            # Optimizador con gradient clipping
+            optimizer = tf.keras.optimizers.Adam(
+                learning_rate=self.config.LEARNING_RATE,
+                clipnorm=(
+                    self.config.GRADIENT_CLIP_NORM
+                    if self.config.USE_GRADIENT_CLIPPING
+                    else None
+                ),
+                beta_1=0.9,
+                beta_2=0.999,
+                epsilon=1e-7,
+            )
+
+            # Loss function
+            loss_function = (
+                tf.keras.losses.Huber(delta=1.0)
+                if self.config.USE_HUBER_LOSS
+                else "mse"
+            )
+
+            model.compile(loss=loss_function, optimizer=optimizer, metrics=["mae"])
+
+        self.logger.info(f"🎯 Modelo creado en: {self.device}")
+        return model
+
+    def _build_standard_model(self) -> tf.keras.Model:
+        """Construye modelo DQN estándar simplificado."""
+        model = tf.keras.Sequential()
+
+        # Inicialización He para ReLU
+        initializer = (
+            "he_normal" if self.config.USE_HE_INITIALIZATION else "random_normal"
+        )
+
+        # Primera capa
+        model.add(
+            tf.keras.layers.Dense(
+                self.config.HIDDEN_LAYERS[0],
+                input_dim=self.state_size,
+                activation="relu",
+                kernel_initializer=initializer,
+            )
+        )
+
+        # Capas ocultas
+        for units in self.config.HIDDEN_LAYERS[1:]:
+            model.add(
+                tf.keras.layers.Dense(
+                    units, activation="relu", kernel_initializer=initializer
+                )
+            )
+
+        # Capa de salida
+        model.add(
+            tf.keras.layers.Dense(
+                len(self._action_space),
+                activation="linear",
+                kernel_initializer=initializer,
+            )
+        )
+
+        return model
+
+    def _build_dueling_model(self) -> tf.keras.Model:
+        """
+        Construye modelo Dueling DQN simplificado.
+        ```
+                                        +--> [Dense 256] --> [Dense 1 (V)] --+
+                                        |                                    |
+            Input --> [Dense 256] --(bifurcación)                      [Combinación] --> Q-Values
+                                        |                                    |
+                                        +--> [Dense 256] --> [Dense 16 (A)]--+
+        ```
+        """
+        # Input layer
+        inputs = tf.keras.layers.Input(shape=(self.state_size,))
+
+        # Inicialización He
+        initializer = (
+            "he_normal" if self.config.USE_HE_INITIALIZATION else "random_normal"
+        )
+
+        # Capas compartidas
+        shared = inputs
+        for units in self.config.HIDDEN_LAYERS[:-1]:  # Todas menos la última
+            shared = tf.keras.layers.Dense(
+                units, activation="relu", kernel_initializer=initializer
+            )(shared)
+
+        # Value stream V(s)
+        value_stream = tf.keras.layers.Dense(
+            self.config.HIDDEN_LAYERS[-1],
+            activation="relu",
+            kernel_initializer=initializer,
+            name="value_hidden",
+        )(shared)
+        value = tf.keras.layers.Dense(1, name="value")(value_stream)
+
+        # Advantage stream A(s,a)
+        advantage_stream = tf.keras.layers.Dense(
+            self.config.HIDDEN_LAYERS[-1],
+            activation="relu",
+            kernel_initializer=initializer,
+            name="advantage_hidden",
+        )(shared)
+        advantage = tf.keras.layers.Dense(len(self._action_space), name="advantage")(
+            advantage_stream
+        )
+
+        # Combinar: Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
+        advantage_mean = tf.keras.layers.Lambda(
+            lambda x: tf.reduce_mean(x, axis=1, keepdims=True), name="advantage_mean"
+        )(advantage)
+
+        q_values = tf.keras.layers.Add(name="q_values")(
+            [
+                value,
+                tf.keras.layers.Subtract(name="advantage_centered")(
+                    [advantage, advantage_mean]
+                ),
+            ]
+        )
+
+        model = tf.keras.Model(
+            inputs=inputs, outputs=q_values, name="Dueling_DQN_Simplified"
+        )
+        return model
+
+    def _select_action(self, state: NDArray) -> tuple[int, float]:
+        """
+        Selecciona acción usando SOLO epsilon-greedy.
+
+        SIN noisy networks - evita conflicto de exploración.
+        """
+        if np.random.rand() <= self.epsilon:
+            # Exploración
+            action = random.randrange(len(self._action_space))
+            max_q_value = 0.0
+        else:
+            # Explotación
+            state_batch = np.expand_dims(state, axis=0)
+            q_values = self.model.predict(state_batch, verbose=0)
+            action = int(np.argmax(q_values[0]))
+            max_q_value = float(np.max(q_values[0]))
+
+        return action, max_q_value
+
+    def _calculate_action_entropy(self, q_values: NDArray) -> float:
+        """
+        Calcula la entropía de la política basada en Q-values.
+
+        Una entropía alta indica más exploración/incertidumbre.
+        Una entropía baja indica una política más determinista.
+        """
+        try:
+            # Convertir Q-values a probabilidades usando softmax
+            q_values_stable = q_values - np.max(q_values)  # Para estabilidad numérica
+            exp_q = np.exp(q_values_stable)
+            probabilities = exp_q / np.sum(exp_q)
+
+            # Calcular entropía de Shannon: H = -Σ(p * log(p))
+            # Agregar pequeño epsilon para evitar log(0)
+            epsilon = 1e-8
+            probabilities = np.clip(probabilities, epsilon, 1.0)
+            entropy = -np.sum(probabilities * np.log(probabilities))
+
+            return float(entropy)
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error calculando entropía: {e}")
+            return 0.0
+
+    def _get_initial_state_q_value(self, state: NDArray) -> float:
+        """
+        Obtiene el Q-value máximo para el estado inicial de la época.
+
+        Útil para comparar las expectativas del agente con el rendimiento real.
+        """
+        try:
+            state_batch = np.expand_dims(state, axis=0)
+            q_values = self.model.predict(state_batch, verbose=0)
+            return float(np.max(q_values[0]))
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error obteniendo Q-value inicial: {e}")
+            return 0.0
+
+    def _remember(
+        self,
+        state: NDArray,
+        action: int,
+        reward: float,
+        next_state: NDArray,
+        done: bool,
+    ):
+        """Almacena experiencia en memoria estándar (sin PER)."""
+        self.memory.append((state, action, reward, next_state, done))
+
+    def _replay(self):
+        """
+        Entrenamiento con memoria estándar (sin PER).
+
+        Usa batch dinámico: empieza entrenando temprano con lotes pequeños.
+        Captura métricas adicionales: loss y gradient norm.
+        """
+        if len(self.memory) < self.config.MIN_REPLAY_SIZE:
+            return
+
+        # Batch size dinámico
+        batch_size = min(self.config.BATCH_SIZE, len(self.memory))
+        minibatch = random.sample(self.memory, batch_size)
+
+        # Preparar datos
+        states = np.array([experience[0] for experience in minibatch])
+        actions = np.array([experience[1] for experience in minibatch])
+        rewards = np.array([experience[2] for experience in minibatch])
+        next_states = np.array([experience[3] for experience in minibatch])
+        dones = np.array([experience[4] for experience in minibatch])
+
+        # Predicciones actuales
+        current_q_values = self.model.predict(states, verbose=0)
+
+        if self.config.USE_DOUBLE_DQN and self.target_model is not None:
+            # Double DQN: usar online network para seleccionar, target para evaluar
+            next_q_values_online = self.model.predict(next_states, verbose=0)
+            next_q_values_target = self.target_model.predict(next_states, verbose=0)
+
+            # Seleccionar mejores acciones con online network
+            best_actions = np.argmax(next_q_values_online, axis=1)
+
+            # Evaluar con target network
+            max_next_q = next_q_values_target[np.arange(batch_size), best_actions]
+        else:
+            # DQN estándar
+            next_q_values = self.model.predict(next_states, verbose=0)
+            max_next_q = np.max(next_q_values, axis=1)
+
+        # Calcular targets
+        targets = current_q_values.copy()
+        for i in range(batch_size):
+            if dones[i]:
+                targets[i][actions[i]] = rewards[i]
+            else:
+                targets[i][actions[i]] = rewards[i] + self.config.GAMMA * max_next_q[i]
+
+        # Entrenar y capturar métricas
+        with tf.GradientTape() as tape:
+            # Forward pass
+            predicted_q_values = self.model(states, training=True)
+
+            # Calcular loss
+            if self.config.USE_HUBER_LOSS:
+                loss_fn = tf.keras.losses.Huber(delta=1.0)
+            else:
+                loss_fn = tf.keras.losses.MeanSquaredError()
+
+            loss = loss_fn(targets, predicted_q_values)
+
+        # Calcular gradientes
+        gradients = tape.gradient(loss, self.model.trainable_variables)
+
+        # Calcular norma del gradiente
+        gradient_norm = self._calculate_gradient_norm(gradients)
+
+        # Aplicar gradientes
+        self.model.optimizer.apply_gradients(
+            zip(gradients, self.model.trainable_variables, strict=True)
+        )
+
+        # Almacenar métricas
+        self.epoch_losses.append(float(loss))
+        self.epoch_gradient_norms.append(gradient_norm)
+
+        # Almacenar Q-values promedio del batch
+        avg_q_value = float(np.mean(predicted_q_values))
+        self.epoch_q_values.append(avg_q_value)
+
+        # Actualizar target model si es necesario
+        if self.config.USE_DOUBLE_DQN and self.target_model is not None:
+            self.target_update_counter += 1
+            if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
+                self._update_target_model()
+                self.target_update_counter = 0
+
+    def _calculate_gradient_norm(self, gradients: list) -> float:
+        """
+        Calcula la norma L2 de los gradientes.
+
+        Métrica crítica para detectar gradient explosion o vanishing.
+        """
+        try:
+            total_norm = 0.0
+            for grad in gradients:
+                if grad is not None:
+                    grad_norm = tf.norm(grad)
+                    total_norm += grad_norm**2
+
+            total_norm = tf.sqrt(total_norm)
+            return float(total_norm)
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error calculando norma del gradiente: {e}")
+            return 0.0
+
+    def _update_target_model(self):
+        """Actualiza la red target copiando pesos de la red principal."""
+        if self.target_model is not None:
+            self.target_model.set_weights(self.model.get_weights())
+            self.logger.info("🎯 Red target actualizada")
+
+    def _update_epsilon(self):
+        """Actualiza epsilon para exploración decreciente."""
+        if self.epsilon > self.config.EPSILON_MIN:
+            self.epsilon *= self.config.EPSILON_DECAY
+
+    def _get_current_state(self) -> NDArray:
+        """
+        Obtiene el estado actual del entorno.
+
+        Estado de 48 características:
+        - 12 tiempos de espera actuales
+        - 12 cantidades de vehículos actuales
+        - 12 tiempos de espera previos
+        - 12 cantidades de vehículos previos
+        """
+        # Obtener datos con reintentos
+        wait_times_response = self._cached_wait_times_response
+        quantities_response = self._cached_quantities_response
+
+        if wait_times_response is None:
+            wait_times_response = self._api.get_wait_times()
+            if wait_times_response is None:
+                raise RuntimeError("No se pudo obtener tiempos de espera")
+
+        if quantities_response is None:
+            quantities_response = self._api.get_quantities()
+            if quantities_response is None:
+                raise RuntimeError("No se pudo obtener cantidades de vehículos")
+
+        # Preparar observación actual
+        wait_times = wait_times_response.tiempos_espera
+        quantities = list(quantities_response.cantidades.values())
+
+        # Validar datos
+        if len(wait_times) != 12 or len(quantities) != 12:
+            raise RuntimeError(
+                f"Datos inválidos: {len(wait_times)} tiempos, {len(quantities)} cantidades"
+            )
+
+        # Combinar observación actual
+        current_observation = wait_times + quantities
+
+        # Gestionar historial temporal
+        self.state_history.append(current_observation)
+        if len(self.state_history) > self.max_history_length:
+            self.state_history.pop(0)
+
+        # Construir estado completo
+        if len(self.state_history) >= 2:
+            previous_observation = self.state_history[-2]
+            complete_state = current_observation + previous_observation
+        else:
+            # Si no hay historial, duplicar observación actual
+            complete_state = current_observation + current_observation
+
+        return self._normalize_state(complete_state)
+
+    def _normalize_state(self, state: list) -> NDArray:
+        """Normaliza el estado de manera robusta."""
+        state_array = np.array(state, dtype=np.float32)
+
+        # Normalización por componentes
+        mid_point = len(state_array) // 2
+
+        # Normalizar tiempos de espera
+        wait_times_part = state_array[:mid_point]
+        wait_max = np.max(wait_times_part) if np.max(wait_times_part) > 0 else 1.0
+        normalized_waits = wait_times_part / wait_max
+
+        # Normalizar cantidades
+        quantities_part = state_array[mid_point:]
+        qty_max = np.max(quantities_part) if np.max(quantities_part) > 0 else 1.0
+        normalized_quantities = quantities_part / qty_max
+
+        # Combinar y verificar
+        normalized_state = np.concatenate([normalized_waits, normalized_quantities])
+        normalized_state = np.nan_to_num(
+            normalized_state, nan=0.0, posinf=1.0, neginf=0.0
+        )
+
+        return normalized_state.astype(np.float32)
+
+    def _update_simulation_data(self):
+        """Actualiza los datos de simulación con reintentos."""
+        max_retries = 3
+        retry_delay = 0.01
+
+        # Intentar obtener tiempos de espera
+        for attempt in range(max_retries):
+            self._cached_wait_times_response = self._api.get_wait_times()
+            if self._cached_wait_times_response is not None:
+                break
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+
+        # Intentar obtener cantidades
+        for attempt in range(max_retries):
+            self._cached_quantities_response = self._api.get_quantities()
+            if self._cached_quantities_response is not None:
+                break
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+
+    def _execute_action_and_advance(
+        self, action_index: int
+    ) -> tuple[NDArray, float, bool]:
+        """Ejecuta acción y avanza simulación."""
+        # Ejecutar acción
+        action_phases_str = self._action_space[action_index]
+        action_phases_list = action_phases_str.split("-")
+        self._api.set_traffic_light_states(states=action_phases_list)
+
+        # Avanzar simulación
+        response = self._api.advance_simulation(steps=self.config.STEPS)
+        if response is None:
+            raise RuntimeError("No se pudo avanzar la simulación")
+
+        done = response.done
+
+        # Actualizar datos
+        self._update_simulation_data()
+
+        return self._get_current_state(), self._calculate_reward(), done
+
+    def _calculate_reward(self) -> float:
+        """
+        Calcula recompensa simplificada y estable.
+
+        Fórmula simplificada:
+        reward = -(avg_wait_time + congestion_penalty) + efficiency_bonus
+        """
+        reward_total, wait_penalty, congestion_penalty, efficiency_bonus = (
+            self._calculate_reward_components()
+        )
+        return reward_total
+
+    def _calculate_reward_components(self) -> tuple[float, float, float, float]:
+        """
+        Calcula recompensa y sus componentes separados.
+
+        Returns:
+            Tupla con (reward_total, wait_penalty, congestion_penalty, efficiency_bonus)
+        """
+        try:
+            # Usar datos cacheados
+            wait_times_response = self._cached_wait_times_response
+            quantities_response = self._cached_quantities_response
+
+            if wait_times_response is None:
+                wait_times_response = self._api.get_wait_times()
+            if quantities_response is None:
+                quantities_response = self._api.get_quantities()
+
+            if wait_times_response is None or quantities_response is None:
+                self.logger.error(
+                    "⚠️ No se pudieron obtener datos de espera o cantidades"
+                )
+                return -10.0, -10.0, 0.0, 0.0
+
+            # Obtener datos
+            wait_times = wait_times_response.tiempos_espera
+            quantities = list(quantities_response.cantidades.values())
+
+            if not wait_times or not quantities:
+                self.logger.error("⚠️ Datos de espera o cantidades vacíos")
+                return -10.0, -10.0, 0.0, 0.0
+
+            # Validación de datos anómalos
+            max_wait_time = max(wait_times)
+            total_vehicles = sum(quantities)
+
+            if max_wait_time > 5000 or total_vehicles > 150:
+                self.logger.warning(
+                    f"⚠️ Datos anómalos detectados: max_wait_time={max_wait_time}, total_vehicles={total_vehicles}"
+                )
+                self.logger.warning(f"⚠️ Tiempos de espera: {wait_times}")
+                self.logger.warning(f"⚠️ Cantidad de vehículos: {quantities}")
+                return -100.0, -100.0, 0.0, 0.0  # Penalización por datos anómalos
+
+            # Calcular componentes separados
+            avg_wait_time = sum(wait_times) / len(wait_times)
+            wait_penalty = -(avg_wait_time * 0.2)
+
+            # Penalización por congestión total
+            congestion_penalty = (
+                -max(0, (total_vehicles)) if total_vehicles > 50 else 0.0
+            )
+
+            # Bonificación por eficiencia
+            efficiency_bonus = (
+                min(5.0, total_vehicles * 0.1)
+                if total_vehicles > 0 and avg_wait_time < 50
+                else 0.0
+            )
+
+            # Recompensa total
+            reward_total = wait_penalty + congestion_penalty + efficiency_bonus
+
+            # Clipping para estabilidad
+            reward_total = float(np.clip(reward_total, -120.0, 10.0))
+
+            return reward_total, wait_penalty, congestion_penalty, efficiency_bonus
+
+        except Exception as e:
+            self.logger.error(f"Error calculando recompensa: {e}")
+            return -1.0, -1.0, 0.0, 0.0
+
+    def _check_early_stopping(self, current_avg_reward: float, epoch: int) -> bool:
+        """Verifica early stopping."""
+        improved = current_avg_reward > (
+            self.best_avg_reward + self.config.MIN_IMPROVEMENT
+        )
+
+        if improved:
+            self.best_avg_reward = current_avg_reward
+            self.epochs_without_improvement = 0
+            return False
+        else:
+            self.epochs_without_improvement += 1
+
+        if self.epochs_without_improvement >= self.config.PATIENCE:
+            self.logger.info(f"🛑 Early stopping activado en época {epoch}")
+            return True
+
+        return False
+
+    def _skip_warmup_steps(self, warmup_steps: int) -> int:
+        """Avanza simulación durante warmup."""
+        self.logger.info(f"🔄 Iniciando warm-up: {warmup_steps} pasos")
+        response = self._api.advance_simulation(steps=warmup_steps)
+        if response is None:
+            self.logger.warning("⚠️ No se pudo avanzar simulación durante warm-up")
+            return 0
+        self.logger.info(f"✅ Warm-up completado: {warmup_steps} pasos")
+        return warmup_steps
+
+    def _reset_epoch_metrics(self):
+        """Resetea las métricas de época al inicio de cada nueva época."""
+        self.epoch_losses.clear()
+        self.epoch_gradient_norms.clear()
+        self.epoch_q_values.clear()
+        self.epoch_entropies.clear()
+        self.epoch_wait_penalties.clear()
+        self.epoch_congestion_penalties.clear()
+        self.epoch_efficiency_bonuses.clear()
+        self.initial_state_q_value = 0.0
+        self.step_count = 0
+
+    def _train_agent(self):
+        """Loop principal de entrenamiento."""
+        self.logger.info("🚀 Iniciando entrenamiento del agente")
+
+        for epoch in range(self.config.NUM_EPOCHS):
+            self.logger.info(f"🏁 Época {epoch + 1}/{self.config.NUM_EPOCHS}")
+
+            # Resetear métricas de época
+            self._reset_epoch_metrics()
+
+            # Warm-up inicial
+            if epoch == 0:
+                self._skip_warmup_steps(self.config.WARMUP_STEPS)
+
+            # Variables de época
+            epoch_rewards = []
+            state = self._get_current_state()
+            done = False
+            total_reward = 0.0
+            replay_count = 0
+
+            # Capturar Q-value del primer estado
+            self.initial_state_q_value = self._get_initial_state_q_value(state)
+
+            start_time = time.time()
+
+            # Loop de pasos en la época
+            while not done:
+                # Seleccionar y ejecutar acción
+                action, max_q_value = self._select_action(state)
+
+                # Calcular entropía de la acción
+                state_batch = np.expand_dims(state, axis=0)
+                q_values = self.model.predict(state_batch, verbose=0)
+                entropy = self._calculate_action_entropy(q_values[0])
+                self.epoch_entropies.append(entropy)
+
+                next_state, reward, done = self._execute_action_and_advance(action)
+
+                # Obtener componentes de recompensa para métricas
+                _, wait_penalty, congestion_penalty, efficiency_bonus = (
+                    self._calculate_reward_components()
+                )
+                self.epoch_wait_penalties.append(wait_penalty)
+                self.epoch_congestion_penalties.append(congestion_penalty)
+                self.epoch_efficiency_bonuses.append(efficiency_bonus)
+
+                # Almacenar experiencia
+                self._remember(state, action, reward, next_state, done)
+
+                # Acumular métricas
+                epoch_rewards.append(reward)
+                total_reward += reward
+                state = next_state
+                self.step_count += 1
+
+                # Entrenar si hay suficiente memoria
+                if len(self.memory) >= self.config.MIN_REPLAY_SIZE:
+                    self._replay()
+                    replay_count += 1
+
+            # Finalizar época
+            epoch_duration = time.time() - start_time
+            avg_reward = np.mean(epoch_rewards) if epoch_rewards else 0.0
+
+            # Calcular métricas promedio de la época
+            avg_loss = np.mean(self.epoch_losses) if self.epoch_losses else 0.0
+            avg_gradient_norm = (
+                np.mean(self.epoch_gradient_norms) if self.epoch_gradient_norms else 0.0
+            )
+            avg_q_value = np.mean(self.epoch_q_values) if self.epoch_q_values else 0.0
+            avg_entropy = np.mean(self.epoch_entropies) if self.epoch_entropies else 0.0
+            avg_wait_penalty = (
+                np.mean(self.epoch_wait_penalties) if self.epoch_wait_penalties else 0.0
+            )
+            avg_congestion_penalty = (
+                np.mean(self.epoch_congestion_penalties)
+                if self.epoch_congestion_penalties
+                else 0.0
+            )
+            avg_efficiency_bonus = (
+                np.mean(self.epoch_efficiency_bonuses)
+                if self.epoch_efficiency_bonuses
+                else 0.0
+            )
+
+            # Actualizar epsilon
+            self._update_epsilon()
+
+            # Guardar modelo
+            self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}.h5"))
+
+            # Log de progreso
+            self.logger.info(
+                f"📊 Época {epoch + 1}: "
+                f"Recompensa total: {total_reward:.2f}, "
+                f"Promedio: {avg_reward:.2f}, "
+                f"Loss: {avg_loss:.4f}, "
+                f"Q-value: {avg_q_value:.2f}, "
+                f"Epsilon: {self.epsilon:.4f}, "
+                f"Pasos: {self.step_count}, "
+                f"Duración: {epoch_duration:.1f}s"
+            )
+
+            # Guardar métricas en CSV
+            self._save_epoch_metrics(
+                epoch + 1,
+                total_reward,
+                avg_reward,
+                epoch_duration,
+                replay_count,
+                self.step_count,
+                avg_loss,
+                avg_q_value,
+                self.initial_state_q_value,
+                avg_gradient_norm,
+                avg_entropy,
+                avg_wait_penalty,
+                avg_congestion_penalty,
+                avg_efficiency_bonus,
+            )
+
+            # Early stopping
+            if epoch > 5:  # Permitir al menos 5 épocas
+                if self._check_early_stopping(avg_reward, epoch):
+                    break
+
+        self.logger.info("✅ Entrenamiento completado")
+
+    def _save_epoch_metrics(
+        self,
+        epoch: int,
+        total_reward: float,
+        avg_reward: float,
+        duration: float,
+        replay_count: int,
+        step_count: int,
+        avg_loss: float,
+        avg_q_value: float,
+        initial_q_value: float,
+        avg_gradient_norm: float,
+        avg_entropy: float,
+        avg_wait_penalty: float,
+        avg_congestion_penalty: float,
+        avg_efficiency_bonus: float,
+    ):
+        """Guarda métricas avanzadas de la época en CSV."""
+        csv_path = os.path.join(self._save_path, "training_metrics.csv")
+
+        # Crear archivo con headers si no existe
+        if not os.path.exists(csv_path):
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(
+                    [
+                        "Epoca",
+                        "Duracion_seg",
+                        "Recompensa_Acumulada",
+                        "Recompensa_Promedio",
+                        "Num_Pasos",
+                        "Loss_Promedio",
+                        "Q_Value_Promedio",
+                        "Q_Value_Inicial",
+                        "Gradiente_Norma_Prom",
+                        "Entropia_Prom",
+                        "Epsilon_Final",
+                        "LR_Final",
+                        "Recompensa_Penalidad_Espera",
+                        "Recompensa_Penalidad_Congestion",
+                        "Recompensa_Bonus_Eficiencia",
+                        "Replay_Count",
+                        "Memory_Size",
+                    ]
+                )
+
+        # Añadir métricas de la época
+        with open(csv_path, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    epoch,
+                    f"{duration:.2f}",
+                    f"{total_reward:.2f}",
+                    f"{avg_reward:.2f}",
+                    step_count,
+                    f"{avg_loss:.6f}",
+                    f"{avg_q_value:.2f}",
+                    f"{initial_q_value:.2f}",
+                    f"{avg_gradient_norm:.6f}",
+                    f"{avg_entropy:.6f}",
+                    f"{self.epsilon:.4f}",
+                    f"{self.learning_rate:.6f}",
+                    f"{avg_wait_penalty:.2f}",
+                    f"{avg_congestion_penalty:.2f}",
+                    f"{avg_efficiency_bonus:.2f}",
+                    replay_count,
+                    len(self.memory),
+                ]
+            )
+
+    def start_training_process(self):
+        """Inicia el proceso completo de entrenamiento simplificado."""
+        self.logger.info("🔥 Iniciando DQN Trainer Simplificado")
+
+        # Esperar simulador
+        while not self._api.is_simulation_running():
+            self.logger.info("⏳ Esperando simulador...")
+            time.sleep(1)
+        self.logger.info("✅ Simulador listo")
+
+        # Crear modelos
+        self.logger.info("🏗️ Construyendo modelos...")
+        self.model = self._build_model()
+
+        if self.config.USE_DOUBLE_DQN:
+            self.target_model = self._build_model()
+            self.target_model.set_weights(self.model.get_weights())
+            self.logger.info("🎯 Target model inicializado para Double DQN")
+
+        # Guardar configuración
+        self._save_hyperparameters()
+
+        # Calcular baseline (simulación con tiempo fijo)
+        self._calculate_baseline_performance()
+
+        # Iniciar entrenamiento
+        self._train_agent()
+
+        self.logger.info("🎉 Proceso completo terminado")
+
+    def _save_hyperparameters(self):
+        """Guarda los hiperparámetros usados."""
+        config_path = os.path.join(self._save_path, "hyperparameters.csv")
+
+        with open(config_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Parameter", "Value"])
+
+            # Configuraciones principales
+            writer.writerow(["NUM_EPOCHS", self.config.NUM_EPOCHS])
+            writer.writerow(["BATCH_SIZE", self.config.BATCH_SIZE])
+            writer.writerow(["LEARNING_RATE", self.config.LEARNING_RATE])
+            writer.writerow(["EPSILON_START", self.config.EPSILON])
+            writer.writerow(["EPSILON_DECAY", self.config.EPSILON_DECAY])
+            writer.writerow(["EPSILON_MIN", self.config.EPSILON_MIN])
+            writer.writerow(["GAMMA", self.config.GAMMA])
+            writer.writerow(["MEMORY_SIZE", self.config.MEMORY_SIZE])
+            writer.writerow(["HIDDEN_LAYERS", str(self.config.HIDDEN_LAYERS)])
+            writer.writerow(["USE_DOUBLE_DQN", self.config.USE_DOUBLE_DQN])
+            writer.writerow(["USE_DUELING_DQN", self.config.USE_DUELING_DQN])
+            writer.writerow(["DEVICE", self.device])
+            writer.writerow(
+                ["TIMESTAMP", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+            )
+
+    def _calculate_baseline_performance(self):
+        """Calcula rendimiento baseline con semáforos de tiempo fijo."""
+        self.logger.info("📏 Calculando baseline con tiempo fijo...")
+
+        # Warm-up para tiempo fijo
+        self._skip_warmup_steps(self.config.WARMUP_STEPS)
+
+        total_reward = 0.0
+        done = False
+        step_count = 0
+        start_time = time.time()
+
+        while not done:
+            reward = self._calculate_reward()
+            total_reward += reward
+
+            response = self._api.advance_simulation(steps=self.config.STEPS)
+            if response is None:
+                break
+            done = response.done
+            step_count += 1
+
+            # Límite de seguridad
+            if step_count > 2000:  # Aprox 5 horas de simulación
+                break
+
+        duration = time.time() - start_time
+
+        self.logger.info(
+            f"📏 Baseline - Recompensa total: {total_reward:.2f}, Duración: {duration:.1f}s"
+        )
+
+        # Guardar baseline
+        baseline_path = os.path.join(self._save_path, "baseline.csv")
+        with open(baseline_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Type", "Total_Reward", "Duration_s", "Steps"])
+            writer.writerow(
+                ["Fixed_Time", f"{total_reward:.2f}", f"{duration:.2f}", step_count]
+            )
