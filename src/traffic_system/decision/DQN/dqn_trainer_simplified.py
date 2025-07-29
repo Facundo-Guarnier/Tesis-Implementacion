@@ -45,8 +45,8 @@ class SimplifiedDQNConfig:
     NUM_EPOCHS = 100  # Suficientes épocas para ver tendencias claras
     BATCH_SIZE = 256  # Tamaño de lote estándar
     STEPS = 10  # Pasos de simulación por acción
-    MEMORY_SIZE = 50000  # Buffer de experiencias más grande para diversidad
-    MIN_REPLAY_SIZE = 1000  # Mínimo para empezar entrenamiento (batch dinámico)
+    MEMORY_SIZE = 50  # Buffer de experiencias más grande para diversidad
+    MIN_REPLAY_SIZE = 5  # Mínimo para empezar entrenamiento (batch dinámico)
 
     # === OPTIMIZACIÓN Y LEARNING RATE ===
     LEARNING_RATE = 0.0001  # Punto de partida conservador y seguro
@@ -56,20 +56,20 @@ class SimplifiedDQNConfig:
     # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
     # USE_NOISY_NETWORKS = False  # ❌ DESACTIVADO: Evitar conflicto con epsilon
     EPSILON = 1.0  # 100% exploración inicial
-    EPSILON_DECAY = 0.99995  # Decay lento para explorar durante más tiempo
-    EPSILON_MIN = 0.05  # 5% exploración mínima
+    EPSILON_DECAY = 0.9995  # Decay lento para explorar durante más tiempo
+    EPSILON_MIN = 0.2  # 20% exploración mínima
 
     # === DESCUENTO Y ARQUITECTURA ===
-    GAMMA = 0.99  # Valor estándar que mira al futuro
-    HIDDEN_LAYERS = [256, 256]  # Red simple pero más potente
+    GAMMA = 0.95  # Valor estándar que mira al futuro
+    HIDDEN_LAYERS = [128, 128]  # Red simple pero más potente
 
     # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
     USE_DOUBLE_DQN = True  # ✅ Técnica probada y estable
     USE_DUELING_DQN = True  # ✅ Técnica probada y estable
-    TARGET_UPDATE_FREQUENCY = 1000  # Valor estándar y estable
+    TARGET_UPDATE_FREQUENCY = 200  # Valor estándar y estable
 
     # === ESTABILIDAD DEL ENTRENAMIENTO ===
-    WARMUP_STEPS = 1000  # Tiempo para llenar buffer antes de entrenar
+    WARMUP_STEPS = 1000  # Pasos de calentamiento para estabilizar la simulacion
     USE_GRADIENT_CLIPPING = True  # ✅ Previene gradient explosion
     GRADIENT_CLIP_NORM = 1.0  # Valor estándar
     USE_HUBER_LOSS = True  # ✅ Más robusto que MSE
@@ -425,91 +425,218 @@ class SimplifiedDQNTrainer:
         """Almacena experiencia en memoria estándar (sin PER)."""
         self.memory.append((state, action, reward, next_state, done))
 
-    def _replay(self):
-        """
-        Entrenamiento con memoria estándar (sin PER).
+    # def _replay(self):
+    #     """
+    #     Entrenamiento con memoria estándar (sin PER).
 
-        Usa batch dinámico: empieza entrenando temprano con lotes pequeños.
-        Captura métricas adicionales: loss y gradient norm.
-        """
+    #     Usa batch dinámico: empieza entrenando temprano con lotes pequeños.
+    #     Captura métricas adicionales: loss y gradient norm.
+    #     """
+    #     if len(self.memory) < self.config.MIN_REPLAY_SIZE:
+    #         return
+
+    #     # Batch size dinámico
+    #     batch_size = min(self.config.BATCH_SIZE, len(self.memory))
+    #     minibatch = random.sample(self.memory, batch_size)
+
+    #     # Preparar datos
+    #     states = np.array([experience[0] for experience in minibatch])
+    #     actions = np.array([experience[1] for experience in minibatch])
+    #     rewards = np.array([experience[2] for experience in minibatch])
+    #     next_states = np.array([experience[3] for experience in minibatch])
+    #     dones = np.array([experience[4] for experience in minibatch])
+
+    #     # Predicciones actuales
+    #     current_q_values = self.model.predict(states, verbose=0)
+
+    #     if self.config.USE_DOUBLE_DQN and self.target_model is not None:
+    #         # Double DQN: usar online network para seleccionar, target para evaluar
+    #         next_q_values_online = self.model.predict(next_states, verbose=0)
+    #         next_q_values_target = self.target_model.predict(next_states, verbose=0)
+
+    #         # Seleccionar mejores acciones con online network
+    #         best_actions = np.argmax(next_q_values_online, axis=1)
+
+    #         # Evaluar con target network
+    #         max_next_q = next_q_values_target[np.arange(batch_size), best_actions]
+    #     else:
+    #         # DQN estándar
+    #         next_q_values = self.model.predict(next_states, verbose=0)
+    #         max_next_q = np.max(next_q_values, axis=1)
+
+    #     # Calcular targets
+    #     targets = current_q_values.copy()
+    #     for i in range(batch_size):
+    #         if dones[i]:
+    #             targets[i][actions[i]] = rewards[i]
+    #         else:
+    #             targets[i][actions[i]] = rewards[i] + self.config.GAMMA * max_next_q[i]
+
+    #     # Entrenar y capturar métricas
+    #     with tf.GradientTape() as tape:
+    #         # Forward pass
+    #         predicted_q_values = self.model(states, training=True)
+
+    #         # Calcular loss
+    #         if self.config.USE_HUBER_LOSS:
+    #             loss_fn = tf.keras.losses.Huber(delta=1.0)
+    #         else:
+    #             loss_fn = tf.keras.losses.MeanSquaredError()
+
+    #         loss = loss_fn(targets, predicted_q_values)
+
+    #     # Calcular gradientes
+    #     gradients = tape.gradient(loss, self.model.trainable_variables)
+
+    #     # Calcular norma del gradiente
+    #     gradient_norm = self._calculate_gradient_norm(gradients)
+
+    #     # Aplicar gradientes
+    #     self.model.optimizer.apply_gradients(
+    #         zip(gradients, self.model.trainable_variables, strict=True)
+    #     )
+
+    #     # Almacenar métricas
+    #     self.epoch_losses.append(float(loss))
+    #     self.epoch_gradient_norms.append(gradient_norm)
+
+    #     # Almacenar Q-values promedio del batch
+    #     avg_q_value = float(np.mean(predicted_q_values))
+    #     self.epoch_q_values.append(avg_q_value)
+
+    #     # Actualizar target model si es necesario
+    #     if self.config.USE_DOUBLE_DQN and self.target_model is not None:
+    #         self.target_update_counter += 1
+    #         if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
+    #             self._update_target_model()
+    #             self.target_update_counter = 0
+
+    # def _replay(self):
+    #     if len(self.memory) < self.config.MIN_REPLAY_SIZE:
+    #         return
+
+    #     batch_size = min(self.config.BATCH_SIZE, len(self.memory))
+    #     minibatch = random.sample(self.memory, batch_size)
+
+    #     states = np.array([experience[0] for experience in minibatch])
+    #     actions = np.array([experience[1] for experience in minibatch])
+    #     rewards = np.array([experience[2] for experience in minibatch])
+    #     next_states = np.array([experience[3] for experience in minibatch])
+    #     dones = np.array([experience[4] for experience in minibatch])
+
+    #     # Predicción de Q-values futuros (usando Double DQN)
+    #     next_q_values_online = self.model.predict(next_states, verbose=0)
+    #     next_q_values_target = self.target_model.predict(next_states, verbose=0)
+    #     best_actions = np.argmax(next_q_values_online, axis=1)
+    #     max_next_q = next_q_values_target[np.arange(batch_size), best_actions]
+
+    #     # Calcular los targets
+    #     targets = self.model.predict(
+    #         states, verbose=0
+    #     )  # Usamos las predicciones actuales como base
+    #     for i in range(batch_size):
+    #         if dones[i]:
+    #             targets[i][actions[i]] = rewards[i]
+    #         else:
+    #             targets[i][actions[i]] = rewards[i] + self.config.GAMMA * max_next_q[i]
+
+    #     # *** LA LÍNEA CLAVE ***
+    #     # Keras se encarga de todo: forward, loss, backward, apply gradients
+    #     history = self.model.train_on_batch(states, targets, return_dict=True)
+
+    #     # Almacenar métricas desde el historial devuelto
+    #     self.epoch_losses.append(history["loss"])
+    #     # Nota: para obtener Gradient Norm, tendrías que quedarte con GradientTape,
+    #     # pero primero asegúrate de que el aprendizaje funciona. La loss es más importante.
+    #     # Puedes añadir un cálculo de gradientes opcional si lo necesitas.
+    #     avg_q_value = float(np.mean(targets))  # O de las predicciones
+    #     self.epoch_q_values.append(avg_q_value)
+
+    #     # Actualizar target model
+    #     self.target_update_counter += 1
+    #     if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
+    #         self._update_target_model()
+    #         self.target_update_counter = 0
+
+    def _replay(self):
         if len(self.memory) < self.config.MIN_REPLAY_SIZE:
             return
 
-        # Batch size dinámico
         batch_size = min(self.config.BATCH_SIZE, len(self.memory))
         minibatch = random.sample(self.memory, batch_size)
 
-        # Preparar datos
-        states = np.array([experience[0] for experience in minibatch])
-        actions = np.array([experience[1] for experience in minibatch])
-        rewards = np.array([experience[2] for experience in minibatch])
-        next_states = np.array([experience[3] for experience in minibatch])
-        dones = np.array([experience[4] for experience in minibatch])
+        # Convertir a tensores de TensorFlow desde el principio
+        states = tf.convert_to_tensor(
+            np.array([exp[0] for exp in minibatch]), dtype=tf.float32
+        )
+        actions = tf.convert_to_tensor(
+            np.array([exp[1] for exp in minibatch]), dtype=tf.int32
+        )
+        rewards = tf.convert_to_tensor(
+            np.array([exp[2] for exp in minibatch]), dtype=tf.float32
+        )
+        next_states = tf.convert_to_tensor(
+            np.array([exp[3] for exp in minibatch]), dtype=tf.float32
+        )
+        dones = tf.convert_to_tensor(
+            np.array([exp[4] for exp in minibatch]), dtype=tf.float32
+        )  # Usar float para multiplicaciones
 
-        # Predicciones actuales
-        current_q_values = self.model.predict(states, verbose=0)
+        # --- CÁLCULO DE TARGETS (IGUAL QUE ANTES) ---
+        # Predicción de Q-values futuros con Double DQN
+        next_q_values_online = self.model(next_states, training=False)
+        next_q_values_target = self.target_model(next_states, training=False)
+        best_actions = tf.argmax(next_q_values_online, axis=1, output_type=tf.int32)
 
-        if self.config.USE_DOUBLE_DQN and self.target_model is not None:
-            # Double DQN: usar online network para seleccionar, target para evaluar
-            next_q_values_online = self.model.predict(next_states, verbose=0)
-            next_q_values_target = self.target_model.predict(next_states, verbose=0)
+        # tf.gather_nd es el equivalente en TF a la indexación avanzada de numpy
+        batch_indices = tf.range(batch_size, dtype=tf.int32)
+        action_indices = tf.stack([batch_indices, best_actions], axis=1)
+        max_next_q = tf.gather_nd(next_q_values_target, action_indices)
 
-            # Seleccionar mejores acciones con online network
-            best_actions = np.argmax(next_q_values_online, axis=1)
+        # Calcular el valor Q objetivo (target)
+        # Si done=1, el valor futuro es 0. Si done=0, es max_next_q.
+        # (1.0 - dones) se encarga de esto.
+        targets_q = rewards + self.config.GAMMA * max_next_q * (1.0 - dones)
 
-            # Evaluar con target network
-            max_next_q = next_q_values_target[np.arange(batch_size), best_actions]
-        else:
-            # DQN estándar
-            next_q_values = self.model.predict(next_states, verbose=0)
-            max_next_q = np.max(next_q_values, axis=1)
-
-        # Calcular targets
-        targets = current_q_values.copy()
-        for i in range(batch_size):
-            if dones[i]:
-                targets[i][actions[i]] = rewards[i]
-            else:
-                targets[i][actions[i]] = rewards[i] + self.config.GAMMA * max_next_q[i]
-
-        # Entrenar y capturar métricas
+        # --- ENTRENAMIENTO CON GRADIENTTAPE (EL CAMBIO CLAVE) ---
         with tf.GradientTape() as tape:
-            # Forward pass
-            predicted_q_values = self.model(states, training=True)
+            # 1. Obtener las predicciones actuales de la red para las acciones que se tomaron
+            all_current_q_values = self.model(states, training=True)
 
-            # Calcular loss
-            if self.config.USE_HUBER_LOSS:
-                loss_fn = tf.keras.losses.Huber(delta=1.0)
-            else:
-                loss_fn = tf.keras.losses.MeanSquaredError()
+            # De nuevo, usamos gather_nd para seleccionar solo los Q-values de las acciones tomadas
+            action_indices_taken = tf.stack([batch_indices, actions], axis=1)
+            predicted_q_values = tf.gather_nd(
+                all_current_q_values, action_indices_taken
+            )
 
-            loss = loss_fn(targets, predicted_q_values)
+            # 2. Calcular la loss entre las predicciones y los targets que calculamos antes
+            loss_fn = tf.keras.losses.Huber(delta=1.0)
+            loss = loss_fn(targets_q, predicted_q_values)
 
-        # Calcular gradientes
+        # 3. Calcular y aplicar gradientes
         gradients = tape.gradient(loss, self.model.trainable_variables)
 
-        # Calcular norma del gradiente
-        gradient_norm = self._calculate_gradient_norm(gradients)
+        # Aplicar gradient clipping si está activado
+        if self.config.USE_GRADIENT_CLIPPING:
+            gradients, _ = tf.clip_by_global_norm(
+                gradients, self.config.GRADIENT_CLIP_NORM
+            )
 
-        # Aplicar gradientes
         self.model.optimizer.apply_gradients(
-            zip(gradients, self.model.trainable_variables, strict=True)
+            zip(gradients, self.model.trainable_variables, strict=False)
         )
 
-        # Almacenar métricas
+        # --- ALMACENAR MÉTRICAS ---
+        gradient_norm = tf.linalg.global_norm(gradients)
         self.epoch_losses.append(float(loss))
-        self.epoch_gradient_norms.append(gradient_norm)
+        self.epoch_gradient_norms.append(float(gradient_norm))
+        self.epoch_q_values.append(float(tf.reduce_mean(predicted_q_values)))
 
-        # Almacenar Q-values promedio del batch
-        avg_q_value = float(np.mean(predicted_q_values))
-        self.epoch_q_values.append(avg_q_value)
-
-        # Actualizar target model si es necesario
-        if self.config.USE_DOUBLE_DQN and self.target_model is not None:
-            self.target_update_counter += 1
-            if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
-                self._update_target_model()
-                self.target_update_counter = 0
+        # --- ACTUALIZAR TARGET MODEL ---
+        self.target_update_counter += 1
+        if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
+            self._update_target_model()
+            self.target_update_counter = 0
 
     def _calculate_gradient_norm(self, gradients: list) -> float:
         """
@@ -641,7 +768,7 @@ class SimplifiedDQNTrainer:
 
     def _execute_action_and_advance(
         self, action_index: int
-    ) -> tuple[NDArray, float, bool]:
+    ) -> tuple[NDArray, float, bool, float, float, float]:
         """Ejecuta acción y avanza simulación."""
         # Ejecutar acción
         action_phases_str = self._action_space[action_index]
@@ -658,7 +785,20 @@ class SimplifiedDQNTrainer:
         # Actualizar datos
         self._update_simulation_data()
 
-        return self._get_current_state(), self._calculate_reward(), done
+        next_state = self._get_current_state()
+
+        reward, wait_penalty, congestion_penalty, efficiency_bonus = (
+            self._calculate_reward_components()
+        )
+
+        return (
+            next_state,
+            reward,
+            done,
+            wait_penalty,
+            congestion_penalty,
+            efficiency_bonus,
+        )
 
     def _calculate_reward(self) -> float:
         """
@@ -721,7 +861,7 @@ class SimplifiedDQNTrainer:
 
             # Penalización por congestión total
             congestion_penalty = (
-                -max(0, (total_vehicles)) if total_vehicles > 50 else 0.0
+                -max(0, (total_vehicles - 20) * 0.5) if total_vehicles > 20 else 0.0
             )
 
             # Bonificación por eficiencia
@@ -821,12 +961,15 @@ class SimplifiedDQNTrainer:
                 entropy = self._calculate_action_entropy(q_values[0])
                 self.epoch_entropies.append(entropy)
 
-                next_state, reward, done = self._execute_action_and_advance(action)
+                (
+                    next_state,
+                    reward,
+                    done,
+                    wait_penalty,
+                    congestion_penalty,
+                    efficiency_bonus,
+                ) = self._execute_action_and_advance(action)
 
-                # Obtener componentes de recompensa para métricas
-                _, wait_penalty, congestion_penalty, efficiency_bonus = (
-                    self._calculate_reward_components()
-                )
                 self.epoch_wait_penalties.append(wait_penalty)
                 self.epoch_congestion_penalties.append(congestion_penalty)
                 self.epoch_efficiency_bonuses.append(efficiency_bonus)
