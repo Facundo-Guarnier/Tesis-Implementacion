@@ -7,22 +7,22 @@ todas las contradicciones y complejidad excesiva del entrenador original.
 """
 
 import logging
-import sys
 import os
+import sys
 
 # Añadir el directorio src al path para imports
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from src.traffic_system.decision.DQN.dqn_trainer_simplified import SimplifiedDQNTrainer
 
 
-def main():
+def main() -> int:
     """Función principal de prueba."""
 
     # Configurar logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     logger = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ def main():
     except Exception as e:
         logger.error(f"❌ Error durante entrenamiento: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

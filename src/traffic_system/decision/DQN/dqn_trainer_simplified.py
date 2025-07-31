@@ -4,18 +4,14 @@ Simplified DQN Trainer para Control de Semáforos - Configuración Base Segura
 Este módulo implementa un entrenador DQN SIMPLIFICADO que elimina todas las
 contradicciones y complejidad excesiva del entrenador original.
 
-CONFIGURACIONES HARDCODED - BASE SEGURA:
-- Solo epsilon-greedy (SIN noisy networks)
-- Learning rate fijo (SIN adaptive scheduling)
-- Arquitectura simple pero efectiva [256, 256]
-- Solo técnicas probadas: Double DQN + Dueling DQN
-- Sin optimizaciones prematuras
+CONFIGURACIONES HARDCODED - BASE SEGURA
 
 Objetivo: Tener un modelo base ESTABLE antes de añadir complejidad.
 """
 
 import csv
 import datetime
+import importlib.util
 import logging
 import os
 import random
@@ -24,7 +20,7 @@ from collections import deque
 
 import numpy as np
 import tensorflow as tf
-from numpy import ndarray as NDArray
+from numpy.typing import NDArray
 
 from src.traffic_system.api_client.data_source_client import DecisionAPI
 from src.traffic_system.core.api_models import (
@@ -32,6 +28,11 @@ from src.traffic_system.core.api_models import (
     WaitTimesResponse,
 )
 from src.traffic_system.core.config_loader import load_app_settings
+
+# GPU optimizations availability check
+MIXED_PRECISION_AVAILABLE = (
+    importlib.util.find_spec("tensorflow.keras.mixed_precision") is not None
+)
 
 # =============================================================================
 # 🔧 CONFIGURACIONES HARDCODED - BASE SEGURA Y RECOMENDADA
@@ -45,8 +46,8 @@ class SimplifiedDQNConfig:
     NUM_EPOCHS = 100  # Suficientes épocas para ver tendencias claras
     BATCH_SIZE = 256  # Tamaño de lote estándar
     STEPS = 10  # Pasos de simulación por acción
-    MEMORY_SIZE = 50  # Buffer de experiencias más grande para diversidad
-    MIN_REPLAY_SIZE = 5  # Mínimo para empezar entrenamiento (batch dinámico)
+    MEMORY_SIZE = 50000  # Buffer de experiencias más grande para diversidad
+    MIN_REPLAY_SIZE = 2000  # Mínimo para empezar entrenamiento (batch dinámico)
 
     # === OPTIMIZACIÓN Y LEARNING RATE ===
     LEARNING_RATE = 0.0001  # Punto de partida conservador y seguro
@@ -56,12 +57,12 @@ class SimplifiedDQNConfig:
     # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
     # USE_NOISY_NETWORKS = False  # ❌ DESACTIVADO: Evitar conflicto con epsilon
     EPSILON = 1.0  # 100% exploración inicial
-    EPSILON_DECAY = 0.9995  # Decay lento para explorar durante más tiempo
-    EPSILON_MIN = 0.2  # 20% exploración mínima
+    EPSILON_DECAY = 0.95  # Decay lento para explorar durante más tiempo
+    EPSILON_MIN = 0.1  # 10% exploración mínima
 
     # === DESCUENTO Y ARQUITECTURA ===
-    GAMMA = 0.95  # Valor estándar que mira al futuro
-    HIDDEN_LAYERS = [128, 128]  # Red simple pero más potente
+    GAMMA = 0.90  # Valor estándar que mira al futuro
+    HIDDEN_LAYERS = [128, 64]  # Red simple pero más potente
 
     # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
     USE_DOUBLE_DQN = True  # ✅ Técnica probada y estable
@@ -71,7 +72,7 @@ class SimplifiedDQNConfig:
     # === ESTABILIDAD DEL ENTRENAMIENTO ===
     WARMUP_STEPS = 1000  # Pasos de calentamiento para estabilizar la simulacion
     USE_GRADIENT_CLIPPING = True  # ✅ Previene gradient explosion
-    GRADIENT_CLIP_NORM = 1.0  # Valor estándar
+    GRADIENT_CLIP_NORM = 0.8  # Valor estándar
     USE_HUBER_LOSS = True  # ✅ Más robusto que MSE
 
     # === TÉCNICAS DESACTIVADAS TEMPORALMENTE ===
@@ -103,7 +104,7 @@ class SimplifiedDQNTrainer:
     Objetivo: modelo base ESTABLE antes de añadir optimizaciones.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Inicializa el entrenador con configuración simplificada."""
         # Configurar logging PRIMERO
         logging.basicConfig(level=logging.INFO)
@@ -121,15 +122,13 @@ class SimplifiedDQNTrainer:
         )
 
         # Memoria de experiencias (solo deque estándar)
-        self.memory = deque(maxlen=self.config.MEMORY_SIZE)
+        self.memory: deque[tuple[NDArray, int, float, NDArray, bool]] = deque(
+            maxlen=self.config.MEMORY_SIZE
+        )
 
         # Variables de entrenamiento
         self.epsilon = self.config.EPSILON
         self.learning_rate = self.config.LEARNING_RATE
-
-        # Modelos (se inicializan en start_training)
-        self.model: tf.keras.Model | None = None
-        self.target_model: tf.keras.Model | None = None
         self.target_update_counter = 0
 
         # Early stopping
@@ -137,7 +136,7 @@ class SimplifiedDQNTrainer:
         self.epochs_without_improvement = 0
 
         # Historial de estado para dinámica temporal
-        self.state_history = []
+        self.state_history: list[NDArray] = []
         self.max_history_length = 2
 
         # Cache de datos API
@@ -145,13 +144,13 @@ class SimplifiedDQNTrainer:
         self._cached_quantities_response: VehicleQuantitiesResponse | None = None
 
         # Variables para métricas avanzadas por época
-        self.epoch_losses = []
-        self.epoch_gradient_norms = []
-        self.epoch_q_values = []
-        self.epoch_entropies = []
-        self.epoch_wait_penalties = []
-        self.epoch_congestion_penalties = []
-        self.epoch_efficiency_bonuses = []
+        self.epoch_losses: list[float] = []
+        self.epoch_gradient_norms: list[float] = []
+        self.epoch_q_values: list[float] = []
+        self.epoch_entropies: list[float] = []
+        self.epoch_wait_penalties: list[float] = []
+        self.epoch_congestion_penalties: list[float] = []
+        self.epoch_efficiency_bonuses: list[float] = []
         self.initial_state_q_value = 0.0
         self.step_count = 0
 
@@ -161,8 +160,34 @@ class SimplifiedDQNTrainer:
         # Configurar rutas de guardado
         self._setup_save_path()
 
-    def _configure_device(self):
-        """Configura GPU o CPU para entrenamiento."""
+        # Crear modelos inmediatamente - no hay razón para esperar
+        self.logger.info("🏗️ Construyendo modelos...")
+
+        # Declarar tipos
+        self.target_model: tf.keras.Model | None
+
+        try:
+            self.model: tf.keras.Model = self._build_model()
+            self.logger.info("✅ Modelo principal creado exitosamente")
+
+            if self.config.USE_DOUBLE_DQN:
+                self.target_model = self._build_model()
+                self.target_model.set_weights(self.model.get_weights())
+                self.logger.info("🎯 Target model inicializado para Double DQN")
+            else:
+                self.target_model = None
+                self.logger.info("📝 Double DQN desactivado - sin target model")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error crítico creando modelos: {e}")
+            self.logger.error("💡 Verifica:")
+            self.logger.error("   • Configuración de GPU/CPU")
+            self.logger.error("   • Memoria disponible")
+            self.logger.error("   • Versión de TensorFlow")
+            raise RuntimeError(f"No se pudieron crear los modelos DQN: {e}") from e
+
+    def _configure_device(self) -> None:
+        """Configura GPU o CPU para entrenamiento con optimizaciones básicas."""
         gpus = tf.config.experimental.list_physical_devices("GPU")
 
         if gpus:
@@ -170,19 +195,57 @@ class SimplifiedDQNTrainer:
                 # Configurar crecimiento dinámico de memoria
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
+
                 self.device = "/GPU:0"
                 self.use_gpu = True
+
+                # Optimizaciones básicas para cualquier GPU
+                self.use_mixed_precision = False
+                self.use_xla = False
+
+                # Intentar activar Mixed Precision solo si es explícitamente requerido
+                # Desactivado por defecto para evitar problemas de compatibilidad
+                if MIXED_PRECISION_AVAILABLE and False:  # Cambiar a True para activar
+                    try:
+                        policy = tf.keras.mixed_precision.Policy("mixed_float16")
+                        tf.keras.mixed_precision.set_global_policy(policy)
+                        self.use_mixed_precision = True
+                        self.logger.info("✅ Mixed Precision activado")
+                    except Exception as e:
+                        # Revertir a política float32 si Mixed Precision falla
+                        tf.keras.mixed_precision.set_global_policy("float32")
+                        self.use_mixed_precision = False
+                        self.logger.warning(
+                            f"⚠️ Mixed Precision falló, revirtiendo a float32: {e}"
+                        )
+                else:
+                    self.use_mixed_precision = False
+                    self.logger.info("🎯 Mixed Precision desactivado por defecto")
+
+                # Intentar activar XLA (universal para GPUs modernas)
+                try:
+                    tf.config.optimizer.set_jit(True)
+                    self.use_xla = True
+                    self.logger.info("✅ XLA Compilation activado")
+                except Exception as e:
+                    self.logger.warning(f"⚠️ XLA no disponible: {e}")
+
                 self.logger.info(f"🚀 GPU configurada: {len(gpus)} dispositivo(s)")
+
             except RuntimeError as e:
                 self.logger.warning(f"⚠️ Error configurando GPU: {e}")
                 self.device = "/CPU:0"
                 self.use_gpu = False
+                self.use_mixed_precision = False
+                self.use_xla = False
         else:
             self.device = "/CPU:0"
             self.use_gpu = False
+            self.use_mixed_precision = False
+            self.use_xla = False
             self.logger.info("🖥️ Usando CPU para entrenamiento")
 
-    def _setup_action_space(self):
+    def _setup_action_space(self) -> None:
         """Establece el espacio de acciones de los semáforos."""
         traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
         traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
@@ -201,7 +264,7 @@ class SimplifiedDQNTrainer:
             f"🎯 Espacio de acciones configurado: {len(self._action_space)} acciones"
         )
 
-    def _setup_save_path(self):
+    def _setup_save_path(self) -> None:
         """Configura la ruta donde se guardarán los resultados."""
         timestamp = time.strftime("%Y-%m-%d_%H-%M")
         self._save_path = os.path.join(
@@ -212,7 +275,7 @@ class SimplifiedDQNTrainer:
 
     def _build_model(self) -> tf.keras.Model:
         """
-        Construye el modelo DQN simplificado.
+        Construye el modelo DQN simplificado con optimizaciones GPU.
 
         Solo usa técnicas probadas:
         - Double DQN
@@ -220,6 +283,7 @@ class SimplifiedDQNTrainer:
         - He initialization
         - Gradient clipping
         - Huber loss
+        + Optimizaciones GPU: Mixed Precision, XLA compilation
         """
         with tf.device(self.device):
             if self.config.USE_DUELING_DQN:
@@ -229,27 +293,37 @@ class SimplifiedDQNTrainer:
                 model = self._build_standard_model()
                 self.logger.info("📊 Usando arquitectura DQN estándar")
 
-            # Optimizador con gradient clipping
-            optimizer = tf.keras.optimizers.Adam(
-                learning_rate=self.config.LEARNING_RATE,
-                clipnorm=(
-                    self.config.GRADIENT_CLIP_NORM
-                    if self.config.USE_GRADIENT_CLIPPING
-                    else None
-                ),
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-7,
-            )
+            # Optimizador configurado para GPU estándar (sin Mixed Precision por defecto)
+            optimizer_kwargs = {
+                "learning_rate": self.config.LEARNING_RATE,
+                "beta_1": 0.9,
+                "beta_2": 0.999,
+                "epsilon": 1e-7,
+            }
 
-            # Loss function
-            loss_function = (
-                tf.keras.losses.Huber(delta=1.0)
-                if self.config.USE_HUBER_LOSS
-                else "mse"
-            )
+            # Gradient clipping
+            if self.config.USE_GRADIENT_CLIPPING:
+                optimizer_kwargs["clipnorm"] = self.config.GRADIENT_CLIP_NORM
 
-            model.compile(loss=loss_function, optimizer=optimizer, metrics=["mae"])
+            optimizer = tf.keras.optimizers.Adam(**optimizer_kwargs)
+
+            # Solo envolver con LossScaleOptimizer si Mixed Precision está realmente activo
+            if self.use_mixed_precision:
+                optimizer = tf.keras.mixed_precision.LossScaleOptimizer(optimizer)
+                self.logger.info("🎯 Optimizador configurado para Mixed Precision")
+
+            # Loss function con compatibilidad Mixed Precision
+            if self.config.USE_HUBER_LOSS:
+                loss_function = tf.keras.losses.Huber(delta=1.0)
+            else:
+                loss_function = "mse"
+
+            model.compile(
+                loss=loss_function,
+                optimizer=optimizer,
+                metrics=["mae"],
+                # Nota: XLA ya está configurado globalmente, no necesario aquí
+            )
 
         self.logger.info(f"🎯 Modelo creado en: {self.device}")
         return model
@@ -421,7 +495,7 @@ class SimplifiedDQNTrainer:
         reward: float,
         next_state: NDArray,
         done: bool,
-    ):
+    ) -> None:
         """Almacena experiencia en memoria estándar (sin PER)."""
         self.memory.append((state, action, reward, next_state, done))
 
@@ -558,81 +632,112 @@ class SimplifiedDQNTrainer:
     #         self._update_target_model()
     #         self.target_update_counter = 0
 
-    def _replay(self):
+    def _replay(self) -> None:
+        """Entrenamiento simplificado con optimizaciones básicas GPU/CPU."""
         if len(self.memory) < self.config.MIN_REPLAY_SIZE:
             return
 
         batch_size = min(self.config.BATCH_SIZE, len(self.memory))
         minibatch = random.sample(self.memory, batch_size)
 
-        # Convertir a tensores de TensorFlow desde el principio
+        # Convertir a tensores TensorFlow para eficiencia
+        # Asegurar dtype consistente para Mixed Precision
+        dtype = tf.float16 if self.use_mixed_precision else tf.float32
+
         states = tf.convert_to_tensor(
-            np.array([exp[0] for exp in minibatch]), dtype=tf.float32
+            np.array([exp[0] for exp in minibatch]), dtype=dtype
         )
         actions = tf.convert_to_tensor(
             np.array([exp[1] for exp in minibatch]), dtype=tf.int32
         )
         rewards = tf.convert_to_tensor(
-            np.array([exp[2] for exp in minibatch]), dtype=tf.float32
+            np.array([exp[2] for exp in minibatch]), dtype=dtype
         )
         next_states = tf.convert_to_tensor(
-            np.array([exp[3] for exp in minibatch]), dtype=tf.float32
+            np.array([exp[3] for exp in minibatch]), dtype=dtype
         )
         dones = tf.convert_to_tensor(
-            np.array([exp[4] for exp in minibatch]), dtype=tf.float32
-        )  # Usar float para multiplicaciones
+            np.array([exp[4] for exp in minibatch]), dtype=dtype
+        )
 
-        # --- CÁLCULO DE TARGETS (IGUAL QUE ANTES) ---
-        # Predicción de Q-values futuros con Double DQN
-        next_q_values_online = self.model(next_states, training=False)
-        next_q_values_target = self.target_model(next_states, training=False)
-        best_actions = tf.argmax(next_q_values_online, axis=1, output_type=tf.int32)
-
-        # tf.gather_nd es el equivalente en TF a la indexación avanzada de numpy
+        # Calcular targets con Double DQN
         batch_indices = tf.range(batch_size, dtype=tf.int32)
-        action_indices = tf.stack([batch_indices, best_actions], axis=1)
-        max_next_q = tf.gather_nd(next_q_values_target, action_indices)
 
-        # Calcular el valor Q objetivo (target)
-        # Si done=1, el valor futuro es 0. Si done=0, es max_next_q.
-        # (1.0 - dones) se encarga de esto.
-        targets_q = rewards + self.config.GAMMA * max_next_q * (1.0 - dones)
+        if self.config.USE_DOUBLE_DQN and self.target_model is not None:
+            next_q_values_online = self.model(next_states, training=False)
+            next_q_values_target = self.target_model(next_states, training=False)
+            best_actions = tf.argmax(next_q_values_online, axis=1, output_type=tf.int32)
 
-        # --- ENTRENAMIENTO CON GRADIENTTAPE (EL CAMBIO CLAVE) ---
+            action_indices = tf.stack([batch_indices, best_actions], axis=1)
+            max_next_q = tf.gather_nd(next_q_values_target, action_indices)
+        else:
+            # Fallback a DQN estándar si no hay target model
+            next_q_values = self.model(next_states, training=False)
+            max_next_q = tf.reduce_max(next_q_values, axis=1)
+
+        targets_q = rewards + tf.cast(self.config.GAMMA, dtype) * max_next_q * (
+            tf.cast(1.0, dtype) - dones
+        )
+
+        # Entrenamiento con GradientTape
         with tf.GradientTape() as tape:
-            # 1. Obtener las predicciones actuales de la red para las acciones que se tomaron
             all_current_q_values = self.model(states, training=True)
-
-            # De nuevo, usamos gather_nd para seleccionar solo los Q-values de las acciones tomadas
             action_indices_taken = tf.stack([batch_indices, actions], axis=1)
             predicted_q_values = tf.gather_nd(
                 all_current_q_values, action_indices_taken
             )
 
-            # 2. Calcular la loss entre las predicciones y los targets que calculamos antes
+            # Asegurar que todos los tensores estén en el mismo dtype
+            targets_q = tf.cast(targets_q, predicted_q_values.dtype)
+
+            # Loss con compatibilidad de tipos
             loss_fn = tf.keras.losses.Huber(delta=1.0)
             loss = loss_fn(targets_q, predicted_q_values)
 
-        # 3. Calcular y aplicar gradientes
-        gradients = tape.gradient(loss, self.model.trainable_variables)
+            # Escalar loss solo si Mixed Precision está activo y optimizer lo soporta
+            if (
+                self.use_mixed_precision
+                and self.model.optimizer is not None
+                and hasattr(self.model.optimizer, "get_scaled_loss")
+            ):
+                scaled_loss = self.model.optimizer.get_scaled_loss(loss)
+            else:
+                scaled_loss = loss
 
-        # Aplicar gradient clipping si está activado
+        # Calcular gradientes
+        if (
+            self.use_mixed_precision
+            and self.model.optimizer is not None
+            and hasattr(self.model.optimizer, "get_unscaled_gradients")
+        ):
+            scaled_gradients = tape.gradient(
+                scaled_loss, self.model.trainable_variables
+            )
+            gradients = self.model.optimizer.get_unscaled_gradients(scaled_gradients)
+        else:
+            gradients = tape.gradient(scaled_loss, self.model.trainable_variables)
+
+        # Gradient clipping
         if self.config.USE_GRADIENT_CLIPPING:
             gradients, _ = tf.clip_by_global_norm(
                 gradients, self.config.GRADIENT_CLIP_NORM
             )
 
-        self.model.optimizer.apply_gradients(
-            zip(gradients, self.model.trainable_variables, strict=False)
-        )
+        # Aplicar gradientes
+        if self.model.optimizer is not None:
+            self.model.optimizer.apply_gradients(
+                zip(gradients, self.model.trainable_variables, strict=True)
+            )
+        else:
+            self.logger.warning("⚠️ Optimizer es None, no se pueden aplicar gradientes")
 
-        # --- ALMACENAR MÉTRICAS ---
+        # Almacenar métricas
         gradient_norm = tf.linalg.global_norm(gradients)
         self.epoch_losses.append(float(loss))
         self.epoch_gradient_norms.append(float(gradient_norm))
         self.epoch_q_values.append(float(tf.reduce_mean(predicted_q_values)))
 
-        # --- ACTUALIZAR TARGET MODEL ---
+        # Actualizar target model
         self.target_update_counter += 1
         if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
             self._update_target_model()
@@ -657,13 +762,13 @@ class SimplifiedDQNTrainer:
             self.logger.warning(f"⚠️ Error calculando norma del gradiente: {e}")
             return 0.0
 
-    def _update_target_model(self):
+    def _update_target_model(self) -> None:
         """Actualiza la red target copiando pesos de la red principal."""
         if self.target_model is not None:
             self.target_model.set_weights(self.model.get_weights())
             self.logger.info("🎯 Red target actualizada")
 
-    def _update_epsilon(self):
+    def _update_epsilon(self) -> None:
         """Actualiza epsilon para exploración decreciente."""
         if self.epsilon > self.config.EPSILON_MIN:
             self.epsilon *= self.config.EPSILON_DECAY
@@ -745,7 +850,7 @@ class SimplifiedDQNTrainer:
 
         return normalized_state.astype(np.float32)
 
-    def _update_simulation_data(self):
+    def _update_simulation_data(self) -> None:
         """Actualiza los datos de simulación con reintentos."""
         max_retries = 3
         retry_delay = 0.01
@@ -853,6 +958,11 @@ class SimplifiedDQNTrainer:
                 )
                 self.logger.warning(f"⚠️ Tiempos de espera: {wait_times}")
                 self.logger.warning(f"⚠️ Cantidad de vehículos: {quantities}")
+
+                # Limpiar caché para forzar nuevos datos en la próxima consulta
+                self._cached_wait_times_response = None
+                self._cached_quantities_response = None
+
                 return -100.0, -100.0, 0.0, 0.0  # Penalización por datos anómalos
 
             # Calcular componentes separados
@@ -912,7 +1022,7 @@ class SimplifiedDQNTrainer:
         self.logger.info(f"✅ Warm-up completado: {warmup_steps} pasos")
         return warmup_steps
 
-    def _reset_epoch_metrics(self):
+    def _reset_epoch_metrics(self) -> None:
         """Resetea las métricas de época al inicio de cada nueva época."""
         self.epoch_losses.clear()
         self.epoch_gradient_norms.clear()
@@ -924,7 +1034,7 @@ class SimplifiedDQNTrainer:
         self.initial_state_q_value = 0.0
         self.step_count = 0
 
-    def _train_agent(self):
+    def _train_agent(self) -> None:
         """Loop principal de entrenamiento."""
         self.logger.info("🚀 Iniciando entrenamiento del agente")
 
@@ -1072,7 +1182,7 @@ class SimplifiedDQNTrainer:
         avg_wait_penalty: float,
         avg_congestion_penalty: float,
         avg_efficiency_bonus: float,
-    ):
+    ) -> None:
         """Guarda métricas avanzadas de la época en CSV."""
         csv_path = os.path.join(self._save_path, "training_metrics.csv")
 
@@ -1127,62 +1237,422 @@ class SimplifiedDQNTrainer:
                 ]
             )
 
-    def start_training_process(self):
-        """Inicia el proceso completo de entrenamiento simplificado."""
+    def start_training_process(self) -> None:
+        """Inicia el proceso completo de entrenamiento simplificado con optimizaciones GPU."""
         self.logger.info("🔥 Iniciando DQN Trainer Simplificado")
 
-        # Esperar simulador
         while not self._api.is_simulation_running():
             self.logger.info("⏳ Esperando simulador...")
             time.sleep(1)
+
         self.logger.info("✅ Simulador listo")
 
-        # Crear modelos
-        self.logger.info("🏗️ Construyendo modelos...")
-        self.model = self._build_model()
-
-        if self.config.USE_DOUBLE_DQN:
-            self.target_model = self._build_model()
-            self.target_model.set_weights(self.model.get_weights())
-            self.logger.info("🎯 Target model inicializado para Double DQN")
-
-        # Guardar configuración
         self._save_hyperparameters()
 
-        # Calcular baseline (simulación con tiempo fijo)
         self._calculate_baseline_performance()
 
-        # Iniciar entrenamiento
         self._train_agent()
 
         self.logger.info("🎉 Proceso completo terminado")
 
-    def _save_hyperparameters(self):
-        """Guarda los hiperparámetros usados."""
+    def _save_hyperparameters(self) -> None:
+        """Guarda TODOS los hiperparámetros de SimplifiedDQNConfig."""
         config_path = os.path.join(self._save_path, "hyperparameters.csv")
 
         with open(config_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["Parameter", "Value"])
-
-            # Configuraciones principales
-            writer.writerow(["NUM_EPOCHS", self.config.NUM_EPOCHS])
-            writer.writerow(["BATCH_SIZE", self.config.BATCH_SIZE])
-            writer.writerow(["LEARNING_RATE", self.config.LEARNING_RATE])
-            writer.writerow(["EPSILON_START", self.config.EPSILON])
-            writer.writerow(["EPSILON_DECAY", self.config.EPSILON_DECAY])
-            writer.writerow(["EPSILON_MIN", self.config.EPSILON_MIN])
-            writer.writerow(["GAMMA", self.config.GAMMA])
-            writer.writerow(["MEMORY_SIZE", self.config.MEMORY_SIZE])
-            writer.writerow(["HIDDEN_LAYERS", str(self.config.HIDDEN_LAYERS)])
-            writer.writerow(["USE_DOUBLE_DQN", self.config.USE_DOUBLE_DQN])
-            writer.writerow(["USE_DUELING_DQN", self.config.USE_DUELING_DQN])
-            writer.writerow(["DEVICE", self.device])
             writer.writerow(
-                ["TIMESTAMP", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+                ["Parameter", "Value", "Type", "Category", "Description", "Status"]
             )
 
-    def _calculate_baseline_performance(self):
+            # === HIPERPARÁMETROS BÁSICOS ===
+            writer.writerow(
+                [
+                    "NUM_EPOCHS",
+                    self.config.NUM_EPOCHS,
+                    "int",
+                    "Basic",
+                    "Suficientes épocas para ver tendencias claras",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "BATCH_SIZE",
+                    self.config.BATCH_SIZE,
+                    "int",
+                    "Basic",
+                    "Tamaño de lote estándar",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "STEPS",
+                    self.config.STEPS,
+                    "int",
+                    "Basic",
+                    "Pasos de simulación por acción",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "MEMORY_SIZE",
+                    self.config.MEMORY_SIZE,
+                    "int",
+                    "Basic",
+                    "Buffer de experiencias más grande para diversidad",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "MIN_REPLAY_SIZE",
+                    self.config.MIN_REPLAY_SIZE,
+                    "int",
+                    "Basic",
+                    "Mínimo para empezar entrenamiento (batch dinámico)",
+                    "Active",
+                ]
+            )
+
+            # === OPTIMIZACIÓN Y LEARNING RATE ===
+            writer.writerow(
+                [
+                    "LEARNING_RATE",
+                    self.config.LEARNING_RATE,
+                    "float",
+                    "Optimization",
+                    "Punto de partida conservador y seguro",
+                    "Active",
+                ]
+            )
+
+            # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
+            writer.writerow(
+                [
+                    "EPSILON",
+                    self.config.EPSILON,
+                    "float",
+                    "Exploration",
+                    "100% exploración inicial",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "EPSILON_DECAY",
+                    self.config.EPSILON_DECAY,
+                    "float",
+                    "Exploration",
+                    "Decay lento para explorar durante más tiempo",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "EPSILON_MIN",
+                    self.config.EPSILON_MIN,
+                    "float",
+                    "Exploration",
+                    "20% exploración mínima",
+                    "Active",
+                ]
+            )
+
+            # === DESCUENTO Y ARQUITECTURA ===
+            writer.writerow(
+                [
+                    "GAMMA",
+                    self.config.GAMMA,
+                    "float",
+                    "Architecture",
+                    "Valor estándar que mira al futuro",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "HIDDEN_LAYERS",
+                    str(self.config.HIDDEN_LAYERS),
+                    "list",
+                    "Architecture",
+                    "Red simple pero más potente",
+                    "Active",
+                ]
+            )
+
+            # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
+            writer.writerow(
+                [
+                    "USE_DOUBLE_DQN",
+                    self.config.USE_DOUBLE_DQN,
+                    "bool",
+                    "Algorithmic",
+                    "Técnica probada y estable",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_DUELING_DQN",
+                    self.config.USE_DUELING_DQN,
+                    "bool",
+                    "Algorithmic",
+                    "Técnica probada y estable",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "TARGET_UPDATE_FREQUENCY",
+                    self.config.TARGET_UPDATE_FREQUENCY,
+                    "int",
+                    "Algorithmic",
+                    "Valor estándar y estable",
+                    "Active",
+                ]
+            )
+
+            # === ESTABILIDAD DEL ENTRENAMIENTO ===
+            writer.writerow(
+                [
+                    "WARMUP_STEPS",
+                    self.config.WARMUP_STEPS,
+                    "int",
+                    "Stability",
+                    "Pasos de calentamiento para estabilizar la simulacion",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_GRADIENT_CLIPPING",
+                    self.config.USE_GRADIENT_CLIPPING,
+                    "bool",
+                    "Stability",
+                    "Previene gradient explosion",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "GRADIENT_CLIP_NORM",
+                    self.config.GRADIENT_CLIP_NORM,
+                    "float",
+                    "Stability",
+                    "Valor estándar",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_HUBER_LOSS",
+                    self.config.USE_HUBER_LOSS,
+                    "bool",
+                    "Stability",
+                    "Más robusto que MSE",
+                    "Active",
+                ]
+            )
+
+            # === TÉCNICAS ACTIVADAS ===
+            writer.writerow(
+                [
+                    "USE_HE_INITIALIZATION",
+                    self.config.USE_HE_INITIALIZATION,
+                    "bool",
+                    "Techniques",
+                    "Segura y estándar",
+                    "Active",
+                ]
+            )
+
+            # === EVALUACIÓN ===
+            writer.writerow(
+                [
+                    "ENABLE_EVALUATION",
+                    self.config.ENABLE_EVALUATION,
+                    "bool",
+                    "Evaluation",
+                    "Importante para monitoreo",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "EVALUATION_EPISODES",
+                    self.config.EVALUATION_EPISODES,
+                    "int",
+                    "Evaluation",
+                    "Episodios de evaluación",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "EVALUATION_FREQUENCY",
+                    self.config.EVALUATION_FREQUENCY,
+                    "int",
+                    "Evaluation",
+                    "Evaluar cada 5 épocas",
+                    "Active",
+                ]
+            )
+
+            # === EARLY STOPPING ===
+            writer.writerow(
+                [
+                    "PATIENCE",
+                    self.config.PATIENCE,
+                    "int",
+                    "Early_Stopping",
+                    "Épocas sin mejora antes de parar",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "MIN_IMPROVEMENT",
+                    self.config.MIN_IMPROVEMENT,
+                    "float",
+                    "Early_Stopping",
+                    "Mejora mínima requerida",
+                    "Active",
+                ]
+            )
+
+            # === TÉCNICAS DESACTIVADAS TEMPORALMENTE ===
+            writer.writerow(
+                [
+                    "USE_NOISY_NETWORKS",
+                    False,
+                    "bool",
+                    "Exploration",
+                    "Evitar conflicto con epsilon",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "learning_rate_decay",
+                    False,
+                    "bool",
+                    "Optimization",
+                    "Mantener LR fijo inicialmente",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "adaptive_lr",
+                    False,
+                    "bool",
+                    "Optimization",
+                    "Una cosa a la vez",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_PRIORITIZED_REPLAY",
+                    False,
+                    "bool",
+                    "Algorithmic",
+                    "Fuente de complejidad - activar después",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_DROPOUT",
+                    False,
+                    "bool",
+                    "Regularization",
+                    "Red simple no necesita regularización",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_BATCH_NORMALIZATION",
+                    False,
+                    "bool",
+                    "Regularization",
+                    "Innecesario para red pequeña",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_RESIDUAL_CONNECTIONS",
+                    False,
+                    "bool",
+                    "Architecture",
+                    "Innecesario para 2 capas",
+                    "Disabled",
+                ]
+            )
+            writer.writerow(
+                [
+                    "USE_LEAKY_RELU",
+                    False,
+                    "bool",
+                    "Architecture",
+                    "ReLU estándar es suficiente",
+                    "Disabled",
+                ]
+            )
+
+            # === INFORMACIÓN DEL ENTORNO DE EJECUCIÓN ===
+            writer.writerow(
+                [
+                    "DEVICE",
+                    self.device,
+                    "str",
+                    "Runtime",
+                    "Dispositivo de ejecución",
+                    "Info",
+                ]
+            )
+            writer.writerow(
+                ["USE_GPU", self.use_gpu, "bool", "Runtime", "Uso de GPU", "Info"]
+            )
+            writer.writerow(
+                [
+                    "MIXED_PRECISION",
+                    self.use_mixed_precision,
+                    "bool",
+                    "Runtime",
+                    "Precisión mixta",
+                    "Info",
+                ]
+            )
+            writer.writerow(
+                [
+                    "XLA_COMPILATION",
+                    self.use_xla,
+                    "bool",
+                    "Runtime",
+                    "Compilación XLA",
+                    "Info",
+                ]
+            )
+
+            # === TIMESTAMP ===
+            writer.writerow(
+                [
+                    "TIMESTAMP",
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "str",
+                    "Metadata",
+                    "Fecha y hora de ejecución",
+                    "Info",
+                ]
+            )
+
+    def _calculate_baseline_performance(self) -> None:
         """Calcula rendimiento baseline con semáforos de tiempo fijo."""
         self.logger.info("📏 Calculando baseline con tiempo fijo...")
 
