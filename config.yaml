@@ -155,6 +155,11 @@ sumo:
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
 
+  # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
+  use_random_seed: False #! Usar semilla aleatoria basada en tiempo actual
+  fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
+  persist_random_seed: True #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
+
 # =========================================================================
 # CONFIGURACIÓN DEL SISTEMA DE REPORTES
 # =========================================================================

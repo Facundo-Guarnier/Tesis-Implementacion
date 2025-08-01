@@ -8,6 +8,7 @@ from traci.exceptions import FatalTraCIError, TraCIException
 
 from src.traffic_system.api.simulation_server import SumoAPI
 from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.config_models import SumoSettings
 from src.traffic_system.simulation.app import SumoApp
 from src.traffic_system.simulation.comparison_logger import ComparisonLogger
 from src.traffic_system.simulation.zones.zone_list import ZoneList
@@ -15,12 +16,46 @@ from src.traffic_system.simulation.zones.zone_list import ZoneList
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("SimulationProvider")
 
+# Variable global para persistir semilla aleatoria entre reinicios
+_persistent_random_seed: int | None = None
+
 
 def start_traci_connection(
-    label: str, config_file: str, use_gui: bool
+    label: str, config_file: str, use_gui: bool, sumo_settings: SumoSettings
 ) -> traci.connection.Connection | Any:
+    global _persistent_random_seed
+
     sumo_binary = "sumo-gui" if use_gui else "sumo"
     command = [sumo_binary, "-c", config_file, "--no-warnings"]
+
+    # Configurar semillas aleatorias según la configuración
+    if sumo_settings.use_random_seed:
+        if sumo_settings.persist_random_seed:
+            # Generar semilla UNA VEZ y reutilizarla en reinicios
+            if _persistent_random_seed is None:
+                import time
+
+                _persistent_random_seed = int(time.time()) % 100000
+                logger.info(
+                    f"🎲 Generando nueva semilla persistente: {_persistent_random_seed}"
+                )
+            else:
+                logger.info(
+                    f"🔄 Reutilizando semilla persistente: {_persistent_random_seed}"
+                )
+
+            command.extend(["--seed", str(_persistent_random_seed)])
+        else:
+            # Generar nueva semilla en CADA reinicio
+            command.append("--random")
+            logger.info("🎲 Generando nueva semilla aleatoria en cada reinicio")
+    elif sumo_settings.fixed_seed is not None:
+        command.extend(["--seed", str(sumo_settings.fixed_seed)])
+        logger.info(f"🎯 Usando semilla fija: {sumo_settings.fixed_seed}")
+    else:
+        # Usar el comportamiento por defecto de SUMO (seed=23423)
+        logger.info("🔄 Usando semilla por defecto de SUMO (23423)")
+
     traci.start(cmd=command, label=label)
     return traci.getConnection(label)
 
@@ -64,14 +99,18 @@ if __name__ == "__main__":
         config_file_path = "assets/sumo_maps/MapaDe0/mapa.sumocfg"
 
         logger.info("Iniciando conexión Traci para la simulación principal (s1)...")
-        traci_s1 = start_traci_connection("s1", config_file_path, settings.sumo.gui)
+        traci_s1 = start_traci_connection(
+            "s1", config_file_path, settings.sumo.gui, settings.sumo
+        )
         app_s1 = SumoApp(
             traci_s1,
             zonas,
             "s1",
             config_file_path,
             settings.sumo.gui,
-            start_traci_connection,
+            lambda label, config, gui: start_traci_connection(
+                label, config, gui, settings.sumo
+            ),
         )
 
         if settings.sumo.comparar:
@@ -79,14 +118,18 @@ if __name__ == "__main__":
             logger.info(
                 "Iniciando conexión Traci para la simulación de comparación (s2)..."
             )
-            traci_s2 = start_traci_connection("s2", config_file_path, settings.sumo.gui)
+            traci_s2 = start_traci_connection(
+                "s2", config_file_path, settings.sumo.gui, settings.sumo
+            )
             app_s2 = SumoApp(
                 traci_s2,
                 zonas,
                 "s2",
                 config_file_path,
                 settings.sumo.gui,
-                start_traci_connection,
+                lambda label, config, gui: start_traci_connection(
+                    label, config, gui, settings.sumo
+                ),
             )
             comparison_logger = ComparisonLogger(interval_seconds=15)
 

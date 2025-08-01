@@ -132,6 +132,17 @@ class SumoSettings(BaseModel):
     path_sumo: str  #! Path de la instalación de SUMO
     simulation_time_limit: int
 
+    # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
+    use_random_seed: bool = (
+        False  # * Usar semilla aleatoria (tiempo actual del sistema)
+    )
+    fixed_seed: int | None = (
+        None  # * Semilla fija específica (None = usar default de SUMO: 23423)
+    )
+    persist_random_seed: bool = (
+        True  # * Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)
+    )
+
 
 class ReporteSettings(BaseModel):
     generar: bool  # * Generar el reporte de la simulación
