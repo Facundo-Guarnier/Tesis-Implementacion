@@ -43,13 +43,23 @@ def get_current_seed_info() -> dict[str, Any]:
             logger.warning(f"No se pudo obtener semilla de SUMO directamente: {e}")
 
             # Fallback: determinar basándose en la configuración
-            if settings.sumo.use_random_seed:
+            # PRIORIDAD: Modo comparación usa semillas deterministas
+            if settings.sumo.comparar:
+                if settings.sumo.fixed_seed is not None:
+                    current_seed = settings.sumo.fixed_seed
+                else:
+                    # Si fixed_seed es null en modo comparación, usar default de SUMO
+                    current_seed = 23423
+            elif settings.sumo.use_random_seed:
                 if settings.sumo.persist_random_seed:
                     # Caso 1: Semilla persistente - usar la almacenada
                     current_seed = _persistent_random_seed
                 else:
-                    # Caso 2: --random cada reinicio - SUMO genera automáticamente
-                    current_seed = "random_generated"
+                    # Caso 2: Nueva semilla cada reinicio - intentar obtener de SUMO
+                    try:
+                        current_seed = traci.simulation.getOption("seed")
+                    except Exception:
+                        current_seed = "random_generated_unknown"
             elif settings.sumo.fixed_seed is not None:
                 # Caso 3: Semilla fija específica
                 current_seed = settings.sumo.fixed_seed
@@ -58,6 +68,7 @@ def get_current_seed_info() -> dict[str, Any]:
                 current_seed = 23423
 
         return {
+            "comparar_mode": settings.sumo.comparar,
             "use_random_seed": settings.sumo.use_random_seed,
             "fixed_seed": settings.sumo.fixed_seed,
             "persist_random_seed": settings.sumo.persist_random_seed,
@@ -67,6 +78,7 @@ def get_current_seed_info() -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"Error obteniendo información de semilla: {e}")
         return {
+            "comparar_mode": None,
             "use_random_seed": None,
             "fixed_seed": None,
             "persist_random_seed": None,
@@ -83,8 +95,20 @@ def start_traci_connection(
     sumo_binary = "sumo-gui" if use_gui else "sumo"
     command = [sumo_binary, "-c", config_file, "--no-warnings"]
 
-    # Configurar semillas aleatorias según la configuración
-    if sumo_settings.use_random_seed:
+    # PRIORIDAD: Modo comparación requiere semillas deterministas
+    if sumo_settings.comparar:
+        if sumo_settings.fixed_seed is not None:
+            command.extend(["--seed", str(sumo_settings.fixed_seed)])
+            logger.info(
+                f"🔬 Modo comparación: usando semilla fija {sumo_settings.fixed_seed} para ambas simulaciones"
+            )
+        else:
+            # Si fixed_seed es null, usar comportamiento por defecto de SUMO (seed=23423)
+            logger.info(
+                "🔬 Modo comparación: usando semilla por defecto de SUMO (23423) para ambas simulaciones"
+            )
+    # MODO NORMAL: Configurar semillas aleatorias según la configuración
+    elif sumo_settings.use_random_seed:
         if sumo_settings.persist_random_seed:
             # Generar semilla UNA VEZ y reutilizarla en reinicios
             if _persistent_random_seed is None:
@@ -102,8 +126,13 @@ def start_traci_connection(
             command.extend(["--seed", str(_persistent_random_seed)])
         else:
             # Generar nueva semilla en CADA reinicio
-            command.append("--random")
-            logger.info("🎲 Generando nueva semilla aleatoria en cada reinicio")
+            import time
+
+            new_random_seed = int(time.time() * 1000000) % 100000
+            command.extend(["--seed", str(new_random_seed)])
+            logger.info(
+                f"🎲 Generando nueva semilla aleatoria en cada reinicio: {new_random_seed}"
+            )
     elif sumo_settings.fixed_seed is not None:
         command.extend(["--seed", str(sumo_settings.fixed_seed)])
         logger.info(f"🎯 Usando semilla fija: {sumo_settings.fixed_seed}")
@@ -170,7 +199,11 @@ if __name__ == "__main__":
             config_file_path,
             settings.sumo.gui,
             lambda label, config, gui: start_traci_connection(
-                label, config, gui, settings.sumo
+                # TODO: Revisar si es necesario pasar settings.sumo aquí
+                label,
+                config,
+                gui,
+                load_app_settings().sumo,
             ),
         )
 
@@ -189,7 +222,11 @@ if __name__ == "__main__":
                 config_file_path,
                 settings.sumo.gui,
                 lambda label, config, gui: start_traci_connection(
-                    label, config, gui, settings.sumo
+                    # TODO: Revisar si es necesario pasar settings.sumo aquí
+                    label,
+                    config,
+                    gui,
+                    load_app_settings().sumo,
                 ),
             )
             comparison_logger = ComparisonLogger(interval_seconds=15)

@@ -38,10 +38,6 @@ decision:
     ] #! Ponderaciones de las zonas
   # ponderaciones_zonas: [1.0, 2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.9, 1.0, 2.9, 2.9]     #! Ponderaciones de las zonas
 
-  # path_modelo_entrenado: "results/training/DQN_2024-04-21_19-55/epoca_18.h5"    #! No funciona: 1235
-  # path_modelo_entrenado: "results/training-2/DQN_2024-05-02_15-33/epoca_14.h5"  #! Si funciona: 1322
-  # path_modelo_entrenado: "results/training/DQN_2024-05-06_12-21/epoca_13.h5" #! Si funciona: 786 ES EL BUENO
-  # path_modelo_entrenado: "results/training/DQN_2024-05-16_11-06/epoca_25.h5"    #! Si funciona: 895
   path_modelo_entrenado: "assets/dqn_models/2024-05-06_12-21-epoca_13.h5"
 
   entrenamiento:
@@ -150,19 +146,16 @@ decision:
 # =========================================================================
 sumo:
   simular: True #* Iniciar simulación de tráfico con SUMO
+
   gui: False #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
   comparar: False #! Modo comparación: Contrastar control RL vs detección YOLO
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
 
-  # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
   fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
   use_random_seed: True #! Usar semilla aleatoria basada en tiempo actual
   persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
 
-# =========================================================================
-# CONFIGURACIÓN DEL SISTEMA DE REPORTES
-# =========================================================================
 reporte:
   generar: False #* Generar reportes automáticos post-simulación
   path_reporte: "results/reportes/" #! Carpeta donde se guardará el reporte
