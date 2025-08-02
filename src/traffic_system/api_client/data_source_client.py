@@ -123,6 +123,8 @@ class DecisionAPI:
             f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
         )
 
+        logger.info(f"🔍 Verificando estado de la simulación {self.base_url}...")
+
         try:
             # Usamos APIRequestHelper.safe_request para consistencia
             response_data = APIRequestHelper.safe_request(self.base_url, "/simulacion")

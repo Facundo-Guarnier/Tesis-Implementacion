@@ -34,10 +34,6 @@ MIXED_PRECISION_AVAILABLE = (
     importlib.util.find_spec("tensorflow.keras.mixed_precision") is not None
 )
 
-# =============================================================================
-# 🔧 CONFIGURACIONES HARDCODED - BASE SEGURA Y RECOMENDADA
-# =============================================================================
-
 
 class SimplifiedDQNConfig:
     """Configuraciones simplificadas hardcoded para entrenamiento estable."""
@@ -91,9 +87,6 @@ class SimplifiedDQNConfig:
     # === EARLY STOPPING ===
     PATIENCE = 10  # Épocas sin mejora antes de parar
     MIN_IMPROVEMENT = 0.01  # Mejora mínima requerida
-
-
-# =============================================================================
 
 
 class SimplifiedDQNTrainer:
@@ -419,9 +412,12 @@ class SimplifiedDQNTrainer:
         )
 
         # Combinar: Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
-        advantage_mean = tf.keras.layers.Lambda(
-            lambda x: tf.reduce_mean(x, axis=1, keepdims=True), name="advantage_mean"
-        )(advantage)
+        advantage_reshaped = tf.keras.layers.Reshape((-1, 1), name="advantage_reshape")(
+            advantage
+        )
+        advantage_mean = tf.keras.layers.GlobalAveragePooling1D(name="advantage_mean")(
+            advantage_reshaped
+        )
 
         q_values = tf.keras.layers.Add(name="q_values")(
             [
