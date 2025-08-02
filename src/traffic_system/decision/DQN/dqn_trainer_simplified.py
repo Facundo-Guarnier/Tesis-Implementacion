@@ -1128,6 +1128,8 @@ class SimplifiedDQNTrainer:
 
             # Guardar modelo
             self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}.h5"))
+            self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}.keras"))
+            self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}"))
 
             # Log de progreso
             self.logger.info(
