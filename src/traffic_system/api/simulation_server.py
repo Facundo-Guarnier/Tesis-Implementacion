@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from flask import Flask, Response, jsonify, request
@@ -34,12 +35,14 @@ class SumoAPI(Flask):
         app_s1: SumoApp,
         app_s2: SumoApp | None = None,
         comparison_logger: Any = None,
+        seed_info_callback: Callable | None = None,
     ) -> None:
         super().__init__(name)
 
         self.app_s1 = app_s1
         self.app_s2 = app_s2
         self.comparison_logger = comparison_logger
+        self.seed_info_callback = seed_info_callback
 
         # CONFIGURAR SMART LOGGING para evitar spam
         # self.smart_logger = create_smart_logger("SumoAPI", SIMULATION_LOGGER_CONFIG)
@@ -97,10 +100,20 @@ class SumoAPI(Flask):
             )
             # Limpiar el flag y devolver done=True
             self._simulation_ended_during_traffic_light_change = False
+
+            # Obtener información de semilla si hay callback disponible
+            seed_info = None
+            if self.seed_info_callback:
+                try:
+                    seed_info = self.seed_info_callback()
+                except Exception as e:
+                    self.logger.warning(f"Error obteniendo información de semilla: {e}")
+
             response = SimulationStepResponse(
                 done=True,
                 current_time=DEFAULT_SIMULATION_TIME,
                 vehicles_count=DEFAULT_VEHICLES_COUNT,
+                info=seed_info,
             )
             return jsonify(response.model_dump()), 200
 
@@ -176,14 +189,24 @@ class SumoAPI(Flask):
         if self.comparison_logger and self.app_s2 and not done:
             self.comparison_logger.log_if_needed(self.app_s1, self.app_s2)
 
+        # Obtener información de semilla SIEMPRE si hay callback disponible
+        seed_info = None
+        if self.seed_info_callback:
+            try:
+                seed_info = self.seed_info_callback()
+            except Exception as e:
+                self.logger.warning(f"Error obteniendo información de semilla: {e}")
+
         # Crear respuesta tipada usando SIEMPRE los estados capturados ANTES de advance()
         # Esto garantiza consistencia independientemente de reinicios
         if done:
             # Reportar tiempo 0 cuando done=True para consistencia con logs esperados
+
             response = SimulationStepResponse(
                 done=True,  # Usar valor determinado, no verificar estado actual
                 current_time=DEFAULT_SIMULATION_TIME,
                 vehicles_count=DEFAULT_VEHICLES_COUNT,
+                info=seed_info,
             )
         else:
             # Usar SIEMPRE los estados capturados antes de advance() para evitar race conditions
@@ -220,6 +243,7 @@ class SumoAPI(Flask):
                 done=False,  # Usar valor determinado, no verificar estado actual
                 current_time=final_time,
                 vehicles_count=final_vehicles,
+                info=seed_info,
             )
 
         return jsonify(response.model_dump()), 200

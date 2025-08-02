@@ -18,9 +18,61 @@ logger = logging.getLogger("SimulationProvider")
 
 # Variable global para persistir semilla aleatoria entre reinicios
 _persistent_random_seed: int | None = None
-
 IP_SERVICIO = "0.0.0.0"
 PUERTO = 5000
+
+
+def get_current_seed_info() -> dict[str, Any]:
+    """
+    Obtiene la información actual de semilla y configuración SUMO.
+
+    Returns:
+        Dict con información de semilla para enviar via API
+    """
+    global _persistent_random_seed
+
+    try:
+        settings = load_app_settings()
+
+        # Obtener la semilla REAL que está usando SUMO actualmente
+        current_seed = None
+        try:
+            # Intentar obtener la semilla actual directamente de SUMO
+            current_seed = traci.simulation.getOption("seed")
+        except Exception as e:
+            logger.warning(f"No se pudo obtener semilla de SUMO directamente: {e}")
+
+            # Fallback: determinar basándose en la configuración
+            if settings.sumo.use_random_seed:
+                if settings.sumo.persist_random_seed:
+                    # Caso 1: Semilla persistente - usar la almacenada
+                    current_seed = _persistent_random_seed
+                else:
+                    # Caso 2: --random cada reinicio - SUMO genera automáticamente
+                    current_seed = "random_generated"
+            elif settings.sumo.fixed_seed is not None:
+                # Caso 3: Semilla fija específica
+                current_seed = settings.sumo.fixed_seed
+            else:
+                # Caso 4: Semilla por defecto de SUMO
+                current_seed = 23423
+
+        return {
+            "use_random_seed": settings.sumo.use_random_seed,
+            "fixed_seed": settings.sumo.fixed_seed,
+            "persist_random_seed": settings.sumo.persist_random_seed,
+            "current_persistent_seed": _persistent_random_seed,
+            "current_seed": current_seed,  # Semilla REAL que usa SUMO
+        }
+    except Exception as e:
+        logger.warning(f"Error obteniendo información de semilla: {e}")
+        return {
+            "use_random_seed": None,
+            "fixed_seed": None,
+            "persist_random_seed": None,
+            "current_persistent_seed": _persistent_random_seed,
+            "current_seed": None,
+        }
 
 
 def start_traci_connection(
@@ -70,7 +122,11 @@ def api_service(
 
     try:
         api = SumoAPI(
-            name="API_SUMO", app_s1=app_s1, app_s2=app_s2, comparison_logger=comp_logger
+            name="API_SUMO",
+            app_s1=app_s1,
+            app_s2=app_s2,
+            comparison_logger=comp_logger,
+            seed_info_callback=get_current_seed_info,
         )
         api.run(host=IP_SERVICIO, port=PUERTO, debug=False, threaded=False)
     except Exception as e:

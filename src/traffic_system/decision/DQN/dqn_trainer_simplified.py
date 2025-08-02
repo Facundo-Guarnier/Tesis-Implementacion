@@ -153,6 +153,12 @@ class SimplifiedDQNTrainer:
         self.epoch_efficiency_bonuses: list[float] = []
         self.initial_state_q_value = 0.0
         self.step_count = 0
+        self.last_seed_info: dict | None = (
+            None  # Información de semilla del último reset
+        )
+        self.initial_seed_config: dict | None = (
+            None  # Configuración SUMO obtenida al inicio
+        )
 
         # Configurar GPU/CPU
         self._configure_device()
@@ -873,7 +879,7 @@ class SimplifiedDQNTrainer:
 
     def _execute_action_and_advance(
         self, action_index: int
-    ) -> tuple[NDArray, float, bool, float, float, float]:
+    ) -> tuple[NDArray, float, bool, float, float, float, dict | None]:
         """Ejecuta acción y avanza simulación."""
         # Ejecutar acción
         action_phases_str = self._action_space[action_index]
@@ -886,6 +892,7 @@ class SimplifiedDQNTrainer:
             raise RuntimeError("No se pudo avanzar la simulación")
 
         done = response.done
+        seed_info = response.info if hasattr(response, "info") else None
 
         # Actualizar datos
         self._update_simulation_data()
@@ -903,6 +910,7 @@ class SimplifiedDQNTrainer:
             wait_penalty,
             congestion_penalty,
             efficiency_bonus,
+            seed_info,
         )
 
     def _calculate_reward(self) -> float:
@@ -1078,11 +1086,17 @@ class SimplifiedDQNTrainer:
                     wait_penalty,
                     congestion_penalty,
                     efficiency_bonus,
+                    seed_info,
                 ) = self._execute_action_and_advance(action)
 
                 self.epoch_wait_penalties.append(wait_penalty)
                 self.epoch_congestion_penalties.append(congestion_penalty)
                 self.epoch_efficiency_bonuses.append(efficiency_bonus)
+
+                # Capturar información de semilla cuando done=True
+                if done and seed_info:
+                    self.last_seed_info = seed_info
+                    self.logger.info(f"🎲 Época completada con semilla: {seed_info}")
 
                 # Almacenar experiencia
                 self._remember(state, action, reward, next_state, done)
@@ -1129,7 +1143,6 @@ class SimplifiedDQNTrainer:
             # Guardar modelo
             self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}.h5"))
             self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}.keras"))
-            self.model.save(os.path.join(self._save_path, f"epoch_{epoch + 1}"))
 
             # Log de progreso
             self.logger.info(
@@ -1211,12 +1224,23 @@ class SimplifiedDQNTrainer:
                         "Recompensa_Bonus_Eficiencia",
                         "Replay_Count",
                         "Memory_Size",
+                        "SUMO_Current_Real_Seed",
                     ]
                 )
 
         # Añadir métricas de la época
         with open(csv_path, "a", newline="") as f:
             writer = csv.writer(f)
+
+            # Obtener semilla de la información capturada
+            current_seed = None
+            if self.last_seed_info:
+                # Priorizar current_seed (semilla real) sobre current_persistent_seed
+                if "current_seed" in self.last_seed_info:
+                    current_seed = self.last_seed_info["current_seed"]
+                elif "current_persistent_seed" in self.last_seed_info:
+                    current_seed = self.last_seed_info["current_persistent_seed"]
+
             writer.writerow(
                 [
                     epoch,
@@ -1236,6 +1260,7 @@ class SimplifiedDQNTrainer:
                     f"{avg_efficiency_bonus:.2f}",
                     replay_count,
                     len(self.memory),
+                    current_seed,
                 ]
             )
 
@@ -1249,13 +1274,38 @@ class SimplifiedDQNTrainer:
 
         self.logger.info("✅ Simulador listo")
 
-        self._save_hyperparameters()
+        # Obtener configuración SUMO al inicio y guardar hiperparámetros
+        self._get_sumo_config_and_save_hyperparameters()
 
         self._calculate_baseline_performance()
 
         self._train_agent()
 
         self.logger.info("🎉 Proceso completo terminado")
+
+    def _get_sumo_config_and_save_hyperparameters(self) -> None:
+        """
+        Obtiene la configuración SUMO por API al inicio del entrenamiento
+        y guarda todos los hiperparámetros incluyendo la configuración SUMO.
+        """
+        # Obtener configuración SUMO por API
+        try:
+            # Hacer una llamada con 1 step para obtener la configuración SUMO via info
+            response = self._api.advance_simulation(steps=1)
+            if response and hasattr(response, "info") and response.info:
+                self.initial_seed_config = response.info
+                self.logger.info(
+                    f"✅ Configuración SUMO obtenida: {self.initial_seed_config}"
+                )
+            else:
+                self.logger.warning("⚠️ No se pudo obtener configuración SUMO inicial")
+                self.initial_seed_config = None
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error obteniendo configuración SUMO: {e}")
+            self.initial_seed_config = None
+
+        # Guardar hiperparámetros incluyendo configuración SUMO
+        self._save_hyperparameters()
 
     def _save_hyperparameters(self) -> None:
         """Guarda TODOS los hiperparámetros de SimplifiedDQNConfig."""
@@ -1642,39 +1692,6 @@ class SimplifiedDQNTrainer:
                 ]
             )
 
-            sumo_settings = load_app_settings().sumo
-
-            writer.writerow(
-                [
-                    "SUMO_USE_RANDOM_SEED",
-                    sumo_settings.use_random_seed,
-                    "bool",
-                    "SUMO_Seeds",
-                    "Usar semilla aleatoria vs determinística",
-                    "Active",
-                ]
-            )
-            writer.writerow(
-                [
-                    "SUMO_FIXED_SEED",
-                    sumo_settings.fixed_seed,
-                    "int|null",
-                    "SUMO_Seeds",
-                    "Semilla específica para reproducibilidad",
-                    "Active",
-                ]
-            )
-            writer.writerow(
-                [
-                    "SUMO_PERSIST_RANDOM_SEED",
-                    sumo_settings.persist_random_seed,
-                    "bool",
-                    "SUMO_Seeds",
-                    "Reutilizar semilla entre reinicios",
-                    "Active",
-                ]
-            )
-
             # === TIMESTAMP ===
             writer.writerow(
                 [
@@ -1686,6 +1703,39 @@ class SimplifiedDQNTrainer:
                     "Info",
                 ]
             )
+
+            # === CONFIGURACIÓN SUMO (obtenida por API) ===
+            if hasattr(self, "initial_seed_config") and self.initial_seed_config:
+                writer.writerow(
+                    [
+                        "SUMO_USE_RANDOM_SEED",
+                        self.initial_seed_config.get("use_random_seed", "Unknown"),
+                        "bool",
+                        "SUMO_Config",
+                        "Usar semilla aleatoria vs determinística",
+                        "Active",
+                    ]
+                )
+                writer.writerow(
+                    [
+                        "SUMO_FIXED_SEED",
+                        self.initial_seed_config.get("fixed_seed", "Unknown"),
+                        "int|null",
+                        "SUMO_Config",
+                        "Semilla específica para reproducibilidad",
+                        "Active",
+                    ]
+                )
+                writer.writerow(
+                    [
+                        "SUMO_PERSIST_RANDOM_SEED",
+                        self.initial_seed_config.get("persist_random_seed", "Unknown"),
+                        "bool",
+                        "SUMO_Config",
+                        "Reutilizar semilla entre reinicios",
+                        "Active",
+                    ]
+                )
 
     def _calculate_baseline_performance(self) -> None:
         """Calcula rendimiento baseline con semáforos de tiempo fijo."""
