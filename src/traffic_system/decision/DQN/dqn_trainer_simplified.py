@@ -1642,6 +1642,39 @@ class SimplifiedDQNTrainer:
                 ]
             )
 
+            sumo_settings = load_app_settings().sumo
+
+            writer.writerow(
+                [
+                    "SUMO_USE_RANDOM_SEED",
+                    sumo_settings.use_random_seed,
+                    "bool",
+                    "SUMO_Seeds",
+                    "Usar semilla aleatoria vs determinística",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "SUMO_FIXED_SEED",
+                    sumo_settings.fixed_seed,
+                    "int|null",
+                    "SUMO_Seeds",
+                    "Semilla específica para reproducibilidad",
+                    "Active",
+                ]
+            )
+            writer.writerow(
+                [
+                    "SUMO_PERSIST_RANDOM_SEED",
+                    sumo_settings.persist_random_seed,
+                    "bool",
+                    "SUMO_Seeds",
+                    "Reutilizar semilla entre reinicios",
+                    "Active",
+                ]
+            )
+
             # === TIMESTAMP ===
             writer.writerow(
                 [

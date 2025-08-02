@@ -3093,6 +3093,27 @@ class DQNTrainer:
 
             writer.writerow(hyperparams_values + system_values)
 
+            # === CONFIGURACIÓN DE SEMILLAS SUMO ===
+            from src.traffic_system.core.config_loader import load_app_settings
+
+            sumo_settings = load_app_settings().sumo
+
+            # Agregar encabezados de semillas SUMO
+            sumo_headers = [
+                "SUMO Use Random Seed",
+                "SUMO Fixed Seed",
+                "SUMO Persist Random Seed",
+            ]
+            writer.writerow(sumo_headers)
+
+            # Agregar valores de semillas SUMO
+            sumo_values = [
+                sumo_settings.use_random_seed,
+                sumo_settings.fixed_seed,
+                sumo_settings.persist_random_seed,
+            ]
+            writer.writerow(sumo_values)
+
             logger.info(" 💾 Hiperparámetros e información del sistema guardados")
             logger.info(
                 f" 🎯 Entrenamiento: {system_info['dispositivo']} ({system_info['gpu_nombre']})"
