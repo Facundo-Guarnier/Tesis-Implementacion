@@ -19,6 +19,9 @@ logger = logging.getLogger("SimulationProvider")
 # Variable global para persistir semilla aleatoria entre reinicios
 _persistent_random_seed: int | None = None
 
+IP_SERVICIO = "0.0.0.0"
+PUERTO = 5000
+
 
 def start_traci_connection(
     label: str, config_file: str, use_gui: bool, sumo_settings: SumoSettings
@@ -69,7 +72,7 @@ def api_service(
         api = SumoAPI(
             name="API_SUMO", app_s1=app_s1, app_s2=app_s2, comparison_logger=comp_logger
         )
-        api.run(host="0.0.0.0", port=5000, debug=False, threaded=False)
+        api.run(host=IP_SERVICIO, port=PUERTO, debug=False, threaded=False)
     except Exception as e:
         logger.error(f"No se pudo iniciar el servicio API: {e}", exc_info=True)
 
@@ -83,6 +86,8 @@ def shutdown_handler(sig_num: int, frame: Any) -> None:
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, shutdown_handler)
     logger.info("✅ Iniciando el Servicio de Proveedor de Datos por Simulación...")
+    logger.info(f"   IP: {IP_SERVICIO}")
+    logger.info(f"   Puerto: {PUERTO}")
 
     try:
         settings = load_app_settings()
