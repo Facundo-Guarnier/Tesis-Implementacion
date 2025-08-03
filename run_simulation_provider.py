@@ -19,7 +19,7 @@ logger = logging.getLogger("SimulationProvider")
 # Variable global para persistir semilla aleatoria entre reinicios
 _persistent_random_seed: int | None = None
 IP_SERVICIO = "0.0.0.0"
-PUERTO = 5001
+PUERTO = 5000
 
 
 def get_current_seed_info() -> dict[str, Any]:
