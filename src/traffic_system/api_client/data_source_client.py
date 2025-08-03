@@ -18,9 +18,10 @@ from src.traffic_system.core.api_models import (
 
 
 class DecisionAPI:
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, infinite_retry: bool = False) -> None:
         logging.basicConfig(level=logging.DEBUG)
         self.base_url = base_url
+        self.infinite_retry = infinite_retry
 
     def get_quantities(self) -> VehicleQuantitiesResponse | None:
         """
@@ -30,7 +31,10 @@ class DecisionAPI:
             VehicleQuantitiesResponse | None: Respuesta tipada con cantidades por zona
         """
         return APIRequestHelper.safe_request_with_validation(
-            self.base_url, "/cantidad", VehicleQuantitiesResponse
+            self.base_url,
+            "/cantidad",
+            VehicleQuantitiesResponse,
+            infinite_retry=self.infinite_retry,
         )
 
     def get_zone_quantity(self, zona_name: str) -> VehicleQuantitiesResponse | None:
@@ -38,7 +42,10 @@ class DecisionAPI:
         Obtener la cantidad de vehículos en una zona específica.
         """
         return APIRequestHelper.safe_request_with_validation(
-            self.base_url, f"/cantidad/{zona_name}", VehicleQuantitiesResponse
+            self.base_url,
+            f"/cantidad/{zona_name}",
+            VehicleQuantitiesResponse,
+            infinite_retry=self.infinite_retry,
         )
 
     def get_all_traffic_light_states(self) -> TrafficLightStatesResponse | None:
@@ -49,7 +56,10 @@ class DecisionAPI:
             TrafficLightStatesResponse | None: Respuesta tipada con estados de semáforos
         """
         return APIRequestHelper.safe_request_with_validation(
-            self.base_url, "/semaforo", TrafficLightStatesResponse
+            self.base_url,
+            "/semaforo",
+            TrafficLightStatesResponse,
+            infinite_retry=self.infinite_retry,
         )
 
     def get_traffic_light_state(
@@ -59,7 +69,10 @@ class DecisionAPI:
         Obtener el estado de un semáforo.
         """
         return APIRequestHelper.safe_request_with_validation(
-            self.base_url, f"/semaforo/{light_id}", TrafficLightStateResponse
+            self.base_url,
+            f"/semaforo/{light_id}",
+            TrafficLightStateResponse,
+            infinite_retry=self.infinite_retry,
         )
 
     def get_zone_wait_time(self, zone_id: str) -> WaitTimesResponse | None:
@@ -67,7 +80,10 @@ class DecisionAPI:
         Obtener el tiempo total de espera de una zona en la simulación.
         """
         return APIRequestHelper.safe_request_with_validation(
-            self.base_url, f"/espera/{zone_id}", WaitTimesResponse
+            self.base_url,
+            f"/espera/{zone_id}",
+            WaitTimesResponse,
+            infinite_retry=self.infinite_retry,
         )
 
     def get_wait_times(self) -> WaitTimesResponse | None:
@@ -78,7 +94,10 @@ class DecisionAPI:
             WaitTimesResponse | None: Respuesta tipada con tiempos de espera
         """
         return APIRequestHelper.safe_request_with_validation(
-            self.base_url, "/espera", WaitTimesResponse
+            self.base_url,
+            "/espera",
+            WaitTimesResponse,
+            infinite_retry=self.infinite_retry,
         )
 
     def advance_simulation(self, steps: int) -> SimulationStepResponse | None:
@@ -97,6 +116,7 @@ class DecisionAPI:
             SimulationStepResponse,
             method="PUT",
             params={"steps": steps},
+            infinite_retry=self.infinite_retry,
         )
 
     def set_traffic_light_states(self, states: list[str]) -> SuccessResponse | None:
@@ -113,6 +133,7 @@ class DecisionAPI:
             SuccessResponse,
             method="PUT",
             json={"data": data_payload},
+            infinite_retry=self.infinite_retry,
         )
 
     def is_simulation_running(self) -> bool:
@@ -127,7 +148,9 @@ class DecisionAPI:
 
         try:
             # Usamos APIRequestHelper.safe_request para consistencia
-            response_data = APIRequestHelper.safe_request(self.base_url, "/simulacion")
+            response_data = APIRequestHelper.safe_request(
+                self.base_url, "/simulacion", infinite_retry=self.infinite_retry
+            )
             if response_data is None:
                 logger.error("❌ La API no está disponible")
                 return False
@@ -152,7 +175,7 @@ class DecisionAPI:
         )
         try:
             response_data = APIRequestHelper.safe_request(
-                self.base_url, "/sincronizacion"
+                self.base_url, "/sincronizacion", infinite_retry=self.infinite_retry
             )
             if response_data is not None:
                 sync_response = SynchronizationResponse.model_validate(response_data)

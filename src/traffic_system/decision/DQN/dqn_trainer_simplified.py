@@ -108,7 +108,9 @@ class SimplifiedDQNTrainer:
         self.settings = load_app_settings()
 
         # API y estado
-        self._api = DecisionAPI(self.settings.base_url)
+        self._api = DecisionAPI(
+            self.settings.base_url, infinite_retry=False
+        )  # Sin reintentos infinitos en entrenamiento
         self._setup_action_space()
         self.state_size = (
             48  # 12 tiempos + 12 cantidades + 12 tiempos_prev + 12 cantidades_prev

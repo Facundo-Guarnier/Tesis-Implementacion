@@ -24,7 +24,19 @@ class DQNModel:
         self.settings = load_app_settings()
         self.decision_settings = load_app_settings().decision
 
-        self._service = DecisionAPI(self.settings.base_url)
+        # Determinar si estamos en modo entrenamiento para configurar reintentos infinitos
+        is_training_mode = self.decision_settings.entrenamiento.entrenar
+        infinite_retry = (
+            not is_training_mode
+        )  # Reintentos infinitos solo cuando NO estamos entrenando
+
+        logging.info(
+            f"🔧 Modo entrenamiento: {is_training_mode}, Reintentos infinitos: {infinite_retry}"
+        )
+
+        self._service = DecisionAPI(
+            self.settings.base_url, infinite_retry=infinite_retry
+        )
 
         # Cargar modelo con manejo de compatibilidad
         try:

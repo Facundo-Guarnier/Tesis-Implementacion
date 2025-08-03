@@ -127,7 +127,9 @@ class DQNTrainer:
         self._setup_replay_buffer()
 
         # CONFIGURACIÓN DE API Y ESTADO
-        self._api = DecisionAPI(self.settings.base_url)
+        self._api = DecisionAPI(
+            self.settings.base_url, infinite_retry=False
+        )  # Sin reintentos infinitos en entrenamiento
         self._setup_state_management()
 
         # CONFIGURACIÓN DE HIPERPARÁMETROS

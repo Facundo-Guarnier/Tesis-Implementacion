@@ -38,7 +38,7 @@ decision:
     ] #! Ponderaciones de las zonas
   # ponderaciones_zonas: [1.0, 2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.9, 1.0, 2.9, 2.9]     #! Ponderaciones de las zonas
 
-  path_modelo_entrenado: "assets/dqn_models/2024-05-06_12-21-epoca_13.h5"
+  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.keras"
 
   entrenamiento:
     entrenar: True #* Iniciar proceso de entrenamiento del agente DQN

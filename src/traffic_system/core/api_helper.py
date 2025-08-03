@@ -6,6 +6,7 @@ y manejo de errores consistente a través de todo el proyecto.
 """
 
 import logging
+import time
 from typing import Any, TypeVar
 
 import requests
@@ -30,6 +31,7 @@ class APIRequestHelper:
         endpoint: str,
         method: str = "GET",
         timeout: int = DEFAULT_TIMEOUT,
+        infinite_retry: bool = False,
         **kwargs: Any,
     ) -> dict[str, Any] | None:
         """
@@ -40,6 +42,7 @@ class APIRequestHelper:
             endpoint: Endpoint específico (ej: "/data")
             method: Método HTTP ("GET", "PUT", "POST", etc.)
             timeout: Timeout en segundos (default: 30)
+            infinite_retry: Si debe reintentar indefinidamente en caso de error (default: False)
             **kwargs: Argumentos adicionales para requests (params, json, etc.)
 
         Returns:
@@ -48,37 +51,51 @@ class APIRequestHelper:
         logger = logging.getLogger("APIRequestHelper.safe_request")
         full_url = base_url + endpoint
 
-        try:
-            if method == "GET":
-                response = requests.get(full_url, timeout=timeout, **kwargs)
-            elif method == "PUT":
-                response = requests.put(full_url, timeout=timeout, **kwargs)
-            elif method == "POST":
-                response = requests.post(full_url, timeout=timeout, **kwargs)
-            elif method == "DELETE":
-                response = requests.delete(full_url, timeout=timeout, **kwargs)
-            else:
-                logger.error(f"Método HTTP no soportado: {method}")
-                return None
+        while True:  # Bucle infinito cuando infinite_retry=True
+            try:
+                if method == "GET":
+                    response = requests.get(full_url, timeout=timeout, **kwargs)
+                elif method == "PUT":
+                    response = requests.put(full_url, timeout=timeout, **kwargs)
+                elif method == "POST":
+                    response = requests.post(full_url, timeout=timeout, **kwargs)
+                elif method == "DELETE":
+                    response = requests.delete(full_url, timeout=timeout, **kwargs)
+                else:
+                    logger.error(f"Método HTTP no soportado: {method}")
+                    return None
 
-            if response.status_code == 200:
-                if "application/json" in response.headers.get("Content-Type", ""):
-                    json_data: dict[str, Any] = response.json()
-                    return json_data
+                if response.status_code == 200:
+                    if "application/json" in response.headers.get("Content-Type", ""):
+                        json_data: dict[str, Any] = response.json()
+                        return json_data
+                    else:
+                        logger.warning(
+                            f"Respuesta con Content-Type inválido en {endpoint}: {response.headers.get('Content-Type')}"
+                        )
+                        if not infinite_retry:
+                            return None
                 else:
                     logger.warning(
-                        f"Respuesta con Content-Type inválido en {endpoint}: {response.headers.get('Content-Type')}"
+                        f"Respuesta no exitosa en {endpoint}: {response.status_code}"
                     )
-                    return None
-            else:
-                logger.warning(
-                    f"Respuesta no exitosa en {endpoint}: {response.status_code}"
-                )
-                return None
+                    if not infinite_retry:
+                        return None
 
-        except requests.RequestException as e:
-            logger.error(f"Error de conexión al endpoint {endpoint}: {e}")
-            return None
+            except requests.RequestException as e:
+                logger.error(f"Error de conexión al endpoint {endpoint}: {e}")
+                if not infinite_retry:
+                    return None
+
+            # Si infinite_retry=True, continuar el bucle con una pausa
+            if infinite_retry:
+                logger.info(f"🔄 Reintentando conexión a {endpoint} en 2 segundos...")
+                time.sleep(2)
+            else:
+                # Si infinite_retry=False, salir del bucle
+                break
+
+        return None
 
     @staticmethod
     def safe_request_with_validation(
@@ -87,6 +104,7 @@ class APIRequestHelper:
         response_model: type[T],
         method: str = "GET",
         timeout: int = DEFAULT_TIMEOUT,
+        infinite_retry: bool = False,
         **kwargs: Any,
     ) -> T | None:
         """
@@ -98,6 +116,7 @@ class APIRequestHelper:
             response_model: Modelo Pydantic para validar la respuesta
             method: Método HTTP
             timeout: Timeout en segundos
+            infinite_retry: Si debe reintentar indefinidamente en caso de error
             **kwargs: Argumentos adicionales para requests
 
         Returns:
@@ -107,7 +126,7 @@ class APIRequestHelper:
 
         # Hacer el request
         response_data = APIRequestHelper.safe_request(
-            base_url, endpoint, method, timeout, **kwargs
+            base_url, endpoint, method, timeout, infinite_retry, **kwargs
         )
 
         if response_data is None:
