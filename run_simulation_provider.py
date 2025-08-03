@@ -18,8 +18,6 @@ logger = logging.getLogger("SimulationProvider")
 
 # Variable global para persistir semilla aleatoria entre reinicios
 _persistent_random_seed: int | None = None
-IP_SERVICIO = "0.0.0.0"
-PUERTO = 5000
 
 
 def get_current_seed_info() -> dict[str, Any]:
@@ -145,7 +143,10 @@ def start_traci_connection(
 
 
 def api_service(
-    app_s1: SumoApp, app_s2: SumoApp | None, comp_logger: ComparisonLogger | None
+    app_s1: SumoApp,
+    app_s2: SumoApp | None,
+    comp_logger: ComparisonLogger | None,
+    sumo_settings: SumoSettings,
 ) -> None:
     logger.info("Iniciando el servicio API de SUMO...")
 
@@ -157,7 +158,12 @@ def api_service(
             comparison_logger=comp_logger,
             seed_info_callback=get_current_seed_info,
         )
-        api.run(host=IP_SERVICIO, port=PUERTO, debug=False, threaded=False)
+        api.run(
+            host=sumo_settings.service_ip,
+            port=sumo_settings.port,
+            debug=False,
+            threaded=False,
+        )
     except Exception as e:
         logger.error(f"No se pudo iniciar el servicio API: {e}", exc_info=True)
 
@@ -170,12 +176,12 @@ def shutdown_handler(sig_num: int, frame: Any) -> None:
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, shutdown_handler)
-    logger.info("✅ Iniciando el Servicio de Proveedor de Datos por Simulación...")
-    logger.info(f"   IP: {IP_SERVICIO}")
-    logger.info(f"   Puerto: {PUERTO}")
 
     try:
         settings = load_app_settings()
+        logger.info("✅ Iniciando el Servicio de Proveedor de Datos por Simulación...")
+        logger.info(f"   IP: {settings.sumo.service_ip}")
+        logger.info(f"   Puerto: {settings.sumo.port}")
     except Exception as e:
         logger.error(f"Error cargando la configuración: {e}")
         sys.exit(1)
@@ -254,7 +260,7 @@ if __name__ == "__main__":
         # Las simulaciones son pasivas. No se inician hilos para ellas.
         # La API se inicia en el hilo principal y bloquea la ejecución,
         # esperando llamadas para avanzar las simulaciones.
-        api_service(app_s1, app_s2, comparison_logger)
+        api_service(app_s1, app_s2, comparison_logger, settings.sumo)
 
     except (TraCIException, FatalTraCIError) as e:
         logger.error(f"Error fatal al iniciar Traci: {e}")

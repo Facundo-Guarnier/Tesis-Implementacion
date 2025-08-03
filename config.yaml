@@ -149,6 +149,9 @@ sumo:
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
 
+  service_ip: "0.0.0.0" #! IP del servidor del servicio de simulación SUMO
+  port: 5000 #! Puerto del servidor del servicio de simulación SUMO
+
   fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
   use_random_seed: True #! Usar semilla aleatoria basada en tiempo actual
   persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)

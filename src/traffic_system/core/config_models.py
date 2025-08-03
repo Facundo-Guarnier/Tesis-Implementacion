@@ -131,6 +131,8 @@ class SumoSettings(BaseModel):
     comparar: bool  #! Comparar la simulación con la detección de objetos
     path_sumo: str  #! Path de la instalación de SUMO
     simulation_time_limit: int
+    service_ip: str  #! IP del servidor del servicio de simulación SUMO
+    port: int  #! Puerto del servidor del servicio de simulación SUMO
 
     # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
     use_random_seed: bool = (
