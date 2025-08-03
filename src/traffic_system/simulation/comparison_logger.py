@@ -68,9 +68,12 @@ class ComparisonLogger:
         self._stats["s1"]["wait_time"] += t1
         self._stats["s2"]["wait_time"] += t2
 
-        # --- Cantidad de vehículos ---
-        v1 = app_s1.get_vehicle_count()
-        v2 = app_s2.get_vehicle_count()
+        # --- Cantidad de vehículos en zonas ---
+        # Obtener suma de vehículos en todas las zonas (no total de simulación)
+        zones_s1 = app_s1.get_vehicle_counts_by_zone()
+        zones_s2 = app_s2.get_vehicle_counts_by_zone()
+        v1 = sum(zones_s1.values())  # Suma de vehículos en todas las zonas S1
+        v2 = sum(zones_s2.values())  # Suma de vehículos en todas las zonas S2
         self._stats["s1"]["vehicles"] += v1
         self._stats["s2"]["vehicles"] += v2
 
@@ -96,7 +99,7 @@ class ComparisonLogger:
             f" Promedio S1: {self._stats['s1']['wait_time']/self._report_count:.2f}s | Promedio S2: {self._stats['s2']['wait_time']/self._report_count:.2f}s"
         )
         self.logger.info(
-            "----------------------- Cantidad de vehiculos -----------------------------"
+            "----------------------- Vehiculos en zonas --------------------------------"
         )
         self.logger.info(f" S1 (API): {v1}  |  S2 (Normal): {v2}")
         self.logger.info(

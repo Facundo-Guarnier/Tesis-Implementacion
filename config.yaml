@@ -141,9 +141,6 @@ decision:
     # use_distributional_dqn: False #* 🧪 C51/Rainbow - Predecir distribución de Q-values
     # use_target_soft_updates: False #* 🧪 Soft updates τ=0.005 vs hard copy completa
 
-# =========================================================================
-# CONFIGURACIÓN DEL SIMULADOR SUMO
-# =========================================================================
 sumo:
   simular: True #* Iniciar simulación de tráfico con SUMO
 
