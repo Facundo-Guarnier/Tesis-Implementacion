@@ -54,7 +54,7 @@ class SimplifiedDQNConfig:
     # USE_NOISY_NETWORKS = False  # ❌ DESACTIVADO: Evitar conflicto con epsilon
     EPSILON = 1.0  # 100% exploración inicial
     EPSILON_DECAY = 0.95  # Decay lento para explorar durante más tiempo
-    EPSILON_MIN = 0.1  # 10% exploración mínima
+    EPSILON_MIN = 0.1  # exploración mínima, 0.1 = 10%
 
     # === DESCUENTO Y ARQUITECTURA ===
     GAMMA = 0.90  # Valor estándar que mira al futuro
@@ -1092,7 +1092,6 @@ class SimplifiedDQNTrainer:
                 # Capturar información de semilla cuando done=True
                 if done and seed_info:
                     self.last_seed_info = seed_info
-                    self.logger.info(f"🎲 Época completada con semilla: {seed_info}")
 
                 # Almacenar experiencia
                 self._remember(state, action, reward, next_state, done)
@@ -1744,6 +1743,7 @@ class SimplifiedDQNTrainer:
         done = False
         step_count = 0
         start_time = time.time()
+        baseline_seed_info = None
 
         while not done:
             reward = self._calculate_reward()
@@ -1753,6 +1753,10 @@ class SimplifiedDQNTrainer:
             if response is None:
                 break
             done = response.done
+
+            if done and hasattr(response, "info") and response.info:
+                baseline_seed_info = response.info
+
             step_count += 1
 
             # Límite de seguridad
@@ -1761,15 +1765,38 @@ class SimplifiedDQNTrainer:
 
         duration = time.time() - start_time
 
+        # Extraer la seed para el CSV
+        current_seed = None
+        if baseline_seed_info:
+            # Priorizar current_seed (semilla real) sobre current_persistent_seed
+            if "current_seed" in baseline_seed_info:
+                current_seed = baseline_seed_info["current_seed"]
+            elif "current_persistent_seed" in baseline_seed_info:
+                current_seed = baseline_seed_info["current_persistent_seed"]
+
         self.logger.info(
-            f"📏 Baseline - Recompensa total: {total_reward:.2f}, Duración: {duration:.1f}s"
+            f"📏 Baseline - Recompensa total: {total_reward:.2f}, Duración: {duration:.1f}s, Seed: {current_seed}"
         )
 
-        # Guardar baseline
+        # Guardar baseline con información de seed
         baseline_path = os.path.join(self._save_path, "baseline.csv")
         with open(baseline_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["Type", "Total_Reward", "Duration_s", "Steps"])
             writer.writerow(
-                ["Fixed_Time", f"{total_reward:.2f}", f"{duration:.2f}", step_count]
+                [
+                    "Type",
+                    "Total_Reward",
+                    "Duration_s",
+                    "Steps",
+                    "SUMO_Current_Real_Seed",
+                ]
+            )
+            writer.writerow(
+                [
+                    "Fixed_Time",
+                    f"{total_reward:.2f}",
+                    f"{duration:.2f}",
+                    step_count,
+                    current_seed,
+                ]
             )
