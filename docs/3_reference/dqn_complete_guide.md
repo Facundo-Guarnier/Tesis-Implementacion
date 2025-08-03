@@ -28,6 +28,7 @@
 9. [🔍 Troubleshooting](#-troubleshooting)
    - [🚨 CRÍTICO: Q-VALUES NEAR ZERO! - Gradient Vanishing](#-crítico-q-values-near-zero---gradient-vanishing) **🆕**
 10. [📚 Referencias y Documentos Consolidados](#-referencias-y-documentos-consolidados)
+11. [🚀 Mejoras Futuras Identificadas - Roadmap de Optimizaciones](#-mejoras-futuras-identificadas---roadmap-de-optimizaciones) **🆕**
 
 ---
 
@@ -654,7 +655,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
            self.epochs_without_improvement += 1
            return self.epochs_without_improvement >= self.patience
    ```
-
 2. **Learning Rate Adaptativo**:
 
    ```python
@@ -666,7 +666,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
            # Decay más agresivo sin mejora
            decay_factor = 0.8
    ```
-
 3. **Sistema de Warm-up**:
 
    ```python
@@ -686,7 +685,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
    - ✅ Evita entrenar con escenarios sin tráfico
    - ✅ El agente aprende solo con tráfico real desde el primer paso
    - ✅ Coherencia entre tiempo fijo y entrenamiento DQN
-
 4. **Normalización de Recompensas**:
 
    ```python
@@ -699,7 +697,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
            normalized = reward / 1000  # Escala lineal
        return np.clip(normalized, -1.0, 0.0)  # Rango [-1, 0]
    ```
-
 5. **Gradient Clipping + Huber Loss**:
 
    ```python
@@ -732,7 +729,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
    ```
 
    **Beneficio**: +10-15% velocidad en GPU
-
 2. **Dropout Mode Optimizado**:
 
    ```python
@@ -747,7 +743,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
    ```
 
    **Beneficio**: +20-25% mejora manteniendo regularización
-
 3. **Noisy Networks Eficientes**:
 
    ```python
@@ -760,7 +755,6 @@ if len(self.memory_buffer) >= self.min_replay_size:
    ```
 
    **Beneficio**: +15-20% mejora sin perder exploración
-
 4. **Evaluación Menos Frecuente**:
 
    ```yaml
@@ -771,14 +765,14 @@ if len(self.memory_buffer) >= self.min_replay_size:
 
 ### Resultados Consolidados Fase 1-4
 
-| Métrica                  | Antes (Problemas) | Después (Optimizado) | Mejora               |
-| ------------------------ | ----------------- | -------------------- | -------------------- |
-| **Inicio Entrenamiento** | ~3000+ steps      | ~570 steps           | **5.3x más rápido**  |
-| **Tiempo Total**         | 1200s             | 400-650s             | **50-67% reducción** |
-| **Q-Values**             | Explosión +1M%    | Controlado [-10,+10] | **Estabilizado**     |
-| **Recompensas**          | CV=62.9%          | CV<25%               | **60% más estable**  |
-| **Learning Rate**        | Decay dramático   | Gradual por época    | **Corregido**        |
-| **GPU Compatibility**    | Error crítico     | Funcional 100%       | **Resuelto**         |
+| Métrica                       | Antes (Problemas) | Después (Optimizado) | Mejora                      |
+| ------------------------------ | ----------------- | --------------------- | --------------------------- |
+| **Inicio Entrenamiento** | ~3000+ steps      | ~570 steps            | **5.3x más rápido** |
+| **Tiempo Total**         | 1200s             | 400-650s              | **50-67% reducción** |
+| **Q-Values**             | Explosión +1M%   | Controlado [-10,+10]  | **Estabilizado**      |
+| **Recompensas**          | CV=62.9%          | CV<25%                | **60% más estable**  |
+| **Learning Rate**        | Decay dramático  | Gradual por época    | **Corregido**         |
+| **GPU Compatibility**    | Error crítico    | Funcional 100%        | **Resuelto**          |
 
 ### Fase 4: Optimizaciones Avanzadas (Enero 2025)
 
@@ -1313,16 +1307,16 @@ Con todas las mejoras implementadas:
 
 #### 📊 **TABLA RESUMEN DE CONFIGURACIONES**
 
-| Configuración                   | Valor Actual  | Alternativas          | Impacto Tiempo      | Impacto Calidad        | Riesgo      |
-| ------------------------------- | ------------- | --------------------- | ------------------- | ---------------------- | ----------- |
-| `min_replay_size`               | `32`          | `64`, `128`, `256`    | **🚀 +5.3x inicio** | ✅ Equivalente         | 🟢 Ninguno  |
-| `enable_jit_compilation`        | `True`        | `False`               | **🚀 +10-15%**      | ✅ Sin impacto         | 🟢 Ninguno  |
+| Configuración                    | Valor Actual    | Alternativas              | Impacto Tiempo            | Impacto Calidad         | Riesgo      |
+| --------------------------------- | --------------- | ------------------------- | ------------------------- | ----------------------- | ----------- |
+| `min_replay_size`               | `32`          | `64`, `128`, `256`  | **🚀 +5.3x inicio** | ✅ Equivalente          | 🟢 Ninguno  |
+| `enable_jit_compilation`        | `True`        | `False`                 | **🚀 +10-15%**      | ✅ Sin impacto          | 🟢 Ninguno  |
 | `dropout_mode`                  | `"optimized"` | `"full"`, `"minimal"` | **🚀 +20-25%**      | ✅ Balance óptimo      | 🟢 Ninguno  |
-| `noisy_implementation`          | `"efficient"` | `"gaussian_noise"`    | **🚀 +15-20%**      | ✅ Equivalente         | 🟢 Ninguno  |
-| `evaluation_frequency`          | `10`          | `5`, `15`, `20`       | **🚀 +2-5%**        | ✅ Sin impacto         | 🟢 Ninguno  |
-| `double_dqn_batch_optimization` | `False`       | `True`                | **🧪 +10-15%**      | ⚠️ Experimental        | 🟡 Bajo     |
-| `per_batch_processing`          | `False`       | `True`                | **🧪 +5-10%**       | ✅ Sin impacto         | 🟢 Ninguno  |
-| `dueling_stream_simplification` | `False`       | `True`                | **🧪 +15-25%**      | ❌ Posible degradación | 🟡 Moderado |
+| `noisy_implementation`          | `"efficient"` | `"gaussian_noise"`      | **🚀 +15-20%**      | ✅ Equivalente          | 🟢 Ninguno  |
+| `evaluation_frequency`          | `10`          | `5`, `15`, `20`     | **🚀 +2-5%**        | ✅ Sin impacto          | 🟢 Ninguno  |
+| `double_dqn_batch_optimization` | `False`       | `True`                  | **🧪 +10-15%**      | ⚠️ Experimental       | 🟡 Bajo     |
+| `per_batch_processing`          | `False`       | `True`                  | **🧪 +5-10%**       | ✅ Sin impacto          | 🟢 Ninguno  |
+| `dueling_stream_simplification` | `False`       | `True`                  | **🧪 +15-25%**      | ❌ Posible degradación | 🟡 Moderado |
 
 ---
 
@@ -1522,13 +1516,13 @@ entrenamiento:
 
 ### 📊 Análisis de Cuellos de Botella
 
-| Componente                                           | Overhead Estimado | Optimización Disponible               |
-| ---------------------------------------------------- | ----------------- | ------------------------------------- |
+| Componente                                                 | Overhead Estimado | Optimización Disponible               |
+| ---------------------------------------------------------- | ----------------- | -------------------------------------- |
 | **Dueling DQN + Dropout (6 capas) + Noisy Networks** | ~70%              | Dropout estratégico + Noisy eficiente |
-| **Double DQN (doble computación forward)**           | ~15%              | Optimización de batch processing      |
+| **Double DQN (doble computación forward)**          | ~15%              | Optimización de batch processing      |
 | **Prioritized Experience Replay**                    | ~10%              | Cálculo de TD-errors en lotes         |
-| **JIT compilation deshabilitado**                    | ~3%               | Activar JIT en GPU                    |
-| **Sistema de evaluación frecuente**                  | ~2%               | Reducir frecuencia                    |
+| **JIT compilation deshabilitado**                    | ~3%               | Activar JIT en GPU                     |
+| **Sistema de evaluación frecuente**                 | ~2%               | Reducir frecuencia                     |
 
 ### Categoría 1: Optimizaciones de Estabilidad (✅ Activas por defecto)
 
@@ -1770,11 +1764,11 @@ Funciones de activación: ✅ PASÓ
 
 ### Resultados de Validación
 
-| Categoría              | Tests     | Éxito    | Estado                          |
-| ---------------------- | --------- | -------- | ------------------------------- |
-| Estabilidad            | 3/3       | 100%     | ✅ Producción                   |
-| Rendimiento            | 4/4       | 100%     | ✅ Producción                   |
-| Avanzadas              | 3/3       | 100%     | ✅ Listo para activar           |
+| Categoría                   | Tests           | Éxito         | Estado                                |
+| ---------------------------- | --------------- | -------------- | ------------------------------------- |
+| Estabilidad                  | 3/3             | 100%           | ✅ Producción                        |
+| Rendimiento                  | 4/4             | 100%           | ✅ Producción                        |
+| Avanzadas                    | 3/3             | 100%           | ✅ Listo para activar                 |
 | **Gradient Vanishing** | **3/3**   | **100%** | ✅**Anti-vanishing validado**   |
 | **TOTAL**              | **13/13** | **100%** | ✅**Sistema completo validado** |
 
@@ -1802,25 +1796,25 @@ OPTIMIZADO (Todas las optimizaciones):
 
 #### Desglose de Mejoras por Categoría
 
-| Optimización                  | Beneficio Individual     | Beneficio Acumulado       |
-| ----------------------------- | ------------------------ | ------------------------- |
-| **Error GPU Fix**             | Sistema funcional        | +100% (de 0% a funcional) |
-| **Batch Dinámico**            | 5.3x inicio más rápido   | +430% inicio              |
-| **Early Stopping**            | Convergencia inteligente | +Estabilidad              |
-| **LR Adaptativo**             | Mejor convergencia       | +5-10%                    |
-| **JIT Compilation**           | 10-15% GPU               | +10-15%                   |
-| **Dropout Estratégico**       | 20-25%                   | +20-25%                   |
-| **Noisy Networks Eficientes** | 15-20%                   | +15-20%                   |
-| **Evaluación Optimizada**     | 2-5%                     | +2-5%                     |
-| **TOTAL IMPLEMENTADO**        | **52-75% mejora base**   | **Sistema robusto**       |
+| Optimización                       | Beneficio Individual         | Beneficio Acumulado       |
+| ----------------------------------- | ---------------------------- | ------------------------- |
+| **Error GPU Fix**             | Sistema funcional            | +100% (de 0% a funcional) |
+| **Batch Dinámico**           | 5.3x inicio más rápido     | +430% inicio              |
+| **Early Stopping**            | Convergencia inteligente     | +Estabilidad              |
+| **LR Adaptativo**             | Mejor convergencia           | +5-10%                    |
+| **JIT Compilation**           | 10-15% GPU                   | +10-15%                   |
+| **Dropout Estratégico**      | 20-25%                       | +20-25%                   |
+| **Noisy Networks Eficientes** | 15-20%                       | +15-20%                   |
+| **Evaluación Optimizada**    | 2-5%                         | +2-5%                     |
+| **TOTAL IMPLEMENTADO**        | **52-75% mejora base** | **Sistema robusto** |
 
 #### Optimizaciones Avanzadas (Opcionales)
 
-| Optimización                    | Beneficio Adicional   | Total Potencial   |
-| ------------------------------- | --------------------- | ----------------- |
-| **Double DQN Batch**            | +10-15%               | 62-90%            |
-| **PER Batch**                   | +5-10%                | 67-100%           |
-| **Architecture Simplification** | +15-25%               | 82-125%           |
+| Optimización                         | Beneficio Adicional         | Total Potencial         |
+| ------------------------------------- | --------------------------- | ----------------------- |
+| **Double DQN Batch**            | +10-15%                     | 62-90%                  |
+| **PER Batch**                   | +5-10%                      | 67-100%                 |
+| **Architecture Simplification** | +15-25%                     | 82-125%                 |
 | **TOTAL POTENCIAL**             | **+30-50% adicional** | **82-125% total** |
 
 ### Configuraciones de Rendimiento
@@ -2321,13 +2315,13 @@ Este documento unifica y reemplaza:
 
 ### Estado de la Documentación
 
-| Documento Original                   | Estado       | Contenido Migrado               |
-| ------------------------------------ | ------------ | ------------------------------- |
-| `dqn_stability_fixes.md`             | 📁 Archivado | ✅ Completo → Secciones 4.1-4.3 |
-| `dqn_performance_guide.md`           | 📁 Archivado | ✅ Completo → Secciones 4.4-4.6 |
-| `test_dqn_optimizations.py`          | ✅ Activo    | ✅ Referenciado → Sección 5.1   |
-| `test_dqn_advanced_optimizations.py` | ✅ Activo    | ✅ Referenciado → Sección 5.2   |
-| **Este documento**                   | ✅**MASTER** | **Fuente de verdad única**      |
+| Documento Original                     | Estado             | Contenido Migrado                 |
+| -------------------------------------- | ------------------ | --------------------------------- |
+| `dqn_stability_fixes.md`             | 📁 Archivado       | ✅ Completo → Secciones 4.1-4.3  |
+| `dqn_performance_guide.md`           | 📁 Archivado       | ✅ Completo → Secciones 4.4-4.6  |
+| `test_dqn_optimizations.py`          | ✅ Activo          | ✅ Referenciado → Sección 5.1   |
+| `test_dqn_advanced_optimizations.py` | ✅ Activo          | ✅ Referenciado → Sección 5.2   |
+| **Este documento**               | ✅**MASTER** | **Fuente de verdad única** |
 
 ### Fundamentos Teóricos
 
@@ -2491,7 +2485,193 @@ tail -f logs/dqn_training.log | grep -E "(Batch dinámico|JIT|Early stopping|opt
 
 ---
 
-**📌 Última actualización**: 26 de julio de 2025
-**👤 Autor**: GitHub Copilot
-**🔄 Versión**: 2.1 - Guía completa de configuraciones con impactos cuantificados
-**📊 Estado**: Producción - Sistema validado y operativo como fuente de verdad única
+## 🚀 Mejoras Futuras Identificadas - Roadmap de Optimizaciones
+
+> **Estado**: 📋 Pendientes de implementación
+> **Prioridad**: Clasificadas por impacto esperado
+> **Fecha identificación**: 3 de agosto de 2025
+
+### 🎯 Mejora Crítica - Granularidad del Estado
+
+#### **1. Cambiar Estado de "Calle" a "Carril"**
+
+**📊 Prioridad**: **CRÍTICA** - Mayor impacto potencial en rendimiento
+
+**🎯 Problema Actual**:
+
+- El agente recibe información agregada por calle (edge)
+- Pierde granularidad crítica para decisiones óptimas
+- State size actual: 48 dimensiones (12 calles × 4 métricas)
+
+**✅ Solución Propuesta**:
+
+```python
+# Estado Actual (por calle/edge)
+state_size = 48  # 12 calles × 4 métricas
+
+# Estado Propuesto (por carril/lane)
+state_size = 96  # 24 carriles × 4 métricas
+```
+
+**🔧 Implementación Requerida**:
+
+1. **API Modification**: Modificar endpoints para retornar datos por carril
+2. **Zone Enhancement**: Almacenar carriles (lanes) dentro de zonas (edges)
+3. **State Vector**: Duplicar state_size de 48 → 96 dimensiones
+4. **Network Architecture**: Ajustar capa de entrada para nuevo state_size
+
+**📈 Impacto Esperado**:
+
+- **Precisión**: +25-40% mejora en toma de decisiones
+- **Convergencia**: -30% tiempo para encontrar políticas óptimas
+- **Generalización**: Mejor adaptación a patrones de tráfico diversos
+
+**🚧 Consideraciones Técnicas**:
+
+- Aumenta complejidad computacional marginalmente
+- Requiere re-entrenamiento completo de modelos existentes
+- Beneficio justifica completamente el esfuerzo
+
+---
+
+### 🧠 Mejoras de Algoritmo - Exploración Inteligente
+
+#### **2. Epsilon Reset Dinámico - Escape de Óptimos Locales**
+
+**📊 Prioridad**: **ALTA** - Bajo costo, alto beneficio
+
+**🎯 Concepto**:
+
+```python
+# En lugar de detener entrenamiento por early stopping
+if epochs_without_improvement >= patience:
+    epsilon = max(0.3, epsilon)  # Reset exploration
+    logger.info("🔄 Epsilon reset: escapando óptimo local")
+    continue_training()
+```
+
+**✅ Beneficios**:
+
+- Previene convergencia prematura
+- Descubrimiento de estrategias superiores
+- Utiliza conocimiento adquirido para exploración inteligente
+
+**🔧 Implementación**:
+
+- Modificar lógica de early stopping
+- Configurar epsilon_reset_threshold y epsilon_reset_value
+- Añadir métricas de tracking para resets
+
+---
+
+#### **3. Monitoreo de Norma de Gradientes**
+
+**📊 Prioridad**: **MEDIA** - Herramienta de diagnóstico
+
+**🎯 Concepto**:
+
+- Correlación entre gradient norm y loss debe ser coherente
+- Gradients estables = pérdida convergiendo correctamente
+- Métrica adicional para validar salud del entrenamiento
+
+**📈 Implementación Sugerida**:
+
+```python
+# En training loop
+grad_norm = tf.linalg.global_norm(gradients)
+metrics["gradient_norm"] = grad_norm
+# Alerta si gradient_norm diverge de loss trend
+```
+
+---
+
+### 📚 Mejoras de Entrenamiento - Robustez y Generalización
+
+#### **4. Learning Rate ReduceLROnPlateau**
+
+**📊 Prioridad**: **ALTA** - Estrategia probada
+
+**🎯 Configuración Objetivo**:
+
+```yaml
+adaptive_lr: True
+lr_schedule_type: "plateau"  # Nuevo tipo
+plateau_patience: 5
+plateau_factor: 0.1
+plateau_min_delta: 0.001
+```
+
+**✅ Ventajas**:
+
+- Ajuste automático basado en progreso real
+- Mejor convergencia en fases finales
+- Evita oscilaciones en óptimos
+
+---
+
+#### **5. Múltiples Escenarios de Entrenamiento**
+
+**� Prioridad**: **CRÍTICA** - Prevención de overfitting
+
+**🎯 Propuesta**:
+
+```yaml
+# config.yaml - Nueva sección
+training_scenarios:
+  enabled: True
+  scenarios:
+    - name: "normal_traffic"
+      route_file: "normal.rou.xml"
+      weight: 0.3
+    - name: "morning_peak" 
+      route_file: "peak_morning.rou.xml"
+      weight: 0.2
+    - name: "evening_peak"
+      route_file: "peak_evening.rou.xml" 
+      weight: 0.2
+    - name: "weekend_light"
+      route_file: "weekend.rou.xml"
+      weight: 0.15
+    - name: "heavy_trucks"
+      route_file: "trucks.rou.xml"
+      weight: 0.15
+```
+
+**🔧 Implementación**:
+
+1. Crear 5-10 archivos .rou.xml variados
+2. Selector aleatorio por época con pesos
+3. Semillas aleatorias por escenario
+4. Métricas separadas por tipo de escenario
+
+**📈 Beneficios Esperados**:
+
+- **Generalización**: +40-60% mejor adaptación
+- **Robustez**: Política funcional en condiciones diversas
+- **Realismo**: Preparación para tráfico real variable
+
+---
+
+#### **6. Dropout Estratégico para Redes Profundas**
+
+**📊 Prioridad**: **BAJA** - Solo para arquitecturas grandes
+
+**🎯 Aplicación Condicional**:
+
+```python
+# Solo aplicar si hidden_layers > [256, 256]
+if sum(hidden_layers) > 1000:
+    model.add(tf.keras.layers.Dropout(0.15))
+```
+
+**✅ Casos de Uso**:
+
+- Redes muy profundas (6+ capas)
+- Overfitting detectado en métricas
+- Datasets pequeños con redes grandes
+
+**⚠️ Consideraciones**:
+
+- No necesario para configuración actual
+- Añadir solo si hay evidencia de memorización
+- Monitorear impacto en tiempo de inferencia
