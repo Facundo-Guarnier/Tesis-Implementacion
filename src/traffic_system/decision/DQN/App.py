@@ -18,7 +18,8 @@ class DecisionApp:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().decision
 
-    def train_model1(self) -> None:
+    # * Entrenamiento para DQNTrainer original
+    def train_model_original(self) -> None:
         """
         Entrenar el modelo.
         """
@@ -44,6 +45,7 @@ class DecisionApp:
                 logger.error(e)
                 break
 
+    # * Entrenamiento para SimplifiedDQNTrainer
     def train_model(self) -> None:
         """
         Entrenar el modelo.
@@ -70,6 +72,7 @@ class DecisionApp:
                 logger.error(e)
                 break
 
+    # * Usar el modelo entrenado (método simplificado)
     def run_model_inference(self) -> None:
         """
         Usar el modelo entrenado.
@@ -112,7 +115,8 @@ class DecisionApp:
                 logger.error(e)
                 break
 
-    def run_model_inference1(self) -> None:
+    # * Usar el modelo entrenado (método original)
+    def run_model_inference_original(self) -> None:
         """
         Usar el modelo entrenado (método original).
         """
