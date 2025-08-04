@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from src.traffic_system.core.config_models import DecisionSettings
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,7 +27,7 @@ class DQNEvaluator:
 
     def __init__(
         self,
-        config: Any,
+        config: DecisionSettings,
         results_dir: str = "results/evaluation",
         model_name: str = "DQN",
     ):
