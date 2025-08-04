@@ -11,7 +11,7 @@ def load_app_settings(config_path: str = "config.yaml") -> AppSettings:
     Lanza ConfigValidationError si hay un problema.
     """
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
         # ¡La magia de Pydantic! Parsea y valida el diccionario.

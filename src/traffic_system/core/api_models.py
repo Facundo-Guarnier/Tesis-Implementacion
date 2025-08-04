@@ -49,6 +49,7 @@ class SimulationStepResponse(BaseResponse):
     current_time: float
     vehicles_count: int | None = None
     step_count: int | None = None
+    info: dict[str, Any] | None = None  # Información adicional como semillas
 
 
 class TrafficLightStatesResponse(BaseResponse):

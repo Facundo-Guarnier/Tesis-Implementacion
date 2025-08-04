@@ -41,6 +41,81 @@ class EntrenamientoSettings(BaseModel):
     gamma: float
     hidden_layers: list[int]
 
+    # FASE 2: Mejoras algorítmicas DQN
+    use_double_dqn: bool = True  # * Activar Double DQN (reduce sobreestimación)
+    use_dueling_dqn: bool = True  # * Activar Dueling DQN (separar valor y ventaja)
+    target_update_frequency: int = 100  # * Frecuencia de actualización red target
+
+    # FASE 3: Optimizaciones avanzadas
+    use_prioritized_replay: bool = True  # * Activar Prioritized Experience Replay (PER)
+    per_alpha: float = 0.6  # * Priorización exponent (0=uniform, 1=full priority)
+    per_beta_start: float = 0.4  # * Importance sampling beta inicial
+    per_beta_frames: int = 100000  # * Frames para llegar a beta=1.0
+    use_noisy_networks: bool = True  # * Activar Noisy Networks para exploración
+    noise_std: float = 0.5  # * Desviación estándar del ruido
+    use_dropout: bool = True  # * Activar Dropout para regularización
+    dropout_rate: float = 0.1  # * Tasa de dropout
+    adaptive_lr: bool = True  # * Learning rate adaptativo
+    lr_schedule_type: str = (
+        "cosine"  # * Tipo de schedule: "exponential", "cosine", "plateau"
+    )
+
+    # === NUEVAS CONFIGURACIONES ANTI-GRADIENT VANISHING ===
+    use_batch_normalization: bool = True  # * Batch Normalization entre capas
+    use_he_initialization: bool = True  # * He initialization para ReLU
+    use_residual_connections: bool = True  # * Skip connections para redes profundas
+    gradient_clip_norm: float = 1.0  # * Norma máxima para gradient clipping
+    use_leaky_relu: bool = True  # * LeakyReLU en lugar de ReLU estándar
+
+    # Configuración adicional para estabilidad
+    use_gradient_clipping: bool = True  # * Gradient clipping activado
+    use_huber_loss: bool = True  # * Huber Loss más robusto que MSE
+    normalize_rewards: bool = True  # * Normalización de recompensas
+
+    # FASE 4: Evaluación y métricas
+    enable_evaluation: bool = True  # * Activar sistema de evaluación
+    evaluation_episodes: int = 10  # * Número de episodios para evaluación
+    evaluation_frequency: int = 5  # * Evaluar cada N épocas
+    baseline_comparison: bool = True  # * Comparar con modelo baseline
+    save_evaluation_data: bool = True  # * Guardar datos de evaluación
+    metrics_window_size: int = 100  # * Ventana para métricas deslizantes
+    statistical_tests: bool = True  # * Realizar pruebas estadísticas
+    generate_plots: bool = True  # * Generar gráficos de progreso
+
+    # ESTABILIDAD DEL ENTRENAMIENTO
+    warmup_steps: int = 250  # * Pasos de simulación a omitir al inicio de cada época
+    min_replay_size: int = (
+        32  # * Mínimo de experiencias para empezar entrenamiento (batch dinámico)
+    )
+
+    # OPTIMIZACIONES DE RENDIMIENTO (Bajo Riesgo)
+    enable_jit_compilation: bool = True  # * Activar XLA/JIT para optimización GPU
+    dropout_mode: str = "optimized"  # * "full", "optimized", "minimal"
+    dropout_layers: str = "strategic"  # * "all_layers", "strategic", "output_only"
+    noisy_implementation: str = "efficient"  # * "gaussian_noise", "efficient"
+
+    # OPTIMIZACIONES AVANZADAS (Riesgo Moderado)
+    # Double DQN Optimization
+    double_dqn_batch_optimization: bool = (
+        False  # * Procesar actualizaciones target en lotes
+    )
+    target_update_batch_size: int = 512  # * Tamaño del lote para actualizaciones target
+
+    # Prioritized Experience Replay Optimization
+    per_batch_processing: bool = False  # * Procesar TD-errors en lotes más grandes
+    per_update_frequency: int = (
+        4  # * Actualizar prioridades cada N steps (no cada step)
+    )
+    per_importance_annealing: bool = (
+        False  # * Annealing automático de importance sampling
+    )
+
+    # Architecture Simplification
+    dueling_stream_simplification: bool = False  # * Simplificar streams de Dueling DQN
+    hidden_layers_optimization: bool = (
+        False  # * Optimizar número de capas automáticamente
+    )
+
 
 class DecisionSettings(BaseModel):
     decision: bool  # * Iniciar la toma de decisiones
@@ -56,6 +131,19 @@ class SumoSettings(BaseModel):
     comparar: bool  #! Comparar la simulación con la detección de objetos
     path_sumo: str  #! Path de la instalación de SUMO
     simulation_time_limit: int
+    service_ip: str  #! IP del servidor del servicio de simulación SUMO
+    port: int  #! Puerto del servidor del servicio de simulación SUMO
+
+    # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
+    use_random_seed: bool = (
+        False  # * Usar semilla aleatoria (tiempo actual del sistema)
+    )
+    fixed_seed: int | None = (
+        None  # * Semilla fija específica (None = usar default de SUMO: 23423)
+    )
+    persist_random_seed: bool = (
+        True  # * Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)
+    )
 
 
 class ReporteSettings(BaseModel):

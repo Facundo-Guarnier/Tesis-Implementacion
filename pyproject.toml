@@ -38,6 +38,8 @@ tensorflow-estimator = {version = "==2.14.0", markers = "platform_system == 'Win
 tensorflow-intel = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
 tensorflow-io-gcs-filesystem = {version = "==0.31.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
 psutil = "^7.0.0"
+pandas = "^2.3.1"
+scipy = "^1.16.0"
 
 [tool.poetry.group.dev.dependencies]
 black = ">=23.0.0"

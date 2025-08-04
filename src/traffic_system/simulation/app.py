@@ -154,7 +154,18 @@ class SumoApp:
     def get_vehicle_count(self) -> int:
         """Obtener la cantidad de vehículos en la simulación."""
         # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
-        return int(self.traci.simulation.getMinExpectedNumber())
+        return int(self.traci.vehicle.getIDCount())
+
+    def get_zone_vehicle_count(self, zone_id: str) -> int:
+        """Obtener la cantidad de vehículos en una zona específica."""
+        # TODO: Mejorar el tipado para "traci" ya que no podemos ver el tipado
+        return int(self.traci.edge.getLastStepVehicleNumber(zone_id))
+
+    def get_vehicle_counts_by_zone(self) -> dict[str, int]:
+        """Obtener la cantidad de vehículos en todas las zonas."""
+        return {
+            zone.id: self.get_zone_vehicle_count(zone.id) for zone in self.zones.zones
+        }
 
     def advance(self, steps: int) -> bool:
         """
@@ -259,16 +270,9 @@ class SumoApp:
         """
         Verificar si la simulación puede continuar.
         - Si está por debajo del tiempo/steps 19500.
-        - Si hay vehículos en la simulación.
         """
-        current_time = self.traci.simulation.getTime()
-        vehicle_count = self.get_vehicle_count()
-        time_ok = current_time < self.settings.simulation_time_limit
-        vehicles_ok = vehicle_count > 0
-
-        can_continue = time_ok and vehicles_ok
-
-        return can_continue
+        current_time: int = self.traci.simulation.getTime()
+        return current_time < self.settings.simulation_time_limit
 
     def is_simulation_active(self) -> bool:
         """

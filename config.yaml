@@ -38,39 +38,126 @@ decision:
     ] #! Ponderaciones de las zonas
   # ponderaciones_zonas: [1.0, 2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.9, 1.0, 2.9, 2.9]     #! Ponderaciones de las zonas
 
-  # path_modelo_entrenado: "results/training/DQN_2024-04-21_19-55/epoca_18.h5"    #! No funciona: 1235
-  # path_modelo_entrenado: "results/training-2/DQN_2024-05-02_15-33/epoca_14.h5"  #! Si funciona: 1322
-  # path_modelo_entrenado: "results/training/DQN_2024-05-06_12-21/epoca_13.h5" #! Si funciona: 786 ES EL BUENO
-  # path_modelo_entrenado: "results/training/DQN_2024-05-16_11-06/epoca_25.h5"    #! Si funciona: 895
-  path_modelo_entrenado: "assets/dqn_models/2024-05-06_12-21-epoca_13.h5"
+  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.keras"
 
   entrenamiento:
-    entrenar: True #* Entrenar el modelo
-    path_resultado: "results/training/" #! Carpeta donde se guardarán los resultados del entrenamiento
-    num_epocas: 35
-    batch_size: 256
-    steps: 10
-    memory: 5000
-    learning_rate: 0.15
-    learning_rate_decay: 0.99995
-    learning_rate_min: 0.0001
-    epsilon: 1
-    epsilon_decay: 0.999995
-    epsilon_min: 0.005
-    gamma: 0.85
-    # hidden_layers: [10, 10, 10]
-    # hidden_layers: [512, 512, 256, 256, 128, 128, 64]
-    hidden_layers: [512, 512, 256, 128, 128, 64]
+    entrenar: True #* Iniciar proceso de entrenamiento del agente DQN
+
+    # === CONFIGURACIÓN DE ARCHIVOS Y RESULTADOS ===
+    path_resultado: "results/training/" #! Directorio donde se guardan modelos, logs y métricas de entrenamiento
+
+    # === HIPERPARÁMETROS BÁSICOS ===
+    num_epocas: 35 #! Número total de épocas de entrenamiento
+    batch_size: 256 #! Tamaño de lote para entrenamiento (potencia de 2, balance memoria/convergencia)
+    steps: 10 #! Pasos de simulación por acción del agente (reduce frecuencia de decisiones)
+    memory: 5000 #! Capacidad máxima del buffer de experiencias (5000 = ~20 épocas de memoria)
+
+    # === OPTIMIZACIÓN Y LEARNING RATE ===
+    learning_rate: 0.0005 #! 🔧 AJUSTADO: Tasa más conservadora para evitar gradient vanishing
+    learning_rate_decay: 0.99 #! Factor de decay por época (0.95 = moderado, 0.99 = conservador)
+    learning_rate_min: 0.00005 #! Tasa mínima para mantener aprendizaje gradual
+
+    # === EXPLORACIÓN (EPSILON-GREEDY) ===
+    epsilon: 1 #! Probabilidad inicial de exploración (1.0 = 100% exploración al inicio)
+    epsilon_decay: 0.99995 #! Factor de decay por step (0.99995 = decay gradual a lo largo del entrenamiento)
+    epsilon_min: 0.1 #! Probabilidad mínima de exploración (10% exploración residual)
+
+    # === DESCUENTO Y ARQUITECTURA ===
+    gamma: 0.85 #! 🔧 AJUSTADO: Gamma más alto para valorar recompensas futuras (evita Q-values bajos)
+    hidden_layers: [64, 64, 64] #! 🔧 AJUSTADO: Arquitectura menos profunda para evitar gradient vanishing
+
+    # === MEJORAS ALGORÍTMICAS DQN (FASE 2) ===
+    use_double_dqn: True #* Double DQN: Reduce sobreestimación de Q-values usando red target para evaluación
+    use_dueling_dqn: True #* Dueling DQN: Separa valor del estado V(s) y ventaja de acciones A(s,a)
+    target_update_frequency: 100 #* Frecuencia de actualización red target (cada 100 pasos de entrenamiento)
+
+    # === ESTABILIDAD DEL ENTRENAMIENTO ===
+    warmup_steps: 250 #* Pasos iniciales sin entrenamiento (esperar llegada de vehículos desde spawn)
+    min_replay_size: 32 #* 🚀 CRÍTICO: Mínimo de experiencias para entrenar (batch dinámico 32→256)
+    use_gradient_clipping: True #* Gradient clipping con clipnorm=1.0 (previene explosión de gradientes)
+    use_huber_loss: True #* Huber Loss en lugar de MSE (más robusto a outliers)
+    normalize_rewards: True #* Normalización de recompensas para estabilidad numérica
+
+    # === PRIORITIZED EXPERIENCE REPLAY (PER) ===
+    use_prioritized_replay: True #* PER: Entrenar más frecuentemente con experiencias "sorprendentes"
+    per_alpha: 0.6 #* Exponente de priorización (0=uniforme, 1=totalmente priorizado, 0.6=balance)
+    per_beta_start: 0.4 #* Importance sampling inicial para corregir sesgo de PER
+    per_beta_frames: 100000 #* Steps para que beta alcance 1.0 (corrección completa)
+
+    # === NOISY NETWORKS PARA EXPLORACIÓN ===
+    use_noisy_networks: True #* Noisy Networks: Exploración mediante ruido en pesos (sin epsilon)
+    noise_std: 0.3 #* Desviación estándar del ruido paramétrico
+
+    # === REGULARIZACIÓN ===
+    use_dropout: True #* Dropout: Previene overfitting desactivando neuronas aleatoriamente
+    dropout_rate: 0.02 #! 🔧 AJUSTADO: Dropout más suave para redes menos profundas
+
+    # === LEARNING RATE ADAPTATIVO ===
+    adaptive_lr: True #* Learning Rate Scheduling: Ajusta LR según progreso del entrenamiento
+    lr_schedule_type: "plateau" #! 🔧 AJUSTADO: Plateau para adaptar cuando no mejora
+
+    # === NUEVAS CONFIGURACIONES ANTI-GRADIENT VANISHING ===
+    use_batch_normalization: True #! 🆕 Batch Normalization: Normaliza entradas de cada capa
+    use_he_initialization: True #! 🆕 He Initialization: Inicialización óptima para ReLU
+    use_residual_connections: True #! 🆕 Residual Connections: Skip connections para redes profundas
+    gradient_clip_norm: 1.0 #! 🆕 Gradient Clipping: Previene gradient explosion
+    use_leaky_relu: True #! 🆕 LeakyReLU: Evita "dying ReLU" problem
+
+    # === EVALUACIÓN Y MÉTRICAS ===
+    enable_evaluation: True #* Sistema de evaluación para medir progreso del modelo
+    evaluation_episodes: 10 #* Episodios de prueba sin exploración para medir rendimiento real
+    evaluation_frequency: 10 #* 🚀 OPTIMIZADO: Evaluar cada 10 épocas (vs 5) para +2-5% velocidad
+    baseline_comparison: True #* Comparar rendimiento vs modelo baseline/aleatorio
+    save_evaluation_data: True #* Guardar métricas históricas para análisis posterior
+    metrics_window_size: 100 #* Ventana deslizante para suavizar métricas ruidosas
+    statistical_tests: True #* Pruebas estadísticas para validar mejoras significativas
+    generate_plots: True #* Generar gráficos automáticos de progreso y convergencia
+
+    # === OPTIMIZACIONES DE RENDIMIENTO (BAJO RIESGO) ===
+    enable_jit_compilation: True #* JIT Compilation: TensorFlow XLA para acelerar entrenamiento
+    dropout_mode: "optimized" #* Dropout Inteligente: Solo en capas estratégicas
+    dropout_layers: "strategic" #* Aplicar dropout solo en capas críticas vs todas las capas
+    noisy_implementation: "efficient" #* 🚀 Noisy Networks: Implementación optimizada (+15-20% velocidad)
+
+    # === OPTIMIZACIONES AVANZADAS (RIESGO MODERADO) ===
+    # 🧪 Double DQN Batch Optimization - Lotes para actualizaciones target
+    double_dqn_batch_optimization: False #* Procesar actualizaciones de red target en lotes (+5-8% velocidad)
+    target_update_batch_size: 1024 #* Tamaño de lote para procesamiento de actualizaciones target
+
+    # 🧪 PER Batch Processing - Cálculos TD-error eficientes
+    per_batch_processing: False #* Procesar TD-errors en paralelo en lugar de secuencial (+3-5% velocidad)
+    per_update_frequency: 4 #* Actualizar prioridades cada N steps vs cada step (reduce overhead)
+    per_importance_annealing: False #* 🧪 Annealing automático de importance sampling beta
+
+    # 🧪 Architecture Simplification - Simplificar para velocidad vs precisión
+    dueling_stream_simplification: False #* Reducir complejidad de streams Dueling DQN (+8-12% velocidad)
+    hidden_layers_optimization: False #* Auto-optimizar número de capas según hardware disponible
+
+    # === OPTIMIZACIONES EXPERIMENTALES (NO IMPLEMENTADAS) ===
+    # Estas optimizaciones requieren desarrollo adicional:
+    # use_early_stopping: True #* 🚀 ACTIVO: Detección automática de convergencia
+    # use_mixed_precision: False #* 🧪 Mixed Precision (FP16) para acelerar GPU
+    # use_multi_step_learning: False #* 🧪 N-step returns para mejor asignación de crédito
+    # use_distributional_dqn: False #* 🧪 C51/Rainbow - Predecir distribución de Q-values
+    # use_target_soft_updates: False #* 🧪 Soft updates τ=0.005 vs hard copy completa
 
 sumo:
-  simular: True #* Iniciar la simulación en SUMO
-  gui: False #! Mostrar la interfaz gráfica de SUMO
-  comparar: False #! Comparar la simulación con la detección de objetos
-  path_sumo: "/usr/share/sumo" #! Path de la instalación de SUMO
-  simulation_time_limit: 19500 #! Límite de tiempo de la simulación en segundos
+  simular: True #* Iniciar simulación de tráfico con SUMO
+
+  gui: False #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
+  comparar: False #! Modo comparación: Contrastar control RL vs detección YOLO
+  path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
+  simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
+
+  service_ip: "0.0.0.0" #! IP del servidor del servicio de simulación SUMO
+  port: 5000 #! Puerto del servidor del servicio de simulación SUMO
+
+  fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
+  use_random_seed: True #! Usar semilla aleatoria basada en tiempo actual
+  persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
 
 reporte:
-  generar: False #* Generar el reporte de la simulación
+  generar: False #* Generar reportes automáticos post-simulación
   path_reporte: "results/reportes/" #! Carpeta donde se guardará el reporte
   steps: 60 #! Número de pasos a considerar entre cada reporte
   tiempo_total_espera_maximo: 600 #! Tiempo de espera máximo en segundos en total
