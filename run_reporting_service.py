@@ -4,7 +4,7 @@ import signal
 import sys
 from typing import Any
 
-from src.traffic_system.reporting.app import ReportApp
+from src.traffic_system.reporting.App import ReportApp
 
 # TODO: Revisar el uso de sys.path.append
 # Añadir la raíz al path para que las importaciones funcionen desde cualquier lugar

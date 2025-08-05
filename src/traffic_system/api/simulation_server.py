@@ -46,7 +46,7 @@ class SumoAPI(Flask):
 
         # CONFIGURAR SMART LOGGING para evitar spam
         # self.smart_logger = create_smart_logger("SumoAPI", SIMULATION_LOGGER_CONFIG)
-        self.logger = logging.getLogger("SumoAPI")
+        self.sumo_logger = logging.getLogger("SumoAPI")
 
         # Estado interno para rastrear si alguna operación de semáforos terminó la simulación
         self._simulation_ended_during_traffic_light_change = False
@@ -94,7 +94,7 @@ class SumoAPI(Flask):
 
         # VERIFICAR PRIMERO si la simulación terminó en una operación anterior de semáforos
         if self._simulation_ended_during_traffic_light_change:
-            self.logger.info(
+            self.sumo_logger.info(
                 "🏁 step_simulation: Detectada terminación previa durante cambio de semáforos. "
                 "Devolviendo done=True (simulaciones ya reiniciadas)."
             )
@@ -107,7 +107,9 @@ class SumoAPI(Flask):
                 try:
                     seed_info = self.seed_info_callback()
                 except Exception as e:
-                    self.logger.warning(f"Error obteniendo información de semilla: {e}")
+                    self.sumo_logger.warning(
+                        f"Error obteniendo información de semilla: {e}"
+                    )
 
             response = SimulationStepResponse(
                 done=True,
@@ -153,12 +155,14 @@ class SumoAPI(Flask):
                     and not done_s2
                     and not self._check_synchronization()
                 ):
-                    self.logger.warning(
+                    self.sumo_logger.warning(
                         "Las simulaciones se desincronizaron durante el avance"
                     )
 
             except Exception as e:
-                self.logger.error(f"Error avanzando simulación de comparación: {e}")
+                self.sumo_logger.error(
+                    f"Error avanzando simulación de comparación: {e}"
+                )
                 error_response = ErrorResponse(
                     error=f"Error en simulación de comparación: {str(e)}"
                 )
@@ -195,7 +199,9 @@ class SumoAPI(Flask):
             try:
                 seed_info = self.seed_info_callback()
             except Exception as e:
-                self.logger.warning(f"Error obteniendo información de semilla: {e}")
+                self.sumo_logger.warning(
+                    f"Error obteniendo información de semilla: {e}"
+                )
 
         # Crear respuesta tipada usando SIEMPRE los estados capturados ANTES de advance()
         # Esto garantiza consistencia independientemente de reinicios
@@ -222,7 +228,7 @@ class SumoAPI(Flask):
                 # Verificación de consistencia: si hay gran diferencia, usar estimado
                 time_diff = abs(actual_time_after - estimated_time_after)
                 if time_diff > 50:  # Diferencia sospechosa
-                    self.logger.warning(
+                    self.sumo_logger.warning(
                         f"⚠️ Diferencia temporal sospechosa: estimated={estimated_time_after:.1f}s, "
                         f"actual={actual_time_after:.1f}s, diff={time_diff:.1f}s"
                     )
@@ -234,7 +240,7 @@ class SumoAPI(Flask):
                     final_vehicles = actual_vehicles_after
 
             except Exception as e:
-                self.logger.error(f"Error leyendo estado post-advance: {e}")
+                self.sumo_logger.error(f"Error leyendo estado post-advance: {e}")
                 # Fallback a estimación
                 final_time = estimated_time_after
                 final_vehicles = vehicles_s1_before
@@ -267,21 +273,21 @@ class SumoAPI(Flask):
                 # En los primeros 5 segundos, permitir hasta 2 segundos de diferencia
                 is_synced: bool = difference <= 2.0
                 if not is_synced:
-                    self.logger.info(
+                    self.sumo_logger.info(
                         f"Sincronización inicial: S1={time_s1 :.1f}s, S2={time_s2:.1f}s, diff={difference :.1f}s (permitido en fase inicial)"
                     )
             else:
                 # Después de los primeros 5 segundos, aplicar la regla normal
                 is_synced = difference <= 1.0
                 if not is_synced:
-                    self.logger.warning(
+                    self.sumo_logger.warning(
                         f"Simulaciones desincronizadas: S1={time_s1 :.1f}s, S2={time_s2:.1f}s, diff={difference :.1f}s"
                     )
 
             return is_synced
 
         except Exception as e:
-            self.logger.error(f"Error verificando sincronización: {e}")
+            self.sumo_logger.error(f"Error verificando sincronización: {e}")
             return False
 
     def get_synchronization_status(self) -> tuple[Response, int]:
@@ -317,7 +323,7 @@ class SumoAPI(Flask):
 
             return jsonify(response.model_dump()), 200
         except Exception as e:
-            self.logger.error(f"Error obteniendo sincronización: {e}")
+            self.sumo_logger.error(f"Error obteniendo sincronización: {e}")
             error_response = ErrorResponse(error=str(e))
             return jsonify(error_response.model_dump()), 500
 
@@ -386,7 +392,7 @@ class SumoAPI(Flask):
 
             return jsonify(response.model_dump()), 200
         except Exception as e:
-            self.logger.error(
+            self.sumo_logger.error(
                 f"❌ Error obteniendo cantidad de vehículos para zona {zone_id}: {e}"
             )
             error_response = ErrorResponse(
@@ -432,7 +438,7 @@ class SumoAPI(Flask):
             # Si la simulación terminó durante el cambio, REINICIAR INMEDIATAMENTE
             # y marcar el flag para que step_simulation lo reporte en la próxima llamada
             if done_s1:
-                self.logger.info(
+                self.sumo_logger.info(
                     f"🏁 Simulación terminó durante cambio de semáforo {light_id}. "
                     f"Reiniciando inmediatamente y marcando flag."
                 )
@@ -456,7 +462,7 @@ class SumoAPI(Flask):
                     # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
                     done_s2 = self.app_s2.advance(int(steps_advanced))
                     if done_s2:
-                        self.logger.info(
+                        self.sumo_logger.info(
                             "🏁 S2 terminó durante sincronización de semáforo. "
                             "Reiniciando inmediatamente y marcando flag."
                         )
@@ -475,7 +481,9 @@ class SumoAPI(Flask):
             return jsonify(response.model_dump()), 200
 
         except Exception as e:
-            self.logger.error(f"Error cambiando estado de semáforo {light_id}: {e}")
+            self.sumo_logger.error(
+                f"Error cambiando estado de semáforo {light_id}: {e}"
+            )
             error_response = ErrorResponse(error=f"Error interno: {str(e)}")
             return jsonify(error_response.model_dump()), 500
 
@@ -496,7 +504,7 @@ class SumoAPI(Flask):
             # Si la simulación terminó durante el cambio, REINICIAR INMEDIATAMENTE
             # y marcar el flag para que step_simulation lo reporte en la próxima llamada
             if done_s1:
-                self.logger.info(
+                self.sumo_logger.info(
                     "🏁 Simulación terminó durante cambio de semáforos. "
                     "Reiniciando inmediatamente y marcando flag."
                 )
@@ -520,7 +528,7 @@ class SumoAPI(Flask):
                     # Hacer que S2 avance los mismos pasos para mantenerse sincronizada
                     done_s2 = self.app_s2.advance(int(steps_advanced))
                     if done_s2:
-                        self.logger.info(
+                        self.sumo_logger.info(
                             "🏁 S2 terminó durante sincronización de semáforos. "
                             "Reiniciando inmediatamente y marcando flag."
                         )
@@ -538,7 +546,7 @@ class SumoAPI(Flask):
             return jsonify(response.model_dump()), 200
 
         except Exception as e:
-            self.logger.error(f"Error cambiando estados de semáforos: {e}")
+            self.sumo_logger.error(f"Error cambiando estados de semáforos: {e}")
             error_response = ErrorResponse(error=f"Error interno: {str(e)}")
             return jsonify(error_response.model_dump()), 500
 
@@ -587,7 +595,7 @@ class SumoAPI(Flask):
                 self.app_s2.reset()
                 result["s2"] = "reiniciada"
 
-            self.logger.info("🔄 Simulaciones reiniciadas exitosamente desde API")
+            self.sumo_logger.info("🔄 Simulaciones reiniciadas exitosamente desde API")
             return (
                 jsonify(
                     {
@@ -599,7 +607,7 @@ class SumoAPI(Flask):
             )
 
         except Exception as e:
-            self.logger.error(f"❌ Error al reiniciar simulaciones: {e}")
+            self.sumo_logger.error(f"❌ Error al reiniciar simulaciones: {e}")
             error_response = ErrorResponse(
                 error=f"Error al reiniciar simulaciones: {str(e)}"
             )
@@ -622,13 +630,13 @@ class SumoAPI(Flask):
 
         # Si la request es sospechosamente grande, loggear más detalles
         if content_length > 1_000:  # 1 KB
-            self.logger.info(
+            self.sumo_logger.info(
                 f"📥 Request: {method} {url} | Size: {content_length:,} bytes"
             )
-            self.logger.warning(
+            self.sumo_logger.warning(
                 f"⚠️  REQUEST GRANDE DETECTADA: {content_length:,} bytes"
             )
-            self.logger.warning(f"Headers: {headers}")
+            self.sumo_logger.warning(f"Headers: {headers}")
 
             # Guardar request grande en archivo para análisis
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -657,10 +665,10 @@ class SumoAPI(Flask):
                 with open(filename, "w", encoding="utf-8") as f:
                     json.dump(debug_data, f, indent=2, ensure_ascii=False)
 
-                self.logger.warning(f"💾 Request guardada en: {filename}")
+                self.sumo_logger.warning(f"💾 Request guardada en: {filename}")
 
             except Exception as e:
-                self.logger.error(f"❌ Error guardando request debug: {e}")
+                self.sumo_logger.error(f"❌ Error guardando request debug: {e}")
 
     def _handle_memory_error_with_debug(
         self, error: MemoryError
@@ -672,7 +680,7 @@ class SumoAPI(Flask):
 
         from flask import request
 
-        self.logger.error(f"💥 MEMORY ERROR DETECTADO: {error}")
+        self.sumo_logger.error(f"💥 MEMORY ERROR DETECTADO: {error}")
 
         # Capturar toda la información posible
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -697,13 +705,13 @@ class SumoAPI(Flask):
             with open(debug_filename, "w", encoding="utf-8") as f:
                 json.dump(debug_info, f, indent=2, ensure_ascii=False)
 
-            self.logger.error(f"🔍 Debug info guardada en: {debug_filename}")
+            self.sumo_logger.error(f"🔍 Debug info guardada en: {debug_filename}")
         except Exception as save_error:
-            self.logger.error(f"❌ Error guardando debug info: {save_error}")
+            self.sumo_logger.error(f"❌ Error guardando debug info: {save_error}")
 
         # Log completo en consola
-        self.logger.error("=" * 80)
-        self.logger.error("MEMORY ERROR COMPLETO:")
+        self.sumo_logger.error("=" * 80)
+        self.sumo_logger.error("MEMORY ERROR COMPLETO:")
 
         # Extraer información del request con type hints claros
         request_info: dict[str, Any] = debug_info["request_info"]
@@ -713,18 +721,18 @@ class SumoAPI(Flask):
         headers = dict(request_info.get("headers", {}))
         traceback_str = debug_info.get("traceback", "")
 
-        self.logger.error(f"Request: {method} {url}")
-        self.logger.error(f"Content-Length: {content_length:,} bytes")
-        self.logger.error(f"Headers: {headers}")
-        self.logger.error(f"Traceback: {traceback_str}")
-        self.logger.error("=" * 80)
+        self.sumo_logger.error(f"Request: {method} {url}")
+        self.sumo_logger.error(f"Content-Length: {content_length:,} bytes")
+        self.sumo_logger.error(f"Headers: {headers}")
+        self.sumo_logger.error(f"Traceback: {traceback_str}")
+        self.sumo_logger.error("=" * 80)
 
         # Fallar intencionalmente para que el desarrollador vea el problema
         raise error
 
     def _handle_payload_too_large(self, error: Exception) -> tuple[Response, int]:
         """Handler para payloads demasiado grandes."""
-        self.logger.error(f"❌ Payload demasiado grande: {error}")
+        self.sumo_logger.error(f"❌ Payload demasiado grande: {error}")
 
         error_response = ErrorResponse(
             error="Request demasiado grande. Máximo permitido: 1MB"
