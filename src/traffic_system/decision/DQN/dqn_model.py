@@ -259,7 +259,8 @@ class DQNModel:
             normalized_state, nan=0.0, posinf=1.0, neginf=0.0
         )
 
-        return normalized_state.astype(np.float32)
+        result: NDArray = normalized_state.astype(np.float32)
+        return result
 
     def _update_simulation_data(self) -> None:
         """Actualiza los datos de simulación con reintentos (solo para estado temporal)."""

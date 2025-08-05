@@ -20,31 +20,34 @@ repos:
       - id: debug-statements
         name: 🐛 Detectar declaraciones de debug en Python
 
-  # Ruff - Linter rápido con import sorting integrado
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.4
+  - repo: local
     hooks:
+      # Ruff - Linter rápido con import sorting integrado
       - id: ruff
         name: ⚡ Ruff - Linter + Import sorting
+        entry: poetry run ruff check
+        language: system
+        types: [python]
         args: [--fix, --exit-non-zero-on-fix]
+        require_serial: false
 
-  # Black - Formateo de código
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
+      # Black - Formateo de código
       - id: black
         name: ⚫ Black - Formateo de código
+        entry: poetry run black
+        language: system
+        types: [python]
         args: [--line-length=88]
+        require_serial: false
 
-  # MyPy - Verificación de tipos
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
-    hooks:
+      # MyPy - Verificación de tipos
       - id: mypy
         name: 🔍 MyPy - Verificación de tipos
+        entry: poetry run mypy
+        language: system
+        types: [python]
         args: [--config-file=pyproject.toml, --no-error-summary]
-        additional_dependencies:
-          [types-PyYAML, types-requests, types-Pillow, types-Flask]
+        require_serial: true
 
 # Configuración global
 default_language_version:
