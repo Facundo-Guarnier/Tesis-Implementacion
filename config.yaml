@@ -1,12 +1,12 @@
 base_url: "http://10.10.0.111:5000" #! URL base del servidor Flask
 
 deteccion:
-  detectar: False #* Iniciar la detección de objetos
+  detectar: True #* Iniciar la detección de objetos
   modelo: "yolov8n.pt" #! Modelo de detección de objetos
 
   carpeta_dataset:
     procesar: True #! Procesar todos los videos de la carpeta del dataset
-    path_origen: "dataset/dataset_original/" #! Carpeta con los videos a procesar
+    path_origen: "assets/dataset-576x1024-5fps" #! Carpeta con los videos a procesar
     path_destino: "results/deteccion/" #! Carpeta donde se guardarán los resultados
 
   un_video:

@@ -13,8 +13,8 @@ from src.traffic_system.core.config_loader import load_app_settings
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
 from src.traffic_system.api.detection_server import DetectionAPI
-from src.traffic_system.detection.app import DetectionApp
-from src.traffic_system.detection.zonas.ZonaList import ZoneList
+from src.traffic_system.detection.App import DetectionApp
+from src.traffic_system.detection.zones.zone_list import ZoneList
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("DetectionProvider")

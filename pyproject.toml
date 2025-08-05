@@ -49,6 +49,7 @@ pre-commit = "4.2.0"
 types-PyYAML = "*"
 types-requests = "*"
 types-Pillow = "*"
+types-Flask = "*"
 
 # Configuración de Black
 [tool.black]
@@ -99,13 +100,33 @@ combine-as-imports = true
 # Configuración de MyPy
 [tool.mypy]
 python_version = "3.11"
-ignore_missing_imports = true
+ignore_missing_imports = false  # Detectar imports problemáticos
 warn_unused_configs = true # Advertir sobre configuraciones no utilizadas
 show_error_codes = true # Mostrar códigos de error
 # TODO: Activar y hacer las correcciones pertinentes
 disallow_untyped_defs = true # Desalentar funciones sin anotaciones de tipo
 warn_return_any = true # Advertir sobre funciones que retornan Any
 strict_optional = true # Habilitar comprobaciones estrictas de tipos opcionales
+
+# Ignorar imports de librerías externas que no tienen tipos
+[[tool.mypy.overrides]]
+module = [
+    "cv2.*",
+    "tensorflow.*",
+    "pandas.*",
+    "matplotlib.*",
+    "scipy.*",
+    "psutil.*",
+    "traci.*",
+    "sumolib.*",
+    "yaml.*",
+    "supervision.*",
+    "ultralytics.*",
+    "flask.*",
+    "pydantic.*",
+    "numpy.*"
+]
+ignore_missing_imports = true
 
 # Ignorar errores en algoritmos de Machine Learning (SARSA)
 [[tool.mypy.overrides]]

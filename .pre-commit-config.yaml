@@ -42,8 +42,9 @@ repos:
     hooks:
       - id: mypy
         name: 🔍 MyPy - Verificación de tipos
-        args: [--config-file=pyproject.toml]
-        additional_dependencies: [types-PyYAML, types-requests, types-Pillow]
+        args: [--config-file=pyproject.toml, --no-error-summary]
+        additional_dependencies:
+          [types-PyYAML, types-requests, types-Pillow, types-Flask]
 
 # Configuración global
 default_language_version:
