@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 from threading import Thread
 from typing import Any
 
@@ -21,6 +22,10 @@ logger = logging.getLogger("DetectionProvider")
 
 # Objeto compartido que el hilo de procesamiento y la API usarán para comunicarse.
 shared_zones = ZoneList()
+
+# Variable global para controlar el cierre del sistema
+shutdown_event = threading.Event()
+api_server: DetectionAPI | None = None
 
 
 # def video_processing_worker(settings, detector):
@@ -84,38 +89,97 @@ def main() -> None:
 
         #! Procesar toda la carpetas del dataset.
         if settings.deteccion.carpeta_dataset.procesar:
+            logger.info("📁 Iniciando procesamiento de carpeta dataset")
             app.analyze_video_folder()
 
         #! Procesar un video específico del dataset.
         if settings.deteccion.un_video.procesar:
+            logger.info("🎬 Iniciando procesamiento de video individual")
             app.analyze_single_video()
 
         #! Deteccion con cámara en vivo.
         if settings.deteccion.procesar_camara:
+            logger.info("📹 Iniciando detección con cámara en vivo")
             app.analyze_camera()
 
-    except Exception as e:
-        print("Error:", e)
-        shutdown_handler(0, 0)
+        logger.info("✅ Procesamiento de detección completado")
+
+    except KeyboardInterrupt:
+        logger.info("⚠️ Interrupción de usuario en el hilo de detección")
+    except Exception:
+        logger.error("❌ Error crítico en el servicio de detección", exc_info=True)
+    finally:
+        # Señalar que el hilo de detección ha terminado
+        shutdown_event.set()
 
 
 def api_client() -> None:
     """
     Inicia la API de detección de vehículos.
     """
-    api = DetectionAPI(name="API Deteccion")
-    api.run(host="0.0.0.0", port=5000, debug=False)
+    global api_server
+    try:
+        logger.info("🚀 Iniciando servidor API de detección")
+        api_server = DetectionAPI(name="API Deteccion")
+
+        # Configurar Flask para cerrar correctamente
+        import atexit
+
+        atexit.register(lambda: logger.info("📤 API de detección finalizada"))
+
+        api_server.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+    except KeyboardInterrupt:
+        logger.info("⚠️ Interrupción de usuario en API")
+    except Exception:
+        logger.error("❌ Error crítico en API de detección", exc_info=True)
+    finally:
+        shutdown_event.set()
 
 
 def shutdown_handler(sig_num: int, frame: Any) -> None:
-    logger.info("Cerrando el servicio de detección...")
+    """
+    Maneja la señal de cierre del sistema de manera robusta.
+    """
+    global api_server
+
+    logger.info("⚠️ Señal de cierre recibida - iniciando cierre ordenado...")
+
+    # Señalar a todos los hilos que deben terminar
+    shutdown_event.set()
+
+    # Intentar cerrar el servidor Flask si existe
+    if api_server is not None:
+        try:
+            logger.info("🛑 Cerrando servidor API...")
+            # Flask no tiene un método directo de shutdown, pero podemos forzar el cierre
+            os._exit(0)  # Forzar cierre inmediato
+        except Exception:
+            logger.error("❌ Error cerrando servidor API", exc_info=True)
+
+    logger.info("✅ Cierre del servicio de detección completado")
     sys.exit(0)
 
 
 if __name__ == "__main__":
+    # Configurar manejo de señales
     signal.signal(signal.SIGINT, shutdown_handler)
-    # main()
-    app = Thread(target=main)
-    app.start()
+    signal.signal(signal.SIGTERM, shutdown_handler)
 
-    api_client()
+    logger.info("🎯 Iniciando servicio de detección en modo híbrido (app + API)")
+
+    # Crear y configurar el hilo de detección
+    detection_thread = Thread(target=main, name="DetectionThread")
+    detection_thread.daemon = (
+        True  # Hilo daemon para que termine con el proceso principal
+    )
+    detection_thread.start()
+
+    try:
+        # Ejecutar la API en el hilo principal
+        api_client()
+    except KeyboardInterrupt:
+        logger.info("⚠️ Interrupción de usuario detectada")
+        shutdown_handler(0, None)
+    except Exception:
+        logger.error("❌ Error crítico en el proceso principal", exc_info=True)
+        shutdown_handler(0, None)

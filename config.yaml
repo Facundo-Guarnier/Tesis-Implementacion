@@ -5,8 +5,8 @@ deteccion:
   modelo: "yolov8n.pt" #! Modelo de detección de objetos
 
   carpeta_dataset:
-    procesar: True #! Procesar todos los videos de la carpeta del dataset
-    path_origen: "assets/dataset-576x1024-5fps" #! Carpeta con los videos a procesar
+    procesar: False #! Procesar todos los videos de la carpeta del dataset
+    path_origen: "assets/dataset-576x1024-5fps/" #! Carpeta con los videos a procesar
     path_destino: "results/deteccion/" #! Carpeta donde se guardarán los resultados
 
   un_video:
@@ -14,11 +14,12 @@ deteccion:
     guardar: True #! Guardar el video con los resultados
     zona: "Zona C" #! Zona a considerar
     path_destino: "results/deteccion/" #! Carpeta donde se guardará el video con los resultados
-    # path_origen: "dataset/dataset_original/Zona A/20240102_131846.mp4"    #! Path del video a procesar
-    path_origen: "dataset/dataset_original/Zona C/20240102_132223.mp4" #! Path del video a procesar
-    # path_origen: "dataset/dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"    #! Path del video a procesar
+    # path_origen: "assets/dataset-576x1024-5fps/Zona C/20240102_132223.mp4"
+    path_origen: "assets/dataset-1080x1920-30fps/Zona C/20240102_132223.mp4"
+    # path_origen: "dataset/dataset_original/Zona A/20240102_131846.mp4"
+    # path_origen: "dataset/dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"
 
-  procesar_camara: False #! Procesar la cámara en tiempo real
+  procesar_camara: True #! Procesar la cámara en tiempo real
 
 decision:
   decision: True #* Iniciar la toma de decisiones

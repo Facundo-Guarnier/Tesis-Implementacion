@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -43,6 +44,8 @@ class DetectorService:
         self.detection_times: dict[int, int] = (
             {}
         )  # Diccionario para almacenar tiempos de detección
+
+        self.logger = logging.getLogger(f"{self.__class__.__name__}[DetectorService]")
 
     def _create_fines_folder(self) -> None:
         """
@@ -297,7 +300,9 @@ class DetectorService:
         self._create_fines_folder()
         self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self._define_supervision_parameters()
-        print(f"  Factor de escala: {self.video_processor.scale_factor}")
+        self.logger.info(
+            f"⚙️ Factor de escala aplicado: {self.video_processor.scale_factor}"
+        )
 
         sv.process_video(
             source_path=video_processor.origin_path,
@@ -378,7 +383,9 @@ class DetectorService:
         cap.release()
         cv2.destroyAllWindows()
         if save_output:
-            print("Guardado en: ", self.video_processor.result_path)
+            self.logger.info(
+                f"💾 Video guardado en: {self.video_processor.result_path}"
+            )
 
     def process_camera(self, video_processor: VideoProcessor) -> None:
         """
