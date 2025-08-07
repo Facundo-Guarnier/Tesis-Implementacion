@@ -22,6 +22,9 @@ class DeteccionSettings(BaseModel):
     carpeta_dataset: DeteccionCarpetaSettings
     un_video: DeteccionUnVideoSettings
     procesar_camara: bool  #! Procesar la cámara en tiempo real
+    path_resultados_deteccion: (
+        str  #! Carpeta donde se guardan los resultados de detección automática
+    )
 
 
 # --- Modelos para la sección 'decision' ---

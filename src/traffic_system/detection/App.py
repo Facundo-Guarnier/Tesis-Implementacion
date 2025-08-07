@@ -122,8 +122,8 @@ class DetectionApp:
         """
 
         video_processor_instance = VideoProcessor(
-            origin_path="",
-            scale_factor=0.2,
+            origin_path="",  # Para cámara, origin_path vacío
+            is_camera=True,  # Especificar que es cámara
             zone=next(
                 (
                     zone_obj

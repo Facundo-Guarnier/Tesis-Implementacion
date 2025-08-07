@@ -3,6 +3,7 @@ base_url: "http://10.10.0.111:5000" #! URL base del servidor Flask
 deteccion:
   detectar: True #* Iniciar la detección de objetos
   modelo: "yolov8n.pt" #! Modelo de detección de objetos
+  path_resultados_deteccion: "results/detection_results/" #! Carpeta donde se guardan los resultados de detección automática
 
   carpeta_dataset:
     procesar: False #! Procesar todos los videos de la carpeta del dataset
@@ -10,7 +11,7 @@ deteccion:
     path_destino: "results/deteccion/" #! Carpeta donde se guardarán los resultados
 
   un_video:
-    procesar: False #! Procesar un video en específico
+    procesar: True #! Procesar un video en específico
     guardar: True #! Guardar el video con los resultados
     zona: "Zona C" #! Zona a considerar
     path_destino: "results/deteccion/" #! Carpeta donde se guardará el video con los resultados
@@ -19,7 +20,7 @@ deteccion:
     # path_origen: "dataset/dataset_original/Zona A/20240102_131846.mp4"
     # path_origen: "dataset/dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"
 
-  procesar_camara: True #! Procesar la cámara en tiempo real
+  procesar_camara: False #! Procesar la cámara en tiempo real
 
 decision:
   decision: True #* Iniciar la toma de decisiones

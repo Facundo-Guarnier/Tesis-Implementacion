@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 import time
 
 import cv2
@@ -32,6 +33,7 @@ class DetectorService:
         self,
         detection_settings: DeteccionSettings | None = None,
         zones_instance: ZoneList | None = None,
+        shutdown_event: threading.Event | None = None,
     ) -> None:
         # TODO: Eliminar el uso de load_app_settings, ya que deberia cargar desde la configuración global.
         self.settings = load_app_settings().deteccion
@@ -45,7 +47,81 @@ class DetectorService:
             {}
         )  # Diccionario para almacenar tiempos de detección
 
+        # Flags para control de ventanas
+        self.window_active = False
+        self.should_close = False
+        self.shutdown_event = shutdown_event
+
         self.logger = logging.getLogger(f"{self.__class__.__name__}[DetectorService]")
+
+    def _cleanup_video_resources(
+        self,
+        cap: cv2.VideoCapture,
+        output_writer: cv2.VideoWriter | None,
+        window_name: str,
+    ) -> None:
+        """
+        Limpia todos los recursos de video y ventanas de manera segura.
+        """
+        try:
+            if cap is not None:
+                cap.release()
+                self.logger.debug("📹 VideoCapture liberado")
+
+            if output_writer is not None:
+                output_writer.release()
+                self.logger.info(
+                    f"💾 Video guardado en: {self.video_processor.result_path}"
+                )
+
+            # Cerrar ventana específica primero
+            try:
+                cv2.destroyWindow(window_name)
+                self.logger.debug(f"🪟 Ventana '{window_name}' cerrada")
+            except cv2.error:
+                pass  # Ventana ya estaba cerrada
+
+            # Cleanup general de OpenCV
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)  # Permitir que OpenCV procese el cierre
+
+            self.window_active = False
+            self.should_close = False
+
+        except Exception:
+            self.logger.error(
+                "❌ Error durante cleanup de recursos de video", exc_info=True
+            )
+
+    def _cleanup_camera_resources(
+        self, cap: cv2.VideoCapture, window_name: str
+    ) -> None:
+        """
+        Limpia recursos de cámara y ventanas de manera segura.
+        """
+        try:
+            if cap is not None:
+                cap.release()
+                self.logger.debug("📹 VideoCapture de cámara liberado")
+
+            # Cerrar ventana específica primero
+            try:
+                cv2.destroyWindow(window_name)
+                self.logger.debug(f"🪟 Ventana '{window_name}' cerrada")
+            except cv2.error:
+                pass  # Ventana ya estaba cerrada
+
+            # Cleanup general de OpenCV
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)  # Permitir que OpenCV procese el cierre
+
+            self.window_active = False
+            self.should_close = False
+
+        except Exception:
+            self.logger.error(
+                "❌ Error durante cleanup de recursos de cámara", exc_info=True
+            )
 
     def _create_fines_folder(self) -> None:
         """
@@ -338,53 +414,108 @@ class DetectorService:
         second_start_time = time.time()
         total_frames_processed = 0
 
-        cv2.namedWindow("Detectando en un video", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Detectando en un video", 460, 820)
+        window_name = "Detectando en un video"
+        self.window_active = True
+        self.should_close = False
 
-        while True:
-            frames_in_second += 1
-            total_frames_processed += 1
+        try:
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(window_name, 460, 820)
+            self.logger.info(f"🪟 Ventana '{window_name}' creada")
 
-            #! Salir si no hay más frames
-            ret, frame = cap.read()
-            if not ret:
-                break
+            while not self.should_close and (
+                self.shutdown_event is None or not self.shutdown_event.is_set()
+            ):
+                frames_in_second += 1
+                total_frames_processed += 1
 
-            #! Procesar el frame
-            frame = self._process_frame_callback(frame, total_frames_processed)
+                #! Salir si no hay más frames
+                ret, frame = cap.read()
+                if not ret:
+                    self.logger.info("📺 Final del video alcanzado")
+                    break
 
-            #! Guardar el frame sin mostrar los fps.
-            if save_output:
-                output_writer.write(frame)
+                #! Procesar el frame
+                frame = self._process_frame_callback(frame, total_frames_processed)
 
-            #! Mostrar el FPS
-            if time.time() - second_start_time >= 1:
-                fps = frames_in_second
-                frames_in_second = 0
-                second_start_time = time.time()
+                #! Guardar el frame sin mostrar los fps.
+                if save_output:
+                    output_writer.write(frame)
 
-            cv2.putText(
-                frame,
-                f"FPS: {fps}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1 * self.video_processor.scale_factor,
-                (0, 255, 0),
-                2,
-            )
+                #! Mostrar el FPS
+                if time.time() - second_start_time >= 1:
+                    fps = frames_in_second
+                    frames_in_second = 0
+                    second_start_time = time.time()
 
-            #! Mostrar el frame en la ventana
-            cv2.imshow("Detectando en un video", frame)
+                cv2.putText(
+                    frame,
+                    f"FPS: {fps}",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1 * self.video_processor.scale_factor,
+                    (0, 255, 0),
+                    2,
+                )
 
-            #! Salir del bucle con la tecla 'q'.
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+                #! Mostrar el frame en la ventana si está activa
+                if self.window_active and not self.should_close:
+                    try:
+                        cv2.imshow(window_name, frame)
 
-        cap.release()
-        cv2.destroyAllWindows()
-        if save_output:
-            self.logger.info(
-                f"💾 Video guardado en: {self.video_processor.result_path}"
+                        # Método robusto para detectar cierre manual de ventana
+                        try:
+                            # Verificar múltiples propiedades de la ventana
+                            window_visible = cv2.getWindowProperty(
+                                window_name, cv2.WND_PROP_VISIBLE
+                            )
+                            window_aspect = cv2.getWindowProperty(
+                                window_name, cv2.WND_PROP_ASPECT_RATIO
+                            )
+
+                            # Si cualquiera de estas condiciones se cumple, la ventana fue cerrada
+                            if (
+                                window_visible < 1
+                                or window_aspect < 0
+                                or cv2.getWindowProperty(
+                                    window_name, cv2.WND_PROP_AUTOSIZE
+                                )
+                                < 0
+                            ):
+                                self.logger.info(
+                                    "🪟 Ventana cerrada manualmente por el usuario"
+                                )
+                                self.should_close = True
+                                self.window_active = False
+                                break
+                        except cv2.error:
+                            # Si hay error accediendo a las propiedades, la ventana fue cerrada
+                            self.logger.info(
+                                "🪟 Ventana cerrada manualmente (error accediendo propiedades)"
+                            )
+                            self.should_close = True
+                            self.window_active = False
+                            break
+
+                    except cv2.error:
+                        self.logger.warning("⚠️ Error mostrando frame, ventana cerrada")
+                        self.should_close = True
+                        self.window_active = False
+                        break
+
+                #! Salir del bucle con la tecla 'q'.
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    self.logger.info("⌨️ Tecla 'q' presionada, cerrando video")
+                    self.should_close = True
+                    break
+
+        except Exception:
+            self.logger.error("❌ Error durante procesamiento de video", exc_info=True)
+        finally:
+            # Cleanup robusto de recursos
+            self._cleanup_video_resources(
+                cap, output_writer if save_output else None, window_name
             )
 
     def process_camera(self, video_processor: VideoProcessor) -> None:
@@ -394,6 +525,17 @@ class DetectorService:
 
         cap = cv2.VideoCapture(0)
         self.video_processor = video_processor
+
+        # Definir resolución de visualización para cámara
+        display_width, display_height = 820, 460
+
+        # Actualizar la resolución del video_processor para que coincida con la de visualización
+        # Esto asegura que el factor de escala sea correcto para los elementos visuales
+        self.video_processor.resolution = (display_width, display_height)
+        self.video_processor.scale_factor = (
+            self.video_processor._calculate_scale_factor() or 1.0
+        )
+
         self._create_fines_folder()
         self._define_supervision_parameters()
 
@@ -402,45 +544,105 @@ class DetectorService:
         second_start_time = time.time()
         total_frames_processed = 0
 
-        cv2.namedWindow("Detectando con camara", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Detectando con camara", 820, 460)
+        window_name = "Detectando con camara"
+        self.window_active = True
+        self.should_close = False
 
-        while True:
-            frames_in_second += 1
-
-            #! Salir si no hay más frames
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            #! Rescalar el frame
-            frame = cv2.resize(frame, (820, 460))
-
-            #! Procesar el frame
-            frame = self._process_frame_callback(frame, total_frames_processed)
-
-            #! Mostrar el FPS
-            if time.time() - second_start_time >= 1:
-                fps = frames_in_second
-                frames_in_second = 0
-                second_start_time = time.time()
-
-            cv2.putText(
-                frame,
-                f"FPS: {fps}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 255, 0),
-                2,
+        try:
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(window_name, display_width, display_height)
+            self.logger.info(f"🪟 Ventana '{window_name}' creada")
+            self.logger.info(
+                f"📹 Procesando cámara - Resolución: {display_width}x{display_height}, Factor escala: {self.video_processor.scale_factor:.3f}"
             )
 
-            #! Mostrar el frame en la ventana
-            cv2.imshow("Detectando con camara", frame)
+            while not self.should_close and (
+                self.shutdown_event is None or not self.shutdown_event.is_set()
+            ):
+                frames_in_second += 1
 
-            #! Salir del bucle con la tecla 'q'.
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+                #! Salir si no hay más frames
+                ret, frame = cap.read()
+                if not ret:
+                    self.logger.warning("⚠️ No se puede leer de la cámara")
+                    break
 
-        cap.release()
-        cv2.destroyAllWindows()
+                #! Rescalar el frame a la resolución de visualización
+                frame = cv2.resize(frame, (display_width, display_height))
+
+                #! Procesar el frame
+                frame = self._process_frame_callback(frame, total_frames_processed)
+
+                #! Mostrar el FPS
+                if time.time() - second_start_time >= 1:
+                    fps = frames_in_second
+                    frames_in_second = 0
+                    second_start_time = time.time()
+
+                cv2.putText(
+                    frame,
+                    f"FPS: {fps}",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),
+                    2,
+                )
+
+                #! Mostrar el frame en la ventana si está activa
+                if self.window_active and not self.should_close:
+                    try:
+                        cv2.imshow(window_name, frame)
+
+                        # Método robusto para detectar cierre manual de ventana
+                        try:
+                            # Verificar múltiples propiedades de la ventana
+                            window_visible = cv2.getWindowProperty(
+                                window_name, cv2.WND_PROP_VISIBLE
+                            )
+                            window_aspect = cv2.getWindowProperty(
+                                window_name, cv2.WND_PROP_ASPECT_RATIO
+                            )
+
+                            # Si cualquiera de estas condiciones se cumple, la ventana fue cerrada
+                            if (
+                                window_visible < 1
+                                or window_aspect < 0
+                                or cv2.getWindowProperty(
+                                    window_name, cv2.WND_PROP_AUTOSIZE
+                                )
+                                < 0
+                            ):
+                                self.logger.info(
+                                    "🪟 Ventana cerrada manualmente por el usuario"
+                                )
+                                self.should_close = True
+                                self.window_active = False
+                                break
+                        except cv2.error:
+                            # Si hay error accediendo a las propiedades, la ventana fue cerrada
+                            self.logger.info(
+                                "🪟 Ventana cerrada manualmente (error accediendo propiedades)"
+                            )
+                            self.should_close = True
+                            self.window_active = False
+                            break
+
+                    except cv2.error:
+                        self.logger.warning("⚠️ Error mostrando frame, ventana cerrada")
+                        self.should_close = True
+                        self.window_active = False
+                        break
+
+                #! Salir del bucle con la tecla 'q'.
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    self.logger.info("⌨️ Tecla 'q' presionada, cerrando cámara")
+                    self.should_close = True
+                    break
+
+        except Exception:
+            self.logger.error("❌ Error durante procesamiento de cámara", exc_info=True)
+        finally:
+            # Cleanup robusto de recursos
+            self._cleanup_camera_resources(cap, window_name)
