@@ -1,8 +1,3 @@
-"""
-Gestor de ventanas OpenCV - Manejo de visualización
-==================================================
-"""
-
 import logging
 
 import cv2

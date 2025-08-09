@@ -1,5 +1,3 @@
-# Stream processing components for better code organization
-
 from .output_manager import OutputManager
 from .stream_coordinator import StreamCoordinator
 from .stream_sources import CameraStreamSource, StreamSource, VideoStreamSource

@@ -1,8 +1,3 @@
-"""
-Gestor de salida de video - Manejo de escritura de archivos
-==========================================================
-"""
-
 import logging
 from pathlib import Path
 

@@ -1,8 +1,3 @@
-"""
-Fuentes de stream - Abstracciones para video y cámara
-====================================================
-"""
-
 import logging
 from abc import ABC, abstractmethod
 

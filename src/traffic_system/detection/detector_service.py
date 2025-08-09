@@ -12,6 +12,7 @@ import ultralytics as ul
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
 from src.traffic_system.detection.stream_processing import StreamCoordinator
+from src.traffic_system.detection.ui import InfoOverlay
 from src.traffic_system.detection.video_processor import VideoProcessor
 from src.traffic_system.detection.zones.zone_list import ZoneList
 
@@ -56,9 +57,10 @@ class DetectorService:
         # Nuevo coordinador de streams
         self.stream_coordinator = StreamCoordinator(shutdown_event)
 
-        self.logger = logging.getLogger(f"{self.__class__.__name__}[DetectorService]")
+        # Sistema de overlay profesional
+        self.info_overlay = InfoOverlay()
 
-    # NOTA: _cleanup_live_stream_resources eliminado - ahora StreamCoordinator maneja la limpieza
+        self.logger = logging.getLogger(f"{self.__class__.__name__}[DetectorService]")
 
     def _create_fines_folder(self) -> None:
         """
@@ -66,9 +68,10 @@ class DetectorService:
         """
 
         self.__fines_path = os.path.join(
-            "Resultados_multa",
-            f"Multa_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+            self.settings.path_resultados_deteccion,
+            "multa",
             self.video_processor.zone.name,
+            time.strftime("%Y-%m-%d_%H-%M-%S"),
         )
         log_dir = os.path.join(self.__fines_path)
         if not os.path.exists(log_dir):
@@ -78,6 +81,10 @@ class DetectorService:
         """
         Define los parámetros de supervisión necesario para la edición de los frames en base a la resolución del video.
         """
+
+        # Actualizar factor de escala del overlay
+        self.info_overlay.scale_factor = self.video_processor.scale_factor
+        self.info_overlay._setup_style()
 
         #! Seguidor de los objetos.
         self.byte_tracker = sv.ByteTrack(
@@ -99,7 +106,8 @@ class DetectorService:
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
 
-        #! Línea de multas
+        #! Escalar puntos de zona y línea de multas
+        self.video_processor.zone.scale_points(self.video_processor.resolution)
         self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self.line_zones: list[sv.LineZone] = []
         p = self.video_processor.zone.rescaled_fine_points
@@ -119,15 +127,11 @@ class DetectorService:
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
 
-    def _draw_detection_polygon_and_centers_cv2(
-        self, frame: np.ndarray, detections: sv.Detections
-    ) -> np.ndarray:
+    def _draw_zone_polygon(self, frame: np.ndarray) -> np.ndarray:
         """
-        - Dibuja el centro de los objetos y el polígono de detección.
-        - Cuenta los objetos que están dentro del polígono.
+        Dibuja el polígono de la zona de detección.
+        Se ejecuta siempre, independientemente de si hay detecciones o no.
         """
-
-        #! Dibujar el polígono de detección
         cv2.polylines(
             img=frame,
             pts=[self.video_processor.zone.rescaled_points],
@@ -135,6 +139,21 @@ class DetectorService:
             color=(0, 0, 255),
             thickness=max(1, int(10 * self.video_processor.scale_factor)),
         )
+        return frame
+
+    def _draw_detection_polygon_and_centers_cv2(
+        self, frame: np.ndarray, detections: sv.Detections, fps_real: int | None = None
+    ) -> np.ndarray:
+        """
+        - Dibuja el centro de los objetos detectados.
+        - Cuenta los objetos que están dentro del polígono.
+        - Agrega overlay profesional con toda la información.
+
+        Args:
+            frame: Frame actual del video
+            detections: Detecciones de objetos
+            fps_real: FPS reales de procesamiento (para cálculo correcto de tiempo en streaming)
+        """
 
         #! Lista de IDs de objetos que ya no están en la imagen
         ids_out_of_frame = [
@@ -180,29 +199,61 @@ class DetectorService:
             )
 
         total_frames_in_zone = sum(self.detection_times.values())
-        total_seconds_in_zone = total_frames_in_zone // self.video_processor.fps
 
-        #! Escribir la cantidad de detecciones en el frame
-        cv2.putText(
-            img=frame,
-            text=f"Vehiculos {polygon_detections_count} {total_seconds_in_zone}",
-            org=(
-                max(1, int(250 * self.video_processor.scale_factor)),
-                max(1, int(1800 * self.video_processor.scale_factor)),
-            ),
-            fontFace=cv2.FONT_HERSHEY_PLAIN,
-            fontScale=max(1, int(6 * self.video_processor.scale_factor)),
-            color=(50, 50, 200),
-            thickness=max(1, int(6 * self.video_processor.scale_factor)),
-        )
+        # Lógica de cálculo de tiempo:
+        # - Para videos grabados: usar FPS del video (tiempo relativo al video)
+        # - Para cámara/streaming: usar FPS reales (tiempo de mundo real)
+        if (
+            hasattr(self.video_processor, "is_camera")
+            and self.video_processor.is_camera
+        ):
+            # Cámara: usar FPS reales porque los frames perdidos se descartan
+            fps_for_calculation = (
+                fps_real
+                if fps_real is not None and fps_real > 0
+                else self.video_processor.fps
+            )
+        else:
+            # Video grabado: usar FPS del video porque todos los frames se procesan secuencialmente
+            fps_for_calculation = self.video_processor.fps
+
+        total_seconds_in_zone = total_frames_in_zone // fps_for_calculation
 
         #! Guardar la cantidad de detecciones en la clase Zona para la API.
-        # self.video.zona.cantidad_detecciones = detecciones_poligono
         updated_zone = self.zones.get_zone_by_name(self.video_processor.zone.name)
         if updated_zone:
             updated_zone.detection_count = polygon_detections_count
             updated_zone.wait_time = int(total_seconds_in_zone)
         self.video_processor.zone.wait_time = int(total_seconds_in_zone)
+
+        return frame
+
+    def _add_professional_info_overlay(
+        self, frame: np.ndarray, fps_real: int = 0
+    ) -> np.ndarray:
+        """
+        Agregar overlay profesional con toda la información de detección.
+        """
+        # Obtener información del video/fuente
+        fps_original = self.video_processor.fps
+        source_type = "camera" if self.video_processor.is_camera else "video"
+
+        # Obtener información de detección actual
+        updated_zone = self.zones.get_zone_by_name(self.video_processor.zone.name)
+        vehicle_count = updated_zone.detection_count if updated_zone else 0
+        wait_time_seconds = updated_zone.wait_time if updated_zone else 0
+        zone_name = self.video_processor.zone.name
+
+        # Agregar overlay completo
+        frame = self.info_overlay.add_info_overlay(
+            frame=frame,
+            fps_real=fps_real,
+            fps_original=fps_original,
+            source_type=source_type,
+            vehicle_count=vehicle_count,
+            wait_time_seconds=wait_time_seconds,
+            zone_name=zone_name,
+        )
 
         return frame
 
@@ -291,6 +342,9 @@ class DetectorService:
         #! Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
 
+        # Dibujar siempre el polígono de la zona, independientemente de si hay detecciones
+        frame = self._draw_zone_polygon(frame)
+
         #! Si hay detecciones
         if detections.tracker_id.size > 0:
             frame = self._draw_detection_polygon_and_centers_cv2(frame, detections)
@@ -301,6 +355,56 @@ class DetectorService:
 
             if self.video_processor.zone.fines_activated:
                 frame = self._process_fines(frame, detections)
+
+        # Agregar overlay profesional con toda la información
+        # Nota: Los FPS reales se calculan en StreamCoordinator, aquí usamos 0 como placeholder
+        frame = self._add_professional_info_overlay(frame, fps_real=0)
+
+        return frame
+
+    def _process_frame_with_fps_callback(
+        self, frame: np.ndarray, frame_number: int, fps_real: int = 0
+    ) -> np.ndarray:
+        """
+        Procesamiento de video con información de FPS reales.
+        Se ejecuta por cada frame del video.
+        """
+
+        #! Realizar la detección/predicción de objetos
+        model_results = self.model(frame, verbose=False)[0]
+        detections = sv.Detections.from_ultralytics(model_results)
+
+        #! Filtrar las clases que no se necesitan
+        detections = detections[np.isin(detections.class_id, self._selected_classes)]
+
+        #! Seguimiento de objetos
+        detections = self.byte_tracker.update_with_detections(detections)
+
+        # Dibujar siempre el polígono de la zona, independientemente de si hay detecciones
+        frame = self._draw_zone_polygon(frame)
+
+        #! Si hay detecciones
+        if detections.tracker_id.size > 0:
+            frame = self._draw_detection_polygon_and_centers_cv2(
+                frame, detections, fps_real
+            )
+
+            frame = self.trace_annotator.annotate(frame, detections=detections)
+
+            frame = self._annotate_boxes_sv(frame, detections)
+
+            if self.video_processor.zone.fines_activated:
+                frame = self._process_fines(frame, detections)
+
+        # Voltear imagen horizontalmente para cámara ANTES del overlay (para que el texto se vea normal)
+        if (
+            hasattr(self.video_processor, "is_camera")
+            and self.video_processor.is_camera
+        ):
+            frame = cv2.flip(frame, 1)
+
+        # Agregar overlay profesional con información de FPS reales
+        frame = self._add_professional_info_overlay(frame, fps_real=fps_real)
 
         return frame
 
@@ -332,6 +436,7 @@ class DetectorService:
 
         # Configurar parámetros de procesamiento
         self._create_fines_folder()
+        self.video_processor.zone.scale_points(self.video_processor.resolution)
         self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self._define_supervision_parameters()
 
@@ -340,11 +445,11 @@ class DetectorService:
         if save_output:
             final_output_path = output_path or self.video_processor.result_path
 
-        # Usar StreamCoordinator para procesar
-        self.stream_coordinator.process_stream(
+        # Usar StreamCoordinator para procesar con FPS callback
+        self.stream_coordinator.process_stream_with_fps_callback(
             source_input=source_input,
             window_name=window_name,
-            frame_processor=self._process_frame_callback,
+            frame_processor_with_fps=self._process_frame_with_fps_callback,
             save_output=save_output,
             output_path=final_output_path,
             display_size=display_size,
@@ -358,6 +463,7 @@ class DetectorService:
 
         self.video_processor = video_processor
         self._create_fines_folder()
+        self.video_processor.zone.scale_points(self.video_processor.resolution)
         self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self._define_supervision_parameters()
         self.logger.info(

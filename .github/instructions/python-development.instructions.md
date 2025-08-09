@@ -34,6 +34,8 @@ applyTo: "**/*.py"
 - **Mypy**: Verificación de tipos estáticos
 - **Pre-commit**: Ejecuta todas las herramientas antes de cada commit
 
+⚠️ **IMPORTANTE**: NUNCA ejecutar comandos de formateo o linter manualmente (pre-commit, black, ruff, mypy, etc.) - solo modificar el código sin ejecutar validaciones.
+
 ## Logging
 
 - Usar el patrón estándar del proyecto:

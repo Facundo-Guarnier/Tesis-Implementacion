@@ -1,0 +1,312 @@
+{
+  "info": {
+    "name": "Tesis (desde Thunder)",
+    "_postman_id": "f40c444e-fc73-4799-aa71-e8f54536c1ba",
+    "description": "Colección convertida desde Thunder Client a formato Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Cantidad vehículos",
+      "item": [
+        {
+          "name": "GET /cantidad",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cantidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cantidad"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /cantidad/Zona X",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cantidad/{{zoneName}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cantidad",
+                "{{zoneName}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tiempo de espera",
+      "item": [
+        {
+          "name": "GET /espera",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/espera",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "espera"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /espera/A (no existe en DetectionAPI)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Nota: este endpoint no está en DetectionAPI actual",
+                  "pm.test('Debe devolver 404', function () { pm.response.to.have.status(404); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/espera/A",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "espera",
+                "A"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /espera/:zone_name",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/espera/{{zoneName}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "espera",
+                "{{zoneName}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Semaforo",
+      "item": [
+        {
+          "name": "GET /semaforo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/semaforo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "semaforo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /semaforo/1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/semaforo/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "semaforo",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /semaforo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\":[\n    {\"id\": \"1\", \"estado\": \"rrrrrrrrrrr\"},\n    {\"id\": \"2\", \"estado\": \"rrrrrrrrrrr\"},\n    {\"id\": \"3\", \"estado\": \"rrrrrrrrrrr\"},\n    {\"id\": \"4\", \"estado\": \"rrrrrrrrrr\"}\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/semaforo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "semaforo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /semaforo/1?estado=...",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/semaforo/1?estado=ggggggggggg",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "semaforo",
+                "1"
+              ],
+              "query": [
+                { "key": "estado", "value": "ggggggggggg" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Extras",
+      "item": [
+        {
+          "name": "PUT /avanzar?steps=100",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/avanzar?steps=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "avanzar"
+              ],
+              "query": [
+                { "key": "steps", "value": "100" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /simulacion",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/simulacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "simulacion"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /espera2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/espera2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "espera2"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /reporte",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reporte",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reporte"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Detección - Multas",
+      "item": [
+        {
+          "name": "POST /multas/:zone_name",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/multas/{{zoneName}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "multas",
+                "{{zoneName}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000", "type": "string" },
+    { "key": "zoneName", "value": "Zona A", "type": "string" }
+  ]
+}
