@@ -45,9 +45,9 @@ class DetectorService:
 
         self.zones = zones_instance if zones_instance is not None else ZoneList()
 
-        self.detection_times: dict[int, int] = (
+        self.detection_times: dict[int, float] = (
             {}
-        )  # Diccionario para almacenar tiempos de detección
+        )  # Diccionario para almacenar tiempos de detección (normalizados por FPS)
 
         # Flags para control de ventanas (mantenidos para compatibilidad)
         self.window_active = False
@@ -141,65 +141,19 @@ class DetectorService:
         )
         return frame
 
-    def _draw_detection_polygon_and_centers_cv2(
-        self, frame: np.ndarray, detections: sv.Detections, fps_real: int | None = None
-    ) -> np.ndarray:
+    def _calculate_wait_time(
+        self, total_frames: float, fps_real: int | None = None
+    ) -> int:
         """
-        - Dibuja el centro de los objetos detectados.
-        - Cuenta los objetos que están dentro del polígono.
-        - Agrega overlay profesional con toda la información.
+        Calcula el tiempo de espera en segundos basado en el tipo de fuente.
 
         Args:
-            frame: Frame actual del video
-            detections: Detecciones de objetos
-            fps_real: FPS reales de procesamiento (para cálculo correcto de tiempo en streaming)
+            total_frames: Total de frames acumulados en la zona (normalizados por FPS)
+            fps_real: FPS reales de procesamiento (para streaming)
+
+        Returns:
+            Tiempo en segundos
         """
-
-        #! Lista de IDs de objetos que ya no están en la imagen
-        ids_out_of_frame = [
-            id for id in self.detection_times if id not in detections.tracker_id
-        ]
-        for id in ids_out_of_frame:
-            del self.detection_times[id]
-
-        #! Dibujar el centro de los objetos
-        polygon_detections_count = 0
-        for box, _mask, _confidence, _class_id, tracker_id, _data in detections:
-            #! Centros
-            #  xmin, ymin, xmax, ymax
-            #   0     1     2     3
-            x = int((box[0] + box[2]) // 2)
-            y = int((box[1] + box[3]) // 2)
-
-            #! Validar el punto dentro del polígono
-            color: list[int]  # BGR
-            if mplPath.Path(self.video_processor.zone.rescaled_points).contains_point(
-                (x, y)
-            ):
-                polygon_detections_count += 1
-                color = [255, 80, 0]
-
-                #! Contar el tiempo de detección
-                if tracker_id in self.detection_times:
-                    self.detection_times[tracker_id] += 1
-                else:
-                    self.detection_times[tracker_id] = 1
-
-            else:
-                color = [0, 0, 255]
-                #! Reiniciar el tiempo de detección
-                self.detection_times[tracker_id] = 0
-
-            cv2.circle(
-                img=frame,
-                center=(x, y),
-                radius=max(1, int(10 * self.video_processor.scale_factor)),
-                color=color,
-                thickness=max(1, int(10 * self.video_processor.scale_factor)),
-            )
-
-        total_frames_in_zone = sum(self.detection_times.values())
-
         # Lógica de cálculo de tiempo:
         # - Para videos grabados: usar FPS del video (tiempo relativo al video)
         # - Para cámara/streaming: usar FPS reales (tiempo de mundo real)
@@ -217,22 +171,116 @@ class DetectorService:
             # Video grabado: usar FPS del video porque todos los frames se procesan secuencialmente
             fps_for_calculation = self.video_processor.fps
 
-        total_seconds_in_zone = total_frames_in_zone // fps_for_calculation
+        # CORRIGIDO: Usar round() en lugar de división entera (//) para evitar
+        # discrepancias entre videos con diferentes FPS debido al truncamiento
+        return round(total_frames / fps_for_calculation)
 
-        #! Guardar la cantidad de detecciones en la clase Zona para la API.
+    def _update_zone_metrics(self, vehicle_count: int, wait_time_seconds: int) -> None:
+        """
+        Actualiza las métricas de la zona en el sistema.
+
+        Args:
+            vehicle_count: Número de vehículos en la zona
+            wait_time_seconds: Tiempo de espera en segundos
+        """
+        # Actualizar zona en la lista global
         updated_zone = self.zones.get_zone_by_name(self.video_processor.zone.name)
         if updated_zone:
-            updated_zone.detection_count = polygon_detections_count
-            updated_zone.wait_time = int(total_seconds_in_zone)
-        self.video_processor.zone.wait_time = int(total_seconds_in_zone)
+            updated_zone.detection_count = vehicle_count
+            updated_zone.wait_time = wait_time_seconds
+
+        # Actualizar zona local
+        self.video_processor.zone.wait_time = wait_time_seconds
+
+    def _draw_detection_centers(
+        self, frame: np.ndarray, detections: sv.Detections
+    ) -> tuple[np.ndarray, int]:
+        """
+        Dibuja los centros de los objetos detectados y cuenta los que están en la zona.
+
+        Args:
+            frame: Frame actual del video
+            detections: Detecciones de objetos
+
+        Returns:
+            Tupla con (frame_modificado, cantidad_vehiculos_en_zona)
+        """
+        vehicles_in_zone = 0
+
+        for box, _mask, _confidence, _class_id, tracker_id, _data in detections:
+            # Calcular centro del objeto
+            center_x = int((box[0] + box[2]) // 2)
+            center_y = int((box[1] + box[3]) // 2)
+
+            # Verificar si está dentro del polígono de la zona
+            is_in_zone = mplPath.Path(
+                self.video_processor.zone.rescaled_points
+            ).contains_point((center_x, center_y))
+
+            if is_in_zone:
+                vehicles_in_zone += 1
+                color = [255, 80, 0]  # Naranja para objetos en zona
+
+                # CORRECCIÓN: Normalizar conteo de frames por FPS del video
+                # para mantener consistencia temporal entre videos de diferentes FPS
+                fps_normalization_factor = max(1.0, self.video_processor.fps / 30.0)
+
+                # Contar frames de detección normalizados
+                if tracker_id in self.detection_times:
+                    self.detection_times[tracker_id] += fps_normalization_factor
+                else:
+                    self.detection_times[tracker_id] = fps_normalization_factor
+            else:
+                color = [0, 0, 255]  # Rojo para objetos fuera de zona
+                # Reiniciar contador si sale de la zona
+                self.detection_times[tracker_id] = 0.0
+
+            # Dibujar centro
+            cv2.circle(
+                img=frame,
+                center=(center_x, center_y),
+                radius=max(1, int(10 * self.video_processor.scale_factor)),
+                color=color,
+                thickness=max(1, int(10 * self.video_processor.scale_factor)),
+            )
+
+        return frame, vehicles_in_zone
+
+    def _process_detections_and_calculate_metrics(
+        self, frame: np.ndarray, detections: sv.Detections, fps_real: int | None = None
+    ) -> np.ndarray:
+        """
+        Procesa las detecciones, dibuja centros y calcula métricas de tiempo.
+
+        Args:
+            frame: Frame actual del video
+            detections: Detecciones de objetos
+            fps_real: FPS reales de procesamiento (para cálculo correcto de tiempo en streaming)
+        """
+        # Limpiar IDs de objetos que ya no están en la imagen
+        expired_tracker_ids = [
+            tracker_id
+            for tracker_id in self.detection_times
+            if tracker_id not in detections.tracker_id
+        ]
+        for tracker_id in expired_tracker_ids:
+            del self.detection_times[tracker_id]
+
+        # Dibujar centros y contar vehículos en zona
+        frame, vehicles_in_zone = self._draw_detection_centers(frame, detections)
+
+        # Calcular métricas de tiempo
+        total_frames_in_zone = sum(self.detection_times.values())
+        wait_time_seconds = self._calculate_wait_time(total_frames_in_zone, fps_real)
+
+        # Actualizar métricas del sistema
+        self._update_zone_metrics(vehicles_in_zone, wait_time_seconds)
 
         return frame
 
-    def _add_professional_info_overlay(
-        self, frame: np.ndarray, fps_real: int = 0
-    ) -> np.ndarray:
+    def _add_info_overlay(self, frame: np.ndarray, fps_real: int = 0) -> np.ndarray:
         """
-        Agregar overlay profesional con toda la información de detección.
+        Agregar overlay con información de detección.
         """
         # Obtener información del video/fuente
         fps_original = self.video_processor.fps
@@ -324,42 +372,54 @@ class DetectorService:
 
         return frame
 
-    def _process_frame_callback(
-        self, frame: np.ndarray, frame_number: int
+    def _process_frame_base(
+        self, frame: np.ndarray, fps_real: int | None = None
     ) -> np.ndarray:
         """
-        - Procesamiento de video.
-        - Se ejecuta por cada frame del video.
-        """
+        Lógica base de procesamiento de frames común a todos los métodos.
 
-        #! Realizar la detección/predicción de objetos
+        Args:
+            frame: Frame actual del video
+            fps_real: FPS reales de procesamiento (opcional)
+
+        Returns:
+            Frame procesado con detecciones y polígono
+        """
+        # Realizar la detección/predicción de objetos
         model_results = self.model(frame, verbose=False)[0]
         detections = sv.Detections.from_ultralytics(model_results)
 
-        #! Filtrar las clases que no se necesitan
+        # Filtrar las clases que no se necesitan
         detections = detections[np.isin(detections.class_id, self._selected_classes)]
 
-        #! Seguimiento de objetos
+        # Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
 
         # Dibujar siempre el polígono de la zona, independientemente de si hay detecciones
         frame = self._draw_zone_polygon(frame)
 
-        #! Si hay detecciones
+        # Si hay detecciones, procesarlas
         if detections.tracker_id.size > 0:
-            frame = self._draw_detection_polygon_and_centers_cv2(frame, detections)
-
+            frame = self._process_detections_and_calculate_metrics(
+                frame, detections, fps_real
+            )
             frame = self.trace_annotator.annotate(frame, detections=detections)
-
             frame = self._annotate_boxes_sv(frame, detections)
 
             if self.video_processor.zone.fines_activated:
                 frame = self._process_fines(frame, detections)
 
-        # Agregar overlay profesional con toda la información
-        # Nota: Los FPS reales se calculan en StreamCoordinator, aquí usamos 0 como placeholder
-        frame = self._add_professional_info_overlay(frame, fps_real=0)
+        return frame
 
+    def _process_frame_callback(
+        self, frame: np.ndarray, frame_number: int
+    ) -> np.ndarray:
+        """
+        Procesamiento de video sin información de FPS reales.
+        Se ejecuta por cada frame del video grabado.
+        """
+        frame = self._process_frame_base(frame)
+        frame = self._add_info_overlay(frame, fps_real=0)
         return frame
 
     def _process_frame_with_fps_callback(
@@ -367,34 +427,9 @@ class DetectorService:
     ) -> np.ndarray:
         """
         Procesamiento de video con información de FPS reales.
-        Se ejecuta por cada frame del video.
+        Se ejecuta por cada frame del video en streaming/cámara.
         """
-
-        #! Realizar la detección/predicción de objetos
-        model_results = self.model(frame, verbose=False)[0]
-        detections = sv.Detections.from_ultralytics(model_results)
-
-        #! Filtrar las clases que no se necesitan
-        detections = detections[np.isin(detections.class_id, self._selected_classes)]
-
-        #! Seguimiento de objetos
-        detections = self.byte_tracker.update_with_detections(detections)
-
-        # Dibujar siempre el polígono de la zona, independientemente de si hay detecciones
-        frame = self._draw_zone_polygon(frame)
-
-        #! Si hay detecciones
-        if detections.tracker_id.size > 0:
-            frame = self._draw_detection_polygon_and_centers_cv2(
-                frame, detections, fps_real
-            )
-
-            frame = self.trace_annotator.annotate(frame, detections=detections)
-
-            frame = self._annotate_boxes_sv(frame, detections)
-
-            if self.video_processor.zone.fines_activated:
-                frame = self._process_fines(frame, detections)
+        frame = self._process_frame_base(frame, fps_real)
 
         # Voltear imagen horizontalmente para cámara ANTES del overlay (para que el texto se vea normal)
         if (
@@ -403,9 +438,7 @@ class DetectorService:
         ):
             frame = cv2.flip(frame, 1)
 
-        # Agregar overlay profesional con información de FPS reales
-        frame = self._add_professional_info_overlay(frame, fps_real=fps_real)
-
+        frame = self._add_info_overlay(frame, fps_real=fps_real)
         return frame
 
     def _process_live_stream(
