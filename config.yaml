@@ -45,7 +45,7 @@ decision:
       1.0,
     ] #! Ponderaciones de las zonas
 
-  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.keras"
+  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5"
 
   entrenamiento:
     entrenar: False #* Iniciar proceso de entrenamiento del agente DQN
@@ -152,7 +152,7 @@ sumo:
   simular: True #* Iniciar simulación de tráfico con SUMO
 
   gui: True #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
-  comparar: False #! Modo comparación: Contrastar control RL vs detección YOLO
+  comparar: True #! Modo comparación: Contrastar control RL vs detección YOLO
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
 
