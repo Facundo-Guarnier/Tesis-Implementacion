@@ -565,19 +565,19 @@ class SumoAPI(Flask):
 
     def get_report(self) -> tuple[Response, int]:
         """Reporte de flujo vehicular de S1."""
-        states_list = self.app_s1.get_traffic_light_states()
-        # Crear diccionario con datos de reporte
-        report_data = {
-            "steps": int(self.app_s1.traci.simulation.getTime()),
-            "tiempos_espera": self.app_s1.get_wait_times(),
-            "estados_semaforos": states_list,
-        }
+        # "steps": int(self.app_s1.traci.simulation.getTime()),  # int
+        # "tiempos_espera": self.app_s1.get_wait_times(),  # list[float]
+        # "cantidad_vehiculos_por_zona": self.app_s1.get_vehicle_counts_by_zone(),  # dict[str, int]
+        # "estados_semaforos": self.app_s1.get_traffic_light_states(),  # list[str]
 
         response = ReportResponse(
-            report_data=report_data,
+            steps=int(self.app_s1.traci.simulation.getTime()),
+            tiempos_espera=self.app_s1.get_wait_times(),
+            cantidad_vehiculos_por_zona=self.app_s1.get_vehicle_counts_by_zone(),
+            estados_semaforos=self.app_s1.get_traffic_light_states(),
             generated_at=f"{int(self.app_s1.traci.simulation.getTime())}s",
         )
-
+        print(f"Generated report at {response}")
         return jsonify(response.model_dump()), 200
 
     def reset_simulations(self) -> tuple[Response, int]:

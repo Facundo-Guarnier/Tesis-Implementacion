@@ -52,6 +52,19 @@
       },
       "stopOnEntry": false,
       "justMyCode": false
+    },
+    {
+      "name": "Poetry: Reporte",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_reporting_service.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src"
+      },
+      "stopOnEntry": false,
+      "justMyCode": false
     }
   ]
 }

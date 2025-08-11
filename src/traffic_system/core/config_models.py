@@ -1,5 +1,61 @@
 # --- Modelos para la sección 'deteccion' ---
-from pydantic import BaseModel
+
+from pydantic import BaseModel, validator
+
+
+# --- Modelos para datos del reporte ---
+class ReportData(BaseModel):
+    """Modelo para los datos del reporte de simulación."""
+
+    status: str
+    timestamp: str | None
+    steps: int
+    tiempos_espera: list[float]
+    cantidad_vehiculos_por_zona: dict[str, int]
+    estados_semaforos: list[str]
+    generated_at: str
+
+    @validator("tiempos_espera")
+    def validate_tiempos_espera_length(cls, v: list[float]) -> list[float]:
+        """Validar que tiempos_espera tenga exactamente 12 elementos (zonas A-L)."""
+        if len(v) != 12:
+            raise ValueError(
+                f"tiempos_espera debe tener 12 elementos, recibido: {len(v)}"
+            )
+        return v
+
+    @validator("cantidad_vehiculos_por_zona")
+    def validate_cantidad_vehiculos_zonas(cls, v: dict[str, int]) -> dict[str, int]:
+        """Validar que cantidad_vehiculos_por_zona tenga las zonas A-L."""
+        expected_zones = {chr(ord("A") + i) for i in range(12)}
+        received_zones = set(v.keys())
+        if received_zones != expected_zones:
+            missing = expected_zones - received_zones
+            extra = received_zones - expected_zones
+            error_msg = []
+            if missing:
+                error_msg.append(f"Faltan zonas: {sorted(missing)}")
+            if extra:
+                error_msg.append(f"Zonas extra: {sorted(extra)}")
+            raise ValueError(f"Zonas incorrectas. {', '.join(error_msg)}")
+        return v
+
+    @validator("estados_semaforos")
+    def validate_estados_semaforos_length(cls, v: list[str]) -> list[str]:
+        """Validar que estados_semaforos tenga exactamente 4 elementos."""
+        if len(v) != 4:
+            raise ValueError(
+                f"estados_semaforos debe tener 4 elementos, recibido: {len(v)}"
+            )
+        return v
+
+    def get_tiempo_espera_total(self) -> float:
+        """Calcular el tiempo de espera total."""
+        return sum(self.tiempos_espera)
+
+    def get_vehiculos_ordenados(self) -> list[int]:
+        """Obtener lista de vehículos ordenada por zona A-L."""
+        return [self.cantidad_vehiculos_por_zona[chr(ord("A") + i)] for i in range(12)]
 
 
 class DeteccionCarpetaSettings(BaseModel):
@@ -134,8 +190,6 @@ class SumoSettings(BaseModel):
     comparar: bool  #! Comparar la simulación con la detección de objetos
     path_sumo: str  #! Path de la instalación de SUMO
     simulation_time_limit: int
-    service_ip: str  #! IP del servidor del servicio de simulación SUMO
-    port: int  #! Puerto del servidor del servicio de simulación SUMO
 
     # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
     use_random_seed: bool = (
@@ -150,19 +204,32 @@ class SumoSettings(BaseModel):
 
 
 class ReporteSettings(BaseModel):
+    """Configuración del servicio de reportes de tráfico."""
+
+    # Configuración legacy del sistema anterior
     generar: bool  # * Generar el reporte de la simulación
     path_reporte: str  #! Carpeta donde se guardará el reporte
     steps: int  #! Número de pasos a considerar entre cada reporte
     tiempo_total_espera_maximo: int  #! Tiempo de espera máximo en segundos en total
     tiempo_zona_espera_maximo: int  #! Tiempo de espera máximo en segundos por zona
-    tiempo_entre_reportes: (
-        int  #! Tiempo entre cada intento fallado de reporte en segundos
-    )
+    total_vehiculos_maximo: int
+    zona_vehiculos_maximo: float
+    db_path_base: str
+
+
+class ServicesSettings(BaseModel):
+    """Configuración de los servicios del sistema de tráfico."""
+
+    simulation_port: int = 5000
+    detection_port: int = 5000
+    reporting_port: int = 5001
 
 
 # --- La Clase Principal de Configuración ---
 class AppSettings(BaseModel):
     base_url: str  #! URL base del servidor Flask
+    base_ip: str
+    services: ServicesSettings
     deteccion: DeteccionSettings
     decision: DecisionSettings
     sumo: SumoSettings

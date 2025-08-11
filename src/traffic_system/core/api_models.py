@@ -102,7 +102,17 @@ class SynchronizationResponse(BaseResponse):
 class ReportResponse(BaseResponse):
     """Respuesta con datos de reporte."""
 
-    report_data: dict[str, Any]
+    # report_data: dict[str, Any]
+    # {
+    #         "steps": int(self.app_s1.traci.simulation.getTime()), #int
+    #         "tiempos_espera": self.app_s1.get_wait_times(), #list[float]
+    #         "cantidad_vehiculos_por_zona": self.app_s1.get_vehicle_counts_by_zone(), #dict[str, int]
+    #         "estados_semaforos": self.app_s1.get_traffic_light_states(), #list[str]
+    #     }
+    steps: int
+    tiempos_espera: list[float]
+    cantidad_vehiculos_por_zona: dict[str, int]
+    estados_semaforos: list[str]
     generated_at: str | None = None
 
 
