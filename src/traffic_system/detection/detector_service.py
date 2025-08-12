@@ -98,7 +98,7 @@ class DetectorService:
         self.trace_annotator = sv.TraceAnnotator()
 
         #! Dibujador de box en los objetos.
-        self.bounding_box_annotator = sv.BoundingBoxAnnotator(
+        self.bounding_box_annotator = sv.BoxAnnotator(
             thickness=max(1, int(3 * self.video_processor.scale_factor)),
         )
         self.label_annotator = sv.LabelAnnotator(
@@ -171,7 +171,7 @@ class DetectorService:
             # Video grabado: usar FPS del video porque todos los frames se procesan secuencialmente
             fps_for_calculation = self.video_processor.fps
 
-        # CORRIGIDO: Usar round() en lugar de división entera (//) para evitar
+        # CORREGIDO: Usar round() en lugar de división entera (//) para evitar
         # discrepancias entre videos con diferentes FPS debido al truncamiento
         return round(total_frames / fps_for_calculation)
 
@@ -226,14 +226,16 @@ class DetectorService:
                 fps_normalization_factor = max(1.0, self.video_processor.fps / 30.0)
 
                 # Contar frames de detección normalizados
-                if tracker_id in self.detection_times:
-                    self.detection_times[tracker_id] += fps_normalization_factor
-                else:
-                    self.detection_times[tracker_id] = fps_normalization_factor
+                if tracker_id is not None:
+                    if tracker_id in self.detection_times:
+                        self.detection_times[tracker_id] += fps_normalization_factor
+                    else:
+                        self.detection_times[tracker_id] = fps_normalization_factor
             else:
                 color = [0, 0, 255]  # Rojo para objetos fuera de zona
                 # Reiniciar contador si sale de la zona
-                self.detection_times[tracker_id] = 0.0
+                if tracker_id is not None:
+                    self.detection_times[tracker_id] = 0.0
 
             # Dibujar centro
             cv2.circle(
@@ -258,13 +260,14 @@ class DetectorService:
             fps_real: FPS reales de procesamiento (para cálculo correcto de tiempo en streaming)
         """
         # Limpiar IDs de objetos que ya no están en la imagen
-        expired_tracker_ids = [
-            tracker_id
-            for tracker_id in self.detection_times
-            if tracker_id not in detections.tracker_id
-        ]
-        for tracker_id in expired_tracker_ids:
-            del self.detection_times[tracker_id]
+        if detections.tracker_id is not None:
+            expired_tracker_ids = [
+                tracker_id
+                for tracker_id in self.detection_times
+                if tracker_id not in detections.tracker_id
+            ]
+            for tracker_id in expired_tracker_ids:
+                del self.detection_times[tracker_id]
 
         # Dibujar centros y contar vehículos en zona
         frame, vehicles_in_zone = self._draw_detection_centers(frame, detections)
@@ -322,9 +325,12 @@ class DetectorService:
             tracker_id,
             _data,
         ) in detections:
-            detection_time_frames = self.detection_times.get(tracker_id, 0)
-            label = f"{detection_time_frames} frames"
-            labels.append(label)
+            if tracker_id is not None:
+                detection_time_frames = self.detection_times.get(tracker_id, 0)
+                label = f"{detection_time_frames} frames"
+                labels.append(label)
+            else:
+                labels.append("No ID")
 
         frame = self.bounding_box_annotator.annotate(scene=frame, detections=detections)
         frame = self.label_annotator.annotate(
@@ -348,25 +354,26 @@ class DetectorService:
 
         for line_zone in self.line_zones:
             crossed_in, crossed_out = line_zone.trigger(detections)
-            for i, tracker_id in enumerate(detections.tracker_id):
-                if crossed_out[i]:  #! Verificar si el objeto cruzó la línea
-                    idx = np.where(detections.tracker_id == tracker_id)[0][0]
-                    bbox = detections.xyxy[idx]
-                    # class_id = detections.class_id[idx]  # Variable no utilizada
+            if detections.tracker_id is not None:
+                for i, tracker_id in enumerate(detections.tracker_id):
+                    if crossed_out[i]:  #! Verificar si el objeto cruzó la línea
+                        idx = np.where(detections.tracker_id == tracker_id)[0][0]
+                        bbox = detections.xyxy[idx]
+                        # class_id = detections.class_id[idx]  # Variable no utilizada
 
-                    x1, y1, x2, y2 = map(
-                        int, bbox
-                    )  #! Convertir las coordenadas a enteros
-                    cropped_image = frame[
-                        round(y1 * 0.9) : round(y2 * 1.1),
-                        round(x1 * 0.9) : round(x2 * 1.1),
-                    ]
+                        x1, y1, x2, y2 = map(
+                            int, bbox
+                        )  #! Convertir las coordenadas a enteros
+                        cropped_image = frame[
+                            round(y1 * 0.9) : round(y2 * 1.1),
+                            round(x1 * 0.9) : round(x2 * 1.1),
+                        ]
 
-                    #! Guardar la imagen recortada
-                    file_name = os.path.join(
-                        self.__fines_path, f"multa_{time.strftime('%H-%M-%S')}.jpg"
-                    )
-                    cv2.imwrite(file_name, cropped_image)
+                        #! Guardar la imagen recortada
+                        file_name = os.path.join(
+                            self.__fines_path, f"multa_{time.strftime('%H-%M-%S')}.jpg"
+                        )
+                        cv2.imwrite(file_name, cropped_image)
 
             frame = self.line_zone_annotator.annotate(frame, line_zone)
 
@@ -390,7 +397,13 @@ class DetectorService:
         detections = sv.Detections.from_ultralytics(model_results)
 
         # Filtrar las clases que no se necesitan
-        detections = detections[np.isin(detections.class_id, self._selected_classes)]
+        if detections.class_id is not None:
+            filtered_detections = detections[
+                np.isin(detections.class_id, self._selected_classes)
+            ]
+            # Type guard: asegurar que el resultado sigue siendo Detections
+            if isinstance(filtered_detections, sv.Detections):
+                detections = filtered_detections
 
         # Seguimiento de objetos
         detections = self.byte_tracker.update_with_detections(detections)
@@ -399,7 +412,7 @@ class DetectorService:
         frame = self._draw_zone_polygon(frame)
 
         # Si hay detecciones, procesarlas
-        if detections.tracker_id.size > 0:
+        if detections.tracker_id is not None and detections.tracker_id.size > 0:
             frame = self._process_detections_and_calculate_metrics(
                 frame, detections, fps_real
             )

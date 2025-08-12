@@ -38,6 +38,8 @@ tensorflow = [
 psutil = "^7.0.0"
 pandas = "^2.3.1"
 scipy = "^1.16.0"
+supervision = "^0.26.1"
+ultralytics = "^8.3.177"
 
 [tool.poetry.group.dev.dependencies]
 black = ">=23.0.0"

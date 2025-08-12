@@ -77,6 +77,17 @@ def verificar_gpu() -> bool:
 
     if not gpu_devices:
         logger.warning("⚠️ No se encontraron GPUs disponibles")
+
+        # En Windows, esto es esperado y OK
+        if platform.system() == "Windows":
+            logger.info("✅ WINDOWS: Configuración correcta (CPU-only como esperado)")
+            logger.info(
+                "💡 En Windows usamos CPU para evitar configuraciones complejas"
+            )
+            logger.info("🖥️ El entrenamiento funcionará correctamente en CPU")
+            return True
+
+        # Para otros sistemas, mostrar instrucciones para configurar GPU
         logger.info("💡 Para usar GPU, necesitas:")
         logger.info("   1. 🎮 GPU NVIDIA compatible (GTX/RTX series)")
         logger.info(
@@ -221,13 +232,22 @@ if __name__ == "__main__":
         gpu_ok = verificar_gpu()
 
         if deps_ok and gpu_ok:
-            logger.info(
-                "🎯 RESUMEN: Sistema configurado correctamente para entrenamiento DQN en GPU"
-            )
-            logger.info("🚀 Puedes proceder con el entrenamiento usando GPU")
+            # Determinar el tipo de configuración basado en la plataforma
+            import platform
+
+            if platform.system() == "Windows":
+                logger.info(
+                    "🎯 RESUMEN: Sistema Windows configurado correctamente (CPU-only)"
+                )
+                logger.info("🖥️ Puedes proceder con el entrenamiento usando CPU")
+            else:
+                logger.info(
+                    "🎯 RESUMEN: Sistema configurado correctamente para entrenamiento DQN en GPU"
+                )
+                logger.info("🚀 Puedes proceder con el entrenamiento usando GPU")
             sys.exit(0)
         else:
-            logger.error("💥 Verificación de GPU fallida")
+            logger.error("💥 Verificación fallida")
             sys.exit(1)
 
     except Exception as e:
