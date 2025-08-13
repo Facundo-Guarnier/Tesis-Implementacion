@@ -295,17 +295,25 @@ class SumoAPI(Flask):
         Endpoint para obtener información de sincronización entre las dos simulaciones.
         """
         if not self.app_s2:
-            error_response = ErrorResponse(
-                error="No hay simulación de comparación activa"
+            try:
+                time_s1: float = self.app_s1.traci.simulation.getTime()
+            except Exception:
+                time_s1 = 0.0
+
+            response = SynchronizationResponse(
+                sincronizado=True,
+                diferencia_tiempo=0.0,
+                s1_time=time_s1,
+                s2_time=None,
+                tolerancia=None,
             )
-            return jsonify(error_response.model_dump()), 404
+            return jsonify(response.model_dump()), 200
 
         try:
-            time_s1: float = self.app_s1.traci.simulation.getTime()
+            time_s1 = self.app_s1.traci.simulation.getTime()
             time_s2: float = self.app_s2.traci.simulation.getTime()
             difference: float = abs(time_s1 - time_s2)
 
-            # Aplicar la misma lógica de sincronización que en _verificar_sincronizacion
             if max(time_s1, time_s2) < 5.0:
                 is_synced = difference <= 2.0
                 max_allowed_difference = 2.0
