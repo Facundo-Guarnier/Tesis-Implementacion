@@ -19,6 +19,27 @@ class StreamCoordinator:
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
         self.info_overlay = InfoOverlay()  # Inicializar overlay de información
 
+    def _compute_display_size(
+        self, width: int, height: int, max_long_side: int = 820
+    ) -> tuple[int, int]:
+        """Calcular tamaño de ventana manteniendo relación de aspecto del stream"""
+        try:
+            if width <= 0 or height <= 0:
+                return (460, 820)
+
+            if height >= width:
+                # Retrato
+                new_height = max_long_side
+                new_width = max(1, int(max_long_side * (width / height)))
+            else:
+                # Apaisado
+                new_width = max_long_side
+                new_height = max(1, int(max_long_side * (height / width)))
+
+            return (new_width, new_height)
+        except Exception:
+            return (460, 820)
+
     def process_stream(
         self,
         source_input: str | int,
@@ -57,7 +78,14 @@ class StreamCoordinator:
 
         try:
             # Configurar ventana
-            if not window_manager.create_window(display_size):
+            computed_display_size = display_size
+            if computed_display_size is None:
+                props = stream_source.get_properties()
+                computed_display_size = self._compute_display_size(
+                    int(props.get("width", 0)), int(props.get("height", 0))
+                )
+
+            if not window_manager.create_window(computed_display_size):
                 return
 
             # Configurar salida si se requiere
@@ -204,7 +232,14 @@ class StreamCoordinator:
 
         try:
             # Configurar ventana
-            if not window_manager.create_window(display_size):
+            computed_display_size = display_size
+            if computed_display_size is None:
+                props = stream_source.get_properties()
+                computed_display_size = self._compute_display_size(
+                    int(props.get("width", 0)), int(props.get("height", 0))
+                )
+
+            if not window_manager.create_window(computed_display_size):
                 return
 
             # Configurar salida si se requiere

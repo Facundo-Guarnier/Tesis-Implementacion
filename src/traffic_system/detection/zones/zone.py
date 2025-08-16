@@ -24,7 +24,7 @@ class Zone:
     def __init__(
         self,
         name: str,
-        resolution: tuple,
+        resolution: tuple[int, int],
         original_points: np.ndarray,
         original_fine_points: np.ndarray,
     ) -> None:

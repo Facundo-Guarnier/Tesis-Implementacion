@@ -81,6 +81,10 @@ class DeteccionSettings(BaseModel):
     path_resultados_deteccion: (
         str  #! Carpeta donde se guardan los resultados de detección automática
     )
+    # Opciones de visualización/rotación (valores por defecto para no romper config existente)
+    forced_rotation_degrees: int = 0  # 0, 90, 180, 270
+    window_fixed: bool = True
+    window_size: list[int] = [460, 820]  # [ancho, alto]
 
 
 # --- Modelos para la sección 'decision' ---

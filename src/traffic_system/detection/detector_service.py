@@ -62,6 +62,9 @@ class DetectorService:
 
         self.logger = logging.getLogger(f"{self.__class__.__name__}[DetectorService]")
 
+        # Rotación forzada configurable
+        self._rotate_code: int | None = None
+
     def _create_fines_folder(self) -> None:
         """
         Crea la carpeta de multas si no existe y devuelve la ruta.
@@ -126,6 +129,72 @@ class DetectorService:
             text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
+
+    def _zone_expects_portrait(self) -> bool:
+        """Indicar si la zona configurada es de orientación vertical (alto >= ancho)."""
+        try:
+            base_w, base_h = self.video_processor.zone._resolution
+            return base_h >= base_w
+        except Exception:
+            return True
+
+    def _compute_display_size(
+        self, width: int, height: int, max_long_side: int = 820
+    ) -> tuple[int, int]:
+        """Calcular tamaño de ventana manteniendo relación de aspecto."""
+        if width <= 0 or height <= 0:
+            return (460, 820)
+        if height >= width:
+            new_h = max_long_side
+            new_w = max(1, int(max_long_side * (width / height)))
+        else:
+            new_w = max_long_side
+            new_h = max(1, int(max_long_side * (height / width)))
+        return (new_w, new_h)
+
+    def _prepare_orientation_for_stream(self) -> tuple[int, int]:
+        """Decidir rotación y resolución efectiva para mantener orientación de la zona.
+
+        Returns:
+            (eff_width, eff_height): Resolución efectiva tras rotación (si aplica)
+        """
+        width, height = self.video_processor.resolution
+        zone_portrait = self._zone_expects_portrait()
+
+        # 1) Si hay rotación forzada por configuración, aplicarla
+        forced = getattr(self.settings, "forced_rotation_degrees", 0)
+        forced_map = {
+            0: None,
+            90: cv2.ROTATE_90_CLOCKWISE,
+            180: cv2.ROTATE_180,
+            270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+        }
+        self._rotate_code = forced_map.get(int(forced), None)
+        if self._rotate_code is not None:
+            if self._rotate_code in (
+                cv2.ROTATE_90_CLOCKWISE,
+                cv2.ROTATE_90_COUNTERCLOCKWISE,
+            ):
+                eff_w, eff_h = height, width
+            else:
+                eff_w, eff_h = width, height
+        else:
+            # 2) Si no hay forzada: Si la zona es vertical y el video llega horizontal, rotar 90° sentido horario
+            if zone_portrait and width > height:
+                self._rotate_code = cv2.ROTATE_90_CLOCKWISE
+                eff_w, eff_h = height, width
+            else:
+                self._rotate_code = None
+                eff_w, eff_h = width, height
+
+        # Actualizar resolución y factor de escala si cambió
+        if (eff_w, eff_h) != (width, height):
+            self.video_processor.resolution = (eff_w, eff_h)
+            self.video_processor.scale_factor = (
+                self.video_processor._calculate_scale_factor() or 1.0
+            )
+
+        return eff_w, eff_h
 
     def _draw_zone_polygon(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -327,7 +396,21 @@ class DetectorService:
         ) in detections:
             if tracker_id is not None:
                 detection_time_frames = self.detection_times.get(tracker_id, 0)
-                label = f"{detection_time_frames} frames"
+                # Convertir frames a segundos usando la misma lógica que _calculate_wait_time
+                if (
+                    hasattr(self.video_processor, "is_camera")
+                    and self.video_processor.is_camera
+                ):
+                    # Para cámara: usar FPS del video (asumiendo que fps_real no está disponible aquí)
+                    fps_for_calculation = self.video_processor.fps
+                else:
+                    # Para video grabado: usar FPS del video
+                    fps_for_calculation = self.video_processor.fps
+
+                detection_time_seconds = round(
+                    detection_time_frames / fps_for_calculation
+                )
+                label = f"{detection_time_seconds}s"
                 labels.append(label)
             else:
                 labels.append("No ID")
@@ -392,6 +475,10 @@ class DetectorService:
         Returns:
             Frame procesado con detecciones y polígono
         """
+        # Ajustar orientación del frame si se definió rotación forzada
+        if self._rotate_code is not None:
+            frame = cv2.rotate(frame, self._rotate_code)
+
         # Realizar la detección/predicción de objetos
         model_results = self.model(frame, verbose=False)[0]
         detections = sv.Detections.from_ultralytics(model_results)
@@ -421,6 +508,10 @@ class DetectorService:
 
             if self.video_processor.zone.fines_activated:
                 frame = self._process_fines(frame, detections)
+        else:
+            # Cuando no hay detecciones activas, limpiar métricas
+            self.detection_times.clear()
+            self._update_zone_metrics(0, 0)
 
         return frame
 
@@ -461,6 +552,7 @@ class DetectorService:
         save_output: bool = False,
         output_path: str | None = None,
         display_size: tuple[int, int] | None = None,
+        override_display_size: tuple[int, int] | None = None,
     ) -> None:
         """
         Método unificado para procesar streams en vivo (video o cámara).
@@ -472,6 +564,7 @@ class DetectorService:
             save_output: Si guardar el video procesado
             output_path: Path del archivo de salida (si save_output es True)
             display_size: Resolución forzada (ancho, alto) - solo para cámara
+            override_display_size: Tamaño de ventana personalizado que anula la configuración
         """
         # Configurar resolución si se especifica (solo para cámara)
         if display_size and isinstance(source_input, int):
@@ -480,10 +573,13 @@ class DetectorService:
                 self.video_processor._calculate_scale_factor() or 1.0
             )
 
+        # Preparar orientación y resolución efectiva antes de escalar zonas
+        eff_w, eff_h = self._prepare_orientation_for_stream()
+
         # Configurar parámetros de procesamiento
         self._create_fines_folder()
-        self.video_processor.zone.scale_points(self.video_processor.resolution)
-        self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
+        self.video_processor.zone.scale_points((eff_w, eff_h))
+        self.video_processor.zone.scale_fine_points((eff_w, eff_h))
         self._define_supervision_parameters()
 
         # Determinar path de salida
@@ -492,13 +588,22 @@ class DetectorService:
             final_output_path = output_path or self.video_processor.result_path
 
         # Usar StreamCoordinator para procesar con FPS callback
+        # Configurar tamaño de ventana según configuración
+        if override_display_size:
+            # Usar el tamaño personalizado si se proporciona
+            computed_display_size = override_display_size
+        elif getattr(self.settings, "window_fixed", True):
+            ws = getattr(self.settings, "window_size", [460, 820])
+            computed_display_size = (int(ws[0]), int(ws[1]))
+        else:
+            computed_display_size = self._compute_display_size(eff_w, eff_h)
         self.stream_coordinator.process_stream_with_fps_callback(
             source_input=source_input,
             window_name=window_name,
             frame_processor_with_fps=self._process_frame_with_fps_callback,
             save_output=save_output,
             output_path=final_output_path,
-            display_size=display_size,
+            display_size=computed_display_size,
             scale_factor=getattr(self.video_processor, "scale_factor", 1.0),
         )
 
@@ -529,11 +634,16 @@ class DetectorService:
         self.video_processor = video_processor
         save_output = self.settings.un_video.guardar
 
+        # Para videos: SIEMPRE usar el window_size del config [460, 820]
+        ws = getattr(self.settings, "window_size", [460, 820])
+        video_display_size = (int(ws[0]), int(ws[1]))
+
         self._process_live_stream(
             source_input=video_processor.origin_path,
             window_name="Detectando en un video",
             save_output=save_output,
             output_path=video_processor.result_path if save_output else None,
+            override_display_size=video_display_size,
         )
 
     def process_camera(self, video_processor: VideoProcessor) -> None:
@@ -542,10 +652,15 @@ class DetectorService:
         """
         self.video_processor = video_processor
 
+        # Usar tamaño apropiado para cámara 4:3 (800x600)
+        # Esto es más apropiado que el hardcodeado anterior (820x460)
+        camera_display_size = (800, 600)
+
         self._process_live_stream(
             source_input=0,  # Cámara
             window_name="Detectando con camara",
             save_output=False,
             output_path=None,
-            display_size=(820, 460),
+            display_size=camera_display_size,
+            override_display_size=camera_display_size,
         )

@@ -8,7 +8,7 @@ Zonas:
 
   - Nombre: "Camara"
     Resolucion: [820, 460]
-    Puntos: [[50, 20], [520, 20], [520, 450], [50, 450]]
+    Puntos: [[0, 0], [420, 0], [420, 460], [0, 460]]
     Multa: []
 
   - Nombre: "FHD"

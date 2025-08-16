@@ -73,6 +73,26 @@ class OutputManager:
             return False
 
         try:
+            # Si el tamaño del frame cambió respecto al writer, reconfigurar
+            if self.writer:
+                current_size = (
+                    int(self.writer.get(cv2.CAP_PROP_FRAME_WIDTH)),  # type: ignore
+                    int(self.writer.get(cv2.CAP_PROP_FRAME_HEIGHT)),  # type: ignore
+                )
+            else:
+                current_size = (0, 0)
+
+            fh, fw = frame.shape[0], frame.shape[1]
+            if current_size != (fw, fh):
+                # Intentar reconfigurar escritor con nuevo tamaño
+                if self.output_path:
+                    self.cleanup()
+                    self.setup_writer(
+                        fps=30.0,
+                        frame_width=fw,
+                        frame_height=fh,
+                    )
+
             self.writer.write(frame)
             return True
         except Exception as e:
