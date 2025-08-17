@@ -98,8 +98,8 @@ class DQNModel:
         - Ej: [('GGGGGGrrrrr', 'GgGGrrrrGgGg', 'GgGgGgGGrrrr', 'GGGrrrrGGg'), ...]
         """
         traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
-        traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
-        traffic_light_3_phases = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
+        traffic_light_2_phases = ["GGGrrrrrrrGGg", "rrrGGGggGGrrr"]
+        traffic_light_3_phases = ["GGgGGGrrrrrrr", "rrrrrrGGGggGG"]
         traffic_light_4_phases = ["GGGrrrrGGg", "rrrGGGGrrr"]
 
         self._action_space = [
@@ -290,7 +290,7 @@ class DQNModel:
         """
         Realiza las siguientes tareas:
         1. Ejecuta la acción en SUMO.
-        2. Simula 15 pasos (para tener una recompensa mas realista).
+        2. Simula N pasos configurados (para tener una recompensa mas realista).
         3. Devuelve el nuevo estado, la recompensa y si se ha terminado la epoca.
         """
 
@@ -300,8 +300,9 @@ class DQNModel:
         #! Cambiar el estado de los semáforos en SUMO
         self._service.set_traffic_light_states(states=action_phases_list)
 
-        #! Avanzar en SUMO con la acción seleccionada
-        response = self._service.advance_simulation(steps=15)
+        #! Avanzar en SUMO con la acción seleccionada usando steps de configuración
+        simulation_steps = self.decision_settings.steps
+        response = self._service.advance_simulation(steps=simulation_steps)
         if response is None:
             return False
         else:

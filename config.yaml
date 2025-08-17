@@ -34,7 +34,7 @@ deteccion:
 decision:
   decision: True #* Iniciar la toma de decisiones
   path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5"
-  #steps: 10
+  steps: 10 #! Pasos de simulación por acción del agente (reduce frecuencia de decisiones)
   ponderaciones_zonas: [
       1.0,
       1.0,

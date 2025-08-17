@@ -188,6 +188,7 @@ class DecisionSettings(BaseModel):
     decision: bool  # * Iniciar la toma de decisiones
     ponderaciones_zonas: list[float]  #! Ponderaciones de las zonas
     path_modelo_entrenado: str
+    steps: int = 15  #! Pasos de simulación por acción del agente
     entrenamiento: EntrenamientoSettings
 
 

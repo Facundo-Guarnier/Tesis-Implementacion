@@ -249,8 +249,8 @@ class SimplifiedDQNTrainer:
     def _setup_action_space(self) -> None:
         """Establece el espacio de acciones de los semáforos."""
         traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
-        traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
-        traffic_light_3_phases = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
+        traffic_light_2_phases = ["GGGrrrrrrrGGg", "rrrGGGggGGrrr"]
+        traffic_light_3_phases = ["GGgGGGrrrrrrr", "rrrrrrGGGggGG"]
         traffic_light_4_phases = ["GGGrrrrGGg", "rrrGGGGrrr"]
 
         self._action_space = [
