@@ -585,7 +585,6 @@ class SumoAPI(Flask):
             estados_semaforos=self.app_s1.get_traffic_light_states(),
             generated_at=f"{int(self.app_s1.traci.simulation.getTime())}s",
         )
-        print(f"Generated report at {response}")
         return jsonify(response.model_dump()), 200
 
     def reset_simulations(self) -> tuple[Response, int]:
