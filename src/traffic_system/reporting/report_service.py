@@ -46,8 +46,8 @@ class ReportService:
         self._connect_db()
         self._create_table()
 
-        #! Generar reporte
-        last_reported_step = -1  # Rastrear el último step reportado
+        #! Generar reporte basado en umbrales de congestión
+        # Nota: Configuración de steps mantenida para uso futuro
 
         while True:
             data = self._get_data()
@@ -56,25 +56,27 @@ class ReportService:
                 time.sleep(5)
                 continue
 
-            # Solo procesar si han pasado suficientes steps desde el último reporte
-            steps_difference = data.steps - last_reported_step
-            print(
-                f"Step {data.steps} → Último reportado: {last_reported_step} → Diferencia: {steps_difference}"
-            )
-            if steps_difference >= self.settings.steps:
-                print("++++++++++++++++++++++++++++++++++++++++++++++++++2")
+            # Evaluar si algún umbral crítico se supera (condiciones de congestión)
+            should_save = self._evaluate_thresholds(data)
+
+            if should_save:
                 if self._save_report(data=data):
-                    last_reported_step = data.steps
-                    print(last_reported_step)
                     self._check_and_alert(data=data)
-                    logger.info(f"✅ Reporte guardado para step {data.steps}")
+                    logger.info(
+                        f"✅ Reporte guardado para step {data.steps} - Umbral de congestión superado"
+                    )
                 else:
                     logger.error(
                         f"❌ Error al guardar el reporte para step {data.steps}"
                     )
             else:
-                # Esperar un poco antes de verificar nuevamente
-                time.sleep(1)  # 1 segundo entre verificaciones
+                # Log solo en debug para evitar spam (condiciones normales)
+                logger.debug(
+                    f"📊 Step {data.steps} - Condiciones normales, no se guarda reporte"
+                )
+
+            # Esperar un poco antes de verificar nuevamente
+            time.sleep(1)  # 1 segundo entre verificaciones
 
         # logger.error("❌ Falló 5 veces seguidas al intentar generar el reporte.")
         # self._close_db()
@@ -90,9 +92,10 @@ class ReportService:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        #! Crear un manejador de archivos para escribir las alertas en un archivo .log
+        #! Crear un manejador de archivos con encoding UTF-8 para soportar emojis
         file_handler = logging.FileHandler(
-            os.path.join(self._report_path, "alertas.log")
+            os.path.join(self._report_path, "alertas.log"),
+            encoding="utf-8",  # Especificar UTF-8 para soportar caracteres Unicode
         )
         file_handler.setLevel(logging.INFO)
 
@@ -161,39 +164,40 @@ class ReportService:
         """
         sql = """
             CREATE TABLE IF NOT EXISTS reporte (
-                Steps INTEGER PRIMARY KEY,
-                Status TEXT,
-                Timestamp TEXT,
-                Semaforo1 TEXT,
-                Semaforo2 TEXT,
-                Semaforo3 TEXT,
-                Semaforo4 TEXT,
-                TiempoTotal REAL,
-                ZonaA REAL,
-                ZonaB REAL,
-                ZonaC REAL,
-                ZonaD REAL,
-                ZonaE REAL,
-                ZonaF REAL,
-                ZonaG REAL,
-                ZonaH REAL,
-                ZonaI REAL,
-                ZonaJ REAL,
-                ZonaK REAL,
-                ZonaL REAL,
-                VehiculosZonaA INTEGER,
-                VehiculosZonaB INTEGER,
-                VehiculosZonaC INTEGER,
-                VehiculosZonaD INTEGER,
-                VehiculosZonaE INTEGER,
-                VehiculosZonaF INTEGER,
-                VehiculosZonaG INTEGER,
-                VehiculosZonaH INTEGER,
-                VehiculosZonaI INTEGER,
-                VehiculosZonaJ INTEGER,
-                VehiculosZonaK INTEGER,
-                VehiculosZonaL INTEGER,
-                GeneratedAt TEXT
+                step_simulacion INTEGER PRIMARY KEY,
+                estado_simulacion TEXT,
+                timestamp_simulacion TEXT,
+                estado_semaforo_1 TEXT,
+                estado_semaforo_2 TEXT,
+                estado_semaforo_3 TEXT,
+                estado_semaforo_4 TEXT,
+                total_tiempo_espera REAL,
+                total_vehiculos INTEGER,
+                zona_a_tiempo_espera REAL,
+                zona_a_vehiculos INTEGER,
+                zona_b_tiempo_espera REAL,
+                zona_b_vehiculos INTEGER,
+                zona_c_tiempo_espera REAL,
+                zona_c_vehiculos INTEGER,
+                zona_d_tiempo_espera REAL,
+                zona_d_vehiculos INTEGER,
+                zona_e_tiempo_espera REAL,
+                zona_e_vehiculos INTEGER,
+                zona_f_tiempo_espera REAL,
+                zona_f_vehiculos INTEGER,
+                zona_g_tiempo_espera REAL,
+                zona_g_vehiculos INTEGER,
+                zona_h_tiempo_espera REAL,
+                zona_h_vehiculos INTEGER,
+                zona_i_tiempo_espera REAL,
+                zona_i_vehiculos INTEGER,
+                zona_j_tiempo_espera REAL,
+                zona_j_vehiculos INTEGER,
+                zona_k_tiempo_espera REAL,
+                zona_k_vehiculos INTEGER,
+                zona_l_tiempo_espera REAL,
+                zona_l_vehiculos INTEGER,
+                generado_en TEXT
             );
         """
         if not self._cursor or not self._db_connection:
@@ -213,88 +217,124 @@ class ReportService:
         """
 
         try:
-            print("++++++++++++++++++++++++++++++++++++++++++++++++++1")
             sql = """
                 INSERT OR REPLACE INTO reporte (
-                    Steps, Status, Timestamp,
-                    Semaforo1, Semaforo2, Semaforo3, Semaforo4,
-                    TiempoTotal,
-                    ZonaA, ZonaB, ZonaC, ZonaD, ZonaE, ZonaF, ZonaG, ZonaH, ZonaI, ZonaJ, ZonaK, ZonaL,
-                    VehiculosZonaA, VehiculosZonaB, VehiculosZonaC, VehiculosZonaD, VehiculosZonaE, VehiculosZonaF,
-                    VehiculosZonaG, VehiculosZonaH, VehiculosZonaI, VehiculosZonaJ, VehiculosZonaK, VehiculosZonaL,
-                    GeneratedAt
+                    step_simulacion, estado_simulacion, timestamp_simulacion,
+                    estado_semaforo_1, estado_semaforo_2, estado_semaforo_3, estado_semaforo_4,
+                    total_tiempo_espera, total_vehiculos,
+                    zona_a_tiempo_espera, zona_a_vehiculos,
+                    zona_b_tiempo_espera, zona_b_vehiculos,
+                    zona_c_tiempo_espera, zona_c_vehiculos,
+                    zona_d_tiempo_espera, zona_d_vehiculos,
+                    zona_e_tiempo_espera, zona_e_vehiculos,
+                    zona_f_tiempo_espera, zona_f_vehiculos,
+                    zona_g_tiempo_espera, zona_g_vehiculos,
+                    zona_h_tiempo_espera, zona_h_vehiculos,
+                    zona_i_tiempo_espera, zona_i_vehiculos,
+                    zona_j_tiempo_espera, zona_j_vehiculos,
+                    zona_k_tiempo_espera, zona_k_vehiculos,
+                    zona_l_tiempo_espera, zona_l_vehiculos,
+                    generado_en
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
             logger = logging.getLogger(
                 f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
             )
-            print("++++++++++++++++++++++++++++++++++++++++++++++++++2")
             if not self._cursor:
-                print("++++++++++++++++++++++++++++++++++++++++++++++++++3")
                 return False
             else:
-                print("++++++++++++++++++++++++++++++++++++++++++++++++++4")
                 # Usar los métodos del modelo para obtener datos estructurados
                 vehiculos_ordenados = data.get_vehiculos_ordenados()
                 tiempo_espera_total = data.get_tiempo_espera_total()
-                print("++++++++++++++++++++++++++++++++++++++++++++++++++5")
-                print(
-                    f"Datos validados: steps={data.steps}, status={data.status}, tiempo_total={tiempo_espera_total}"
-                )
-                print("++++++++++++++++++++++++++++++++++++++++++++++++++5")
+                total_vehiculos = data.get_total_vehiculos()
 
                 self._cursor.execute(
                     sql,
                     (
+                        # Información básica de simulación
                         data.steps,
                         data.status,
                         data.timestamp,
+                        # Estados de semáforos
                         data.estados_semaforos[0],
                         data.estados_semaforos[1],
                         data.estados_semaforos[2],
                         data.estados_semaforos[3],
+                        # Totales (agrupados al principio)
                         tiempo_espera_total,
+                        total_vehiculos,
+                        # Zonas agrupadas (tiempo + vehículos por zona)
                         data.tiempos_espera[0],
+                        vehiculos_ordenados[0],  # zona_a
                         data.tiempos_espera[1],
+                        vehiculos_ordenados[1],  # zona_b
                         data.tiempos_espera[2],
+                        vehiculos_ordenados[2],  # zona_c
                         data.tiempos_espera[3],
+                        vehiculos_ordenados[3],  # zona_d
                         data.tiempos_espera[4],
+                        vehiculos_ordenados[4],  # zona_e
                         data.tiempos_espera[5],
+                        vehiculos_ordenados[5],  # zona_f
                         data.tiempos_espera[6],
+                        vehiculos_ordenados[6],  # zona_g
                         data.tiempos_espera[7],
+                        vehiculos_ordenados[7],  # zona_h
                         data.tiempos_espera[8],
+                        vehiculos_ordenados[8],  # zona_i
                         data.tiempos_espera[9],
+                        vehiculos_ordenados[9],  # zona_j
                         data.tiempos_espera[10],
+                        vehiculos_ordenados[10],  # zona_k
                         data.tiempos_espera[11],
-                        vehiculos_ordenados[0],  # VehiculosZonaA
-                        vehiculos_ordenados[1],  # VehiculosZonaB
-                        vehiculos_ordenados[2],  # VehiculosZonaC
-                        vehiculos_ordenados[3],  # VehiculosZonaD
-                        vehiculos_ordenados[4],  # VehiculosZonaE
-                        vehiculos_ordenados[5],  # VehiculosZonaF
-                        vehiculos_ordenados[6],  # VehiculosZonaG
-                        vehiculos_ordenados[7],  # VehiculosZonaH
-                        vehiculos_ordenados[8],  # VehiculosZonaI
-                        vehiculos_ordenados[9],  # VehiculosZonaJ
-                        vehiculos_ordenados[10],  # VehiculosZonaK
-                        vehiculos_ordenados[11],  # VehiculosZonaL
+                        vehiculos_ordenados[11],  # zona_l
+                        # Metadata
                         data.generated_at,
                     ),
                 )
-                print("++++++++++++++++++++++++++++++++++++++++++++++++++6")
 
                 if not self._db_connection:
-                    print("++++++++++++++++++++++++++++++++++++++++++++++++++7")
                     return False
                 else:
-                    print("++++++++++++++++++++++++++++++++++++++++++++++++++9")
                     self._db_connection.commit()
-                    print("++++++++++++++++++++++++++++++++++++++++++++++++++10")
                     return True
         except Exception as e:
             logger.error(f"❌ Error al guardar el reporte en la base de datos: {e}")
             return False
+
+    def _evaluate_thresholds(self, data: ReportData) -> bool:
+        """
+        Evalúa si algún umbral crítico de congestión se supera.
+
+        Args:
+            data (ReportData): Datos validados de la simulación.
+
+        Returns:
+            bool: True si se debe guardar el reporte (umbral superado), False en caso contrario.
+        """
+        # 1. Verificar tiempo total de espera
+        tiempo_espera_total = data.get_tiempo_espera_total()
+        if tiempo_espera_total >= self.settings.tiempo_total_espera_maximo:
+            return True
+
+        # 2. Verificar tiempo de espera por zona
+        for zone_wait_time in data.tiempos_espera:
+            if zone_wait_time >= self.settings.tiempo_zona_espera_maximo:
+                return True
+
+        # 3. Verificar total de vehículos
+        total_vehiculos = data.get_total_vehiculos()
+        if total_vehiculos >= self.settings.total_vehiculos_maximo:
+            return True
+
+        # 4. Verificar cantidad de vehículos por zona
+        for zone_vehicles in data.cantidad_vehiculos_por_zona.values():
+            if zone_vehicles >= self.settings.zona_vehiculos_maximo:
+                return True
+
+        # Ningún umbral superado
+        return False
 
     def _check_and_alert(self, data: ReportData) -> None:
         """
@@ -309,12 +349,12 @@ class ReportService:
 
         if tiempo_espera_total > self.settings.tiempo_total_espera_maximo:
             self.logger.warning(
-                f"⚠️ Step {data.steps}: Tiempo de espera total mayor al permitido ({tiempo_espera_total})."
+                f"ALERTA Step {data.steps}: Tiempo de espera total mayor al permitido ({tiempo_espera_total})."
             )
 
         for i, zone_wait_time in enumerate(data.tiempos_espera):
             if zone_wait_time > self.settings.tiempo_zona_espera_maximo:
                 max_wait_zone_name = chr(ord("A") + i)  #! Convertir índice a letra
                 self.logger.warning(
-                    f"⚠️ Step {data.steps}: Tiempo de espera en la zona {max_wait_zone_name} mayor permitido ({zone_wait_time})."
+                    f"ALERTA Step {data.steps}: Tiempo de espera en la zona {max_wait_zone_name} mayor permitido ({zone_wait_time})."
                 )

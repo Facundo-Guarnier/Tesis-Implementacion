@@ -57,6 +57,10 @@ class ReportData(BaseModel):
         """Obtener lista de vehículos ordenada por zona A-L."""
         return [self.cantidad_vehiculos_por_zona[chr(ord("A") + i)] for i in range(12)]
 
+    def get_total_vehiculos(self) -> int:
+        """Calcular el total de vehículos en todas las zonas."""
+        return sum(self.cantidad_vehiculos_por_zona.values())
+
 
 class DeteccionCarpetaSettings(BaseModel):
     procesar: bool  #! Procesar todos los videos de la carpeta del dataset

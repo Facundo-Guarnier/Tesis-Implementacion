@@ -33,6 +33,8 @@ deteccion:
 
 decision:
   decision: True #* Iniciar la toma de decisiones
+  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5"
+  #steps: 10
   ponderaciones_zonas: [
       1.0,
       1.0,
@@ -47,8 +49,6 @@ decision:
       1.0,
       1.0,
     ] #! Ponderaciones de las zonas
-
-  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5"
 
   entrenamiento:
     entrenar: False #* Iniciar proceso de entrenamiento del agente DQN
@@ -155,7 +155,7 @@ sumo:
   simular: True #* Iniciar simulación de tráfico con SUMO
 
   gui: True #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
-  comparar: True #! Modo comparación: Contrastar control RL vs detección YOLO
+  comparar: False #! Modo comparación: Contrastar control RL vs detección YOLO
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
 
@@ -168,8 +168,8 @@ reporte:
   steps: 60 #! Número de pasos a considerar entre cada reporte
   tiempo_total_espera_maximo: 600 #! Tiempo de espera máximo en segundos en total
   tiempo_zona_espera_maximo: 300 #! Tiempo de espera máximo en segundos por zona
-  total_vehiculos_maximo: 10  #! Número mínimo de vehículos para considerar congestión
-  zona_vehiculos_maximo: 2000.0  #! Tiempo máximo de espera
+  total_vehiculos_maximo: 50  #! Número mínimo de vehículos para considerar congestión
+  zona_vehiculos_maximo: 2000.0  #! Número máximo de vehículos por zona
 
   path_reporte: "results/reportes" #! Carpeta donde se guardará el reporte
   db_path_base: "results/reportes/db"
