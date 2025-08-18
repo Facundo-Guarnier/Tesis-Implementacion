@@ -42,8 +42,9 @@ Como Agente de Código AI, mi objetivo primordial es asistir en la creación de 
 ### 4. Principios de Diseño, Arquitectura y Calidad de Código
 
 - **DRY (Don't Repeat Yourself):** Aplicar de manera **estricta** el principio DRY. Buscar la reutilización de código existente, evitar la duplicación innecesaria de lógica y abstraer componentes o funcionalidades comunes.
-- **Componentes Genéricos y SRP:** Al diseñar cualquier entidad (componente, clase, método), asegurar que sea lo más _genérica, reutilizable_ y _modular_ posible, adhiriéndose al Principio de Responsabilidad Única.
-- **Adhesión a Buenas Prácticas:** Priorizar las buenas prácticas de codificación, patrones de diseño y convenciones **definidas explícitamente en la documentación del proyecto**. En ausencia de directrices específicas para una tarea o componente, aplicará las buenas prácticas estándar y ampliamente aceptadas en la industria (ej., patrones de diseño, convenciones de nomenclatura, principios de seguridad, optimización de rendimiento, legibilidad del código, etc.).
+- **SOLID:** Adherirse a los principios SOLID para el diseño de software, asegurando que las clases y métodos sean cohesivos y estén debidamente desacoplados.
+- **KISS:** Mantener el código lo más simple posible, evitando complejidades innecesarias y la sobre ingeniería. La simplicidad mejora la legibilidad y mantenibilidad.
+- **Adhesión a Buenas Prácticas:** Priorizar las buenas prácticas de codificación, patrones de diseño y convenciones **definidas explícitamente en la documentación del proyecto** (ej., patrones de diseño, convenciones de nomenclatura, principios de seguridad, optimización de rendimiento, legibilidad del código, etc.).
 
 ### 5. Flujo de Trabajo Colaborativo (Iterativo y Aprobación)
 
@@ -141,6 +142,7 @@ poetry run python test_sincronizacion_completo.py                 # Verificar si
 poetry run python test_reinicio_api.py         # Probar reinicio
 
 # Calidad de código
+# NOTA: No ejecutar estos comandos desde agentes de IA, solo incluidos para referencia humana
 pre-commit run --all-files
 ```
 
@@ -161,6 +163,8 @@ El proyecto utiliza **pre-commit** para mantener automáticamente la calidad del
 - **Ruff**: Linter rápido que reemplaza flake8/pylint/isort, con correcciones automáticas
 - **Black**: Formateo automático de código (88 caracteres por línea)
 - **Mypy**: Verificación de tipos estáticos
+
+⚠️ **IMPORTANTE**: Los agentes de IA **NUNCA deben ejecutar** comandos de formateo o linter (pre-commit, black, ruff, mypy, etc.) - solo modificar el código sin ejecutar validaciones.
 
 Los hooks de pre-commit se ejecutan automáticamente en cada commit. Si detectan problemas, el commit se pausa hasta que se corrijan.
 

@@ -295,17 +295,25 @@ class SumoAPI(Flask):
         Endpoint para obtener información de sincronización entre las dos simulaciones.
         """
         if not self.app_s2:
-            error_response = ErrorResponse(
-                error="No hay simulación de comparación activa"
+            try:
+                time_s1: float = self.app_s1.traci.simulation.getTime()
+            except Exception:
+                time_s1 = 0.0
+
+            response = SynchronizationResponse(
+                sincronizado=True,
+                diferencia_tiempo=0.0,
+                s1_time=time_s1,
+                s2_time=None,
+                tolerancia=None,
             )
-            return jsonify(error_response.model_dump()), 404
+            return jsonify(response.model_dump()), 200
 
         try:
-            time_s1: float = self.app_s1.traci.simulation.getTime()
+            time_s1 = self.app_s1.traci.simulation.getTime()
             time_s2: float = self.app_s2.traci.simulation.getTime()
             difference: float = abs(time_s1 - time_s2)
 
-            # Aplicar la misma lógica de sincronización que en _verificar_sincronizacion
             if max(time_s1, time_s2) < 5.0:
                 is_synced = difference <= 2.0
                 max_allowed_difference = 2.0
@@ -565,19 +573,18 @@ class SumoAPI(Flask):
 
     def get_report(self) -> tuple[Response, int]:
         """Reporte de flujo vehicular de S1."""
-        states_list = self.app_s1.get_traffic_light_states()
-        # Crear diccionario con datos de reporte
-        report_data = {
-            "steps": int(self.app_s1.traci.simulation.getTime()),
-            "tiempos_espera": self.app_s1.get_wait_times(),
-            "estados_semaforos": states_list,
-        }
+        # "steps": int(self.app_s1.traci.simulation.getTime()),  # int
+        # "tiempos_espera": self.app_s1.get_wait_times(),  # list[float]
+        # "cantidad_vehiculos_por_zona": self.app_s1.get_vehicle_counts_by_zone(),  # dict[str, int]
+        # "estados_semaforos": self.app_s1.get_traffic_light_states(),  # list[str]
 
         response = ReportResponse(
-            report_data=report_data,
+            steps=int(self.app_s1.traci.simulation.getTime()),
+            tiempos_espera=self.app_s1.get_wait_times(),
+            cantidad_vehiculos_por_zona=self.app_s1.get_vehicle_counts_by_zone(),
+            estados_semaforos=self.app_s1.get_traffic_light_states(),
             generated_at=f"{int(self.app_s1.traci.simulation.getTime())}s",
         )
-
         return jsonify(response.model_dump()), 200
 
     def reset_simulations(self) -> tuple[Response, int]:

@@ -177,13 +177,13 @@ class DQNEvaluator:
 
         # Calcular estadísticas
         metrics = {
-            "mean_reward": np.mean(evaluation_rewards),
-            "std_reward": np.std(evaluation_rewards),
-            "mean_waiting_time": np.mean(evaluation_waiting_times),
-            "std_waiting_time": np.std(evaluation_waiting_times),
-            "mean_throughput": np.mean(evaluation_throughput),
-            "std_throughput": np.std(evaluation_throughput),
-            "mean_episode_length": np.mean(evaluation_episode_lengths),
+            "mean_reward": float(np.mean(evaluation_rewards)),
+            "std_reward": float(np.std(evaluation_rewards)),
+            "mean_waiting_time": float(np.mean(evaluation_waiting_times)),
+            "std_waiting_time": float(np.std(evaluation_waiting_times)),
+            "mean_throughput": float(np.mean(evaluation_throughput)),
+            "std_throughput": float(np.std(evaluation_throughput)),
+            "mean_episode_length": float(np.mean(evaluation_episode_lengths)),
             "total_episodes": num_episodes,
         }
 
@@ -194,12 +194,14 @@ class DQNEvaluator:
             else 0
         )
         self.evaluation_metrics["evaluation_episodes"].append(current_episode)
-        self.evaluation_metrics["evaluation_rewards"].append(metrics["mean_reward"])
+        self.evaluation_metrics["evaluation_rewards"].append(
+            float(metrics["mean_reward"])
+        )
         self.evaluation_metrics["evaluation_waiting_times"].append(
-            metrics["mean_waiting_time"]
+            float(metrics["mean_waiting_time"])
         )
         self.evaluation_metrics["evaluation_throughput"].append(
-            metrics["mean_throughput"]
+            float(metrics["mean_throughput"])
         )
 
         logger.info("✅ Evaluación completada:")
@@ -482,7 +484,9 @@ class DQNEvaluator:
 
     def _moving_average(self, data: list[float], window: int) -> list[float]:
         """Calcular promedio móvil."""
-        return [np.mean(data[i : i + window]) for i in range(len(data) - window + 1)]
+        return [
+            float(np.mean(data[i : i + window])) for i in range(len(data) - window + 1)
+        ]
 
     def save_metrics(self) -> str:
         """

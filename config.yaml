@@ -1,27 +1,40 @@
 base_url: "http://10.10.0.111:5000" #! URL base del servidor Flask
+base_ip: "10.10.0.111"
+
+services:
+  simulation_port: 5000
+  detection_port: 5000
+  reporting_port: 5001
 
 deteccion:
   detectar: True #* Iniciar la detección de objetos
   modelo: "yolov8n.pt" #! Modelo de detección de objetos
+  path_resultados_deteccion: "results/detection_results/" #! Carpeta donde se guardan los resultados de detección automática
+  forced_rotation_degrees: 0 #! Forzar rotación de frames (0, 90, 180, 270)
+  window_fixed: True #! Ventana fija (no se redimensiona automáticamente)
+  window_size: [460, 820] #! Tamaño de ventana fija [ancho, alto]
 
   carpeta_dataset:
-    procesar: True #! Procesar todos los videos de la carpeta del dataset
-    path_origen: "assets/dataset-576x1024-5fps" #! Carpeta con los videos a procesar
+    procesar: False #! Procesar todos los videos de la carpeta del dataset
+    path_origen: "assets/dataset-576x1024-5fps/" #! Carpeta con los videos a procesar
     path_destino: "results/deteccion/" #! Carpeta donde se guardarán los resultados
 
   un_video:
     procesar: False #! Procesar un video en específico
-    guardar: True #! Guardar el video con los resultados
-    zona: "Zona C" #! Zona a considerar
-    path_destino: "results/deteccion/" #! Carpeta donde se guardará el video con los resultados
-    # path_origen: "dataset/dataset_original/Zona A/20240102_131846.mp4"    #! Path del video a procesar
-    path_origen: "dataset/dataset_original/Zona C/20240102_132223.mp4" #! Path del video a procesar
-    # path_origen: "dataset/dataset_reescalado-576x1024-5fps/Zona A/20240102_131846.mp4"    #! Path del video a procesar
+    guardar: False #! Guardar el video con los resultados
+    zona: "Zona C"
+    path_destino: "results/deteccion/"
+    # path_origen: "assets/dataset-576x1024-5fps/Zona A/20240102_131846.mp4"
+    # path_origen: "assets/dataset-1080x1920-30fps/Zona A/20240102_131846.mp4"
+    # path_origen: "assets/dataset-576x1024-5fps/Zona C/20240102_132223.mp4"
+    path_origen: "assets/dataset-1080x1920-30fps/Zona C/20240102_132223.mp4"
 
-  procesar_camara: False #! Procesar la cámara en tiempo real
+  procesar_camara: True #! Procesar la cámara en tiempo real
 
 decision:
   decision: True #* Iniciar la toma de decisiones
+  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5"
+  steps: 10 #! Pasos de simulación por acción del agente (reduce frecuencia de decisiones)
   ponderaciones_zonas: [
       1.0,
       1.0,
@@ -36,12 +49,9 @@ decision:
       1.0,
       1.0,
     ] #! Ponderaciones de las zonas
-  # ponderaciones_zonas: [1.0, 2.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.9, 1.0, 2.9, 2.9]     #! Ponderaciones de las zonas
-
-  path_modelo_entrenado: "assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.keras"
 
   entrenamiento:
-    entrenar: True #* Iniciar proceso de entrenamiento del agente DQN
+    entrenar: False #* Iniciar proceso de entrenamiento del agente DQN
 
     # === CONFIGURACIÓN DE ARCHIVOS Y RESULTADOS ===
     path_resultado: "results/training/" #! Directorio donde se guardan modelos, logs y métricas de entrenamiento
@@ -144,22 +154,22 @@ decision:
 sumo:
   simular: True #* Iniciar simulación de tráfico con SUMO
 
-  gui: False #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
+  gui: True #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
   comparar: False #! Modo comparación: Contrastar control RL vs detección YOLO
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
-
-  service_ip: "0.0.0.0" #! IP del servidor del servicio de simulación SUMO
-  port: 5000 #! Puerto del servidor del servicio de simulación SUMO
 
   fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
   use_random_seed: True #! Usar semilla aleatoria basada en tiempo actual
   persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
 
 reporte:
-  generar: False #* Generar reportes automáticos post-simulación
-  path_reporte: "results/reportes/" #! Carpeta donde se guardará el reporte
+  generar: True #* Generar reportes automáticos post-simulación
   steps: 60 #! Número de pasos a considerar entre cada reporte
   tiempo_total_espera_maximo: 600 #! Tiempo de espera máximo en segundos en total
   tiempo_zona_espera_maximo: 300 #! Tiempo de espera máximo en segundos por zona
-  tiempo_entre_reportes: 5 #! Tiempo entre cada intento fallido de reporte en segundos
+  total_vehiculos_maximo: 50  #! Número mínimo de vehículos para considerar congestión
+  zona_vehiculos_maximo: 2000.0  #! Número máximo de vehículos por zona
+
+  path_reporte: "results/reportes" #! Carpeta donde se guardará el reporte
+  db_path_base: "results/reportes/db"

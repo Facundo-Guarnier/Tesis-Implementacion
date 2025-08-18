@@ -1,5 +1,7 @@
 import numpy as np
 
+from src.traffic_system.core.types import Resolution
+
 
 class Zone:
     """
@@ -24,7 +26,7 @@ class Zone:
     def __init__(
         self,
         name: str,
-        resolution: tuple,
+        resolution: Resolution,
         original_points: np.ndarray,
         original_fine_points: np.ndarray,
     ) -> None:
@@ -40,7 +42,7 @@ class Zone:
         self.detection_count: int = 0
         self.wait_time: int = 0
 
-    def scale_points(self, target_resolution: tuple) -> None:
+    def scale_points(self, target_resolution: Resolution) -> None:
         """
         Escala los puntos_originales de la zona a la resolución objetivo.
         """
@@ -65,7 +67,7 @@ class Zone:
 
             self.rescaled_points = np.array(target_points)
 
-    def scale_fine_points(self, target_resolution: tuple) -> None:
+    def scale_fine_points(self, target_resolution: Resolution) -> None:
         """
         Escala los puntos originales de la multas de la zona a la resolución objetivo.
 

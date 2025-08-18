@@ -249,8 +249,8 @@ class SimplifiedDQNTrainer:
     def _setup_action_space(self) -> None:
         """Establece el espacio de acciones de los semáforos."""
         traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
-        traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
-        traffic_light_3_phases = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
+        traffic_light_2_phases = ["GGGrrrrrrrGGg", "rrrGGGggGGrrr"]
+        traffic_light_3_phases = ["GGgGGGrrrrrrr", "rrrrrrGGGggGG"]
         traffic_light_4_phases = ["GGGrrrrGGg", "rrrGGGGrrr"]
 
         self._action_space = [
@@ -812,7 +812,7 @@ class SimplifiedDQNTrainer:
             )
 
         # Combinar observación actual
-        current_observation = wait_times + quantities
+        current_observation = np.array(wait_times + quantities, dtype=np.float32)
 
         # Gestionar historial temporal
         self.state_history.append(current_observation)
@@ -822,12 +822,12 @@ class SimplifiedDQNTrainer:
         # Construir estado completo
         if len(self.state_history) >= 2:
             previous_observation = self.state_history[-2]
-            complete_state = current_observation + previous_observation
+            complete_state = np.concatenate([current_observation, previous_observation])
         else:
             # Si no hay historial, duplicar observación actual
-            complete_state = current_observation + current_observation
+            complete_state = np.concatenate([current_observation, current_observation])
 
-        return self._normalize_state(complete_state)
+        return self._normalize_state(complete_state.tolist())
 
     def _normalize_state(self, state: list) -> NDArray:
         """Normaliza el estado de manera robusta."""
@@ -852,7 +852,8 @@ class SimplifiedDQNTrainer:
             normalized_state, nan=0.0, posinf=1.0, neginf=0.0
         )
 
-        return normalized_state.astype(np.float32)
+        result: NDArray = normalized_state.astype(np.float32)
+        return result
 
     def _update_simulation_data(self) -> None:
         """Actualiza los datos de simulación con reintentos."""
@@ -1157,23 +1158,23 @@ class SimplifiedDQNTrainer:
             self._save_epoch_metrics(
                 epoch + 1,
                 total_reward,
-                avg_reward,
+                float(avg_reward),
                 epoch_duration,
                 replay_count,
                 self.step_count,
-                avg_loss,
-                avg_q_value,
+                float(avg_loss),
+                float(avg_q_value),
                 self.initial_state_q_value,
-                avg_gradient_norm,
-                avg_entropy,
-                avg_wait_penalty,
-                avg_congestion_penalty,
-                avg_efficiency_bonus,
+                float(avg_gradient_norm),
+                float(avg_entropy),
+                float(avg_wait_penalty),
+                float(avg_congestion_penalty),
+                float(avg_efficiency_bonus),
             )
 
             # Early stopping
             if epoch > 5:  # Permitir al menos 5 épocas
-                if self._check_early_stopping(avg_reward, epoch):
+                if self._check_early_stopping(float(avg_reward), epoch):
                     break
 
         self.logger.info("✅ Entrenamiento completado")

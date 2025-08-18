@@ -159,8 +159,8 @@ def api_service(
             seed_info_callback=get_current_seed_info,
         )
         api.run(
-            host=sumo_settings.service_ip,
-            port=sumo_settings.port,
+            host="0.0.0.0",
+            port=settings.services.simulation_port,
             debug=False,
             threaded=False,
         )
@@ -180,8 +180,8 @@ if __name__ == "__main__":
     try:
         settings = load_app_settings()
         logger.info("✅ Iniciando el Servicio de Proveedor de Datos por Simulación...")
-        logger.info(f"   IP: {settings.sumo.service_ip}")
-        logger.info(f"   Puerto: {settings.sumo.port}")
+        logger.info("   IP: 0.0.0.0")
+        logger.info(f"   Puerto: {settings.services.simulation_port}")
     except Exception as e:
         logger.error(f"Error cargando la configuración: {e}")
         sys.exit(1)

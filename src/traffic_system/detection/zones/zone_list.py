@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import yaml
 
@@ -14,6 +16,7 @@ class ZoneList:
     """
 
     _instance: ZoneList | None = None
+    _initialized: bool = False
 
     def __new__(cls) -> ZoneList:
         if not cls._instance:
@@ -21,21 +24,35 @@ class ZoneList:
         return cls._instance
 
     def __init__(self) -> None:
-        self.zones = self._load_zones()
+        # Solo inicializar una vez para evitar problemas con el patrón Singleton
+        if not ZoneList._initialized:
+            self.zones = self._load_zones()
+            self.logger = logging.getLogger(f"{self.__class__.__name__}[ZoneList]")
+            ZoneList._initialized = True
 
     def _load_zones(self) -> list[Zone]:
         # TODO: Cambiar la ruta por una ruta relativa en config.yaml
-        with open("assets/detection_zones/zones.yaml", encoding="utf-8") as file:
-            yaml_data = yaml.safe_load(file)
-            return [
-                Zone(
-                    name=zone["Nombre"],
-                    resolution=tuple(zone["Resolucion"]),
-                    original_points=np.array(zone["Puntos"]),
-                    original_fine_points=np.array(zone["Multa"]),
-                )
-                for zone in yaml_data["Zonas"]
-            ]
+        try:
+            with open("assets/detection_zones/zones.yaml", encoding="utf-8") as file:
+                yaml_data = yaml.safe_load(file)
+                zones = [
+                    Zone(
+                        name=zone["Nombre"],
+                        resolution=tuple(zone["Resolucion"]),
+                        original_points=np.array(zone["Puntos"]),
+                        original_fine_points=np.array(zone["Multa"]),
+                    )
+                    for zone in yaml_data["Zonas"]
+                ]
+                # Crear logger temporal si aún no existe para este mensaje
+                temp_logger = logging.getLogger(f"{self.__class__.__name__}[ZoneList]")
+                temp_logger.info(f"📍 Zonas cargadas exitosamente: {len(zones)} zonas")
+                return zones
+        except Exception:
+            # Crear logger temporal si aún no existe para este mensaje
+            temp_logger = logging.getLogger(f"{self.__class__.__name__}[ZoneList]")
+            temp_logger.error("❌ Error cargando zonas desde YAML", exc_info=True)
+            return []
 
     def get_all_quantities(self) -> dict:
         """
@@ -55,6 +72,7 @@ class ZoneList:
             if zone.name == zona_nombre:
                 return zone.detection_count
 
+        self.logger.warning(f"⚠️ Zona no encontrada: {zona_nombre}")
         return -1  #! Retornar -1 si la zona no se encuentra
 
     def get_zone_wait_times(self) -> list[int]:
@@ -95,8 +113,13 @@ class ZoneList:
         for zone in self.zones:
             if zone.name == zone_name:
                 zone.fines_activated = not zone.fines_activated
+                status = "activadas" if zone.fines_activated else "desactivadas"
+                self.logger.info(f"🚨 Multas {status} para zona: {zone_name}")
                 return zone.fines_activated
 
+        self.logger.warning(
+            f"⚠️ No se pudo activar multas - zona no encontrada: {zone_name}"
+        )
         return False
 
     def get_zone_by_name(self, zone_name: str) -> Zone | None:
@@ -113,4 +136,5 @@ class ZoneList:
             if zona.name == zone_name:
                 return zona
 
+        self.logger.warning(f"⚠️ Zona no encontrada: {zone_name}")
         return None

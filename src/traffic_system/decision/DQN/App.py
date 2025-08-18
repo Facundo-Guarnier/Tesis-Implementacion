@@ -92,7 +92,7 @@ class DecisionApp:
         is_connected = False
 
         try:
-            print(f"Intentando cargar modelo desde: {model_path}")
+            logger.info(f"Intentando cargar modelo desde: {model_path}")
             dqn_model = DQNModel(path_modelo=model_path)
             logger.info(f"Modelo cargado exitosamente desde: {model_path}")
         except Exception as e:
@@ -135,7 +135,7 @@ class DecisionApp:
         is_connected = False
 
         try:
-            print(f"Intentando cargar modelo desde: {model_path}")
+            logger.info(f"Intentando cargar modelo desde: {model_path}")
             dqn_model = DQNModel(path_modelo=model_path)
             logger.info(f"Modelo cargado exitosamente desde: {model_path}")
         except Exception as e:

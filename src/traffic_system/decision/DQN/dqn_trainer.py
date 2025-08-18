@@ -762,8 +762,8 @@ class DQNTrainer:
         """
 
         traffic_light_1_phases = ["GGGGGGrrrrr", "rrrrrrGGgGG"]
-        traffic_light_2_phases = ["GGGrrrrrGGg", "rrrGGGGGrrr"]
-        traffic_light_3_phases = ["GGgGGGrrrrr", "rrrrrrGGGGG"]
+        traffic_light_2_phases = ["GGGrrrrrrrGGg", "rrrGGGggGGrrr"]
+        traffic_light_3_phases = ["GGgGGGrrrrrrr", "rrrrrrGGGggGG"]
         traffic_light_4_phases = ["GGGrrrrGGg", "rrrGGGGrrr"]
 
         self._action_space = [
@@ -2407,13 +2407,15 @@ class DQNTrainer:
 
             # FASE 3: Learning rate adaptativo mejorado (reemplaza lógica anterior)
             current_avg_reward = np.mean(epoch_rewards) if epoch_rewards else 0.0
-            self._adaptive_learning_rate_update(current_epoch, current_avg_reward)
+            self._adaptive_learning_rate_update(
+                current_epoch, float(current_avg_reward)
+            )
 
             # Early stopping inteligente basado en rendimiento
             if (
                 current_epoch > 5
             ):  # Permitir al menos 5 épocas antes de evaluar early stopping
-                if self._check_early_stopping(current_avg_reward, current_epoch):
+                if self._check_early_stopping(float(current_avg_reward), current_epoch):
                     logger.info(
                         f" 🛑 Entrenamiento detenido early stopping en época {current_epoch}"
                     )

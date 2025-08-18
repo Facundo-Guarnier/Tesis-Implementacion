@@ -28,18 +28,18 @@ pillow = ">=10.0.0"
 matplotlib = ">=3.7.0"
 pydantic = "^2.11.7"
 
-# TensorFlow con soporte GPU específico por plataforma
+# TensorFlow con dependencias específicas por plataforma
 tensorflow = [
-    {version = "==2.19.0", markers = "platform_system == 'Windows'"},
-    {version = "==2.19.0", extras = ["and-cuda"], markers = "platform_system == 'Linux'"}
+    {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"},
+    {version = "==2.19.0", markers = "platform_system == 'Linux' and python_version >= '3.12'"}
 ]
-# Nota: Linux usa tensorflow[and-cuda] para soporte GPU NVIDIA automático
-# Windows usa tensorflow estándar (sin GPU para evitar configuraciones complejas)
+# Dependencias específicas de Windows con Python 3.11
+tensorflow-estimator = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
+tensorflow-intel = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
+tensorflow-io-gcs-filesystem = {version = "==0.31.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
 psutil = "^7.0.0"
 pandas = "^2.3.1"
 scipy = "^1.16.0"
-supervision = "^0.26.1"
-ultralytics = "^8.3.177"
 
 [tool.poetry.group.dev.dependencies]
 black = ">=23.0.0"

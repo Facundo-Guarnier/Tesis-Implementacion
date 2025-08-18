@@ -1,3 +1,4 @@
+import logging
 import os
 
 from src.traffic_system.core.config_loader import load_app_settings
@@ -13,12 +14,13 @@ class DetectionApp:
         self.settings = load_app_settings().deteccion
         self.detector = DetectorService()
         self.zones = ZoneList()
+        self.logger = logging.getLogger(f"{self.__class__.__name__}[DetectionApp]")
 
     def analyze_video_folder(self) -> None:
         """
         Procesa todos los videos en la carpeta de origen y guarda los resultados en la carpeta de destino.
         """
-        print("Procesando videos...")
+        self.logger.info("🎥 Iniciando procesamiento de videos...")
         video_count = 0
         origin_folder = self.settings.carpeta_dataset.path_origen
         destination_folder = self.settings.carpeta_dataset.path_destino
@@ -26,6 +28,7 @@ class DetectionApp:
         #! Crear la carpeta de resultados si no existe
         if not os.path.exists(destination_folder):
             os.makedirs(destination_folder)
+            self.logger.info(f"📁 Carpeta de destino creada: {destination_folder}")
 
         try:
             #! Recorrer todas las carpetas en la carpeta de entrada
@@ -34,7 +37,7 @@ class DetectionApp:
 
                 #! Verificar si es una carpeta
                 if os.path.isdir(video_subfolder_path):
-                    print(f"\nProcesando carpeta: {video_subfolder}")
+                    self.logger.info(f"📂 Procesando carpeta: {video_subfolder}")
 
                     #! Crear la carpeta de salida espejo
                     output_subfolder_path = os.path.join(
@@ -71,18 +74,20 @@ class DetectionApp:
                                 ),  #! Busca la clase correspondiente a la zona actual, sino devuelve la primera zona (Default).
                             )
 
-                            print(f" -Video N°{video_count}: {video_file}")
+                            self.logger.info(f"🎞️ Video N°{video_count}: {video_file}")
                             self.detector.process_and_save_video(
                                 video_processor=video_processor_instance
                             )
-                            print("  Videos procesado\n")
+                            self.logger.info("✅ Video procesado")
                             video_count += 1
 
-            print("\nVideos procesados con éxito.")
+            self.logger.info(
+                f"🎉 Todos los videos procesados exitosamente. Total: {video_count}"
+            )
 
-        except Exception as e:
-            print(
-                f"[ERROR Deteccion.App.App]: Error al procesar la carpeta: {origin_folder} \n{e}"
+        except Exception:
+            self.logger.error(
+                f"❌ Error al procesar la carpeta: {origin_folder}", exc_info=True
             )
 
     def analyze_single_video(self) -> None:
@@ -102,11 +107,14 @@ class DetectionApp:
             ),
         )
 
-        print("Procesando video...")
+        self.logger.info(
+            f"🎬 Iniciando procesamiento de video: {self.settings.un_video.path_origen}"
+        )
+        self.logger.info(f"🎯 Zona seleccionada: {self.settings.un_video.zona}")
         self.detector.process_and_show_live_video(
             video_processor=video_processor_instance
         )
-        print("Video procesado.")
+        self.logger.info("✅ Video procesado exitosamente")
 
     def analyze_camera(self) -> None:
         """
@@ -114,8 +122,8 @@ class DetectionApp:
         """
 
         video_processor_instance = VideoProcessor(
-            origin_path="",
-            scale_factor=0.2,
+            origin_path="",  # Para cámara, origin_path vacío
+            is_camera=True,  # Especificar que es cámara
             zone=next(
                 (
                     zone_obj
@@ -126,6 +134,6 @@ class DetectionApp:
             ),
         )
 
-        print("Procesando cámara...")
+        self.logger.info("📹 Iniciando procesamiento de cámara en vivo")
         self.detector.process_camera(video_processor=video_processor_instance)
-        print("Cámara procesada.")
+        self.logger.info("✅ Cámara procesada exitosamente")

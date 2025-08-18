@@ -3,11 +3,12 @@ import logging
 import os
 import sqlite3
 import time
-from typing import Any, cast
+
+from pydantic import ValidationError
 
 from src.traffic_system.api_client.reporting_client import ReportAPI
 from src.traffic_system.core.config_loader import load_app_settings
-from src.traffic_system.core.config_models import ReporteSettings
+from src.traffic_system.core.config_models import ReportData, ReporteSettings
 
 
 class ReportService:
@@ -45,24 +46,40 @@ class ReportService:
         self._connect_db()
         self._create_table()
 
-        #! Generar reporte
-        retries = 0
-        while True and retries < 5:
+        #! Generar reporte basado en umbrales de congestión
+        # Nota: Configuración de steps mantenida para uso futuro
+
+        while True:
             data = self._get_data()
+            if data is None:
+                logger.error("❌ Error al obtener datos del reporte. Reintentando...")
+                time.sleep(5)
+                continue
 
-            if data == {} or not self._save_report(data=data):
-                logger.error(
-                    f"❌ Error al generar el reporte. Reintentando... ({retries + 1}/{5})"
-                )
-                retries += 1
-                time.sleep(self.settings.tiempo_entre_reportes)
+            # Evaluar si algún umbral crítico se supera (condiciones de congestión)
+            should_save = self._evaluate_thresholds(data)
 
+            if should_save:
+                if self._save_report(data=data):
+                    self._check_and_alert(data=data)
+                    logger.info(
+                        f"✅ Reporte guardado para step {data.steps} - Umbral de congestión superado"
+                    )
+                else:
+                    logger.error(
+                        f"❌ Error al guardar el reporte para step {data.steps}"
+                    )
             else:
-                retries = 0
-                self._check_and_alert(data=data)
+                # Log solo en debug para evitar spam (condiciones normales)
+                logger.debug(
+                    f"📊 Step {data.steps} - Condiciones normales, no se guarda reporte"
+                )
 
-        logger.error("❌ Falló 5 veces seguidas al intentar generar el reporte.")
-        self._close_db()
+            # Esperar un poco antes de verificar nuevamente
+            time.sleep(1)  # 1 segundo entre verificaciones
+
+        # logger.error("❌ Falló 5 veces seguidas al intentar generar el reporte.")
+        # self._close_db()
 
     def _create_logger(self) -> None:
         """
@@ -75,9 +92,10 @@ class ReportService:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        #! Crear un manejador de archivos para escribir las alertas en un archivo .log
+        #! Crear un manejador de archivos con encoding UTF-8 para soportar emojis
         file_handler = logging.FileHandler(
-            os.path.join(self._report_path, "alertas.log")
+            os.path.join(self._report_path, "alertas.log"),
+            encoding="utf-8",  # Especificar UTF-8 para soportar caracteres Unicode
         )
         file_handler.setLevel(logging.INFO)
 
@@ -104,37 +122,41 @@ class ReportService:
         if self._db_connection:
             self._db_connection.close()
 
-    def _get_data(self) -> dict:
+    def _get_data(self) -> ReportData | None:
         """
         Obtener los datos de la simulación.
 
         Returns:
-            dict: Datos de la simulación. Ej: {
-                "steps": 600,
-                "tiempo_espera_total": 750,
-                "tiempos_espera": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200]
-            }
+            ReportData | None: Datos validados de la simulación o None si hay error.
         """
+        logger = logging.getLogger(
+            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
+        )
 
         if not self._client_api_report.is_simulation_running():
-            return {}  #! Obtener los datos de la simulación
+            return None
+
         data_response = self._client_api_report.get_report()
-
         if data_response is None:
-            return {}
+            return None
 
-        # Convertir la respuesta Pydantic a diccionario
-        data = data_response.model_dump()
+        try:
+            # Convertir la respuesta Pydantic a diccionario
+            raw_data = data_response.model_dump()
 
-        #! Calcular el tiempo de espera total
-        # ? Esto es redundante si get_report ya devuelve "total_wait_time"?
-        total_wait = float(
-            sum(data["wait_times_per_zone"])
-        )  # Asumiendo que esta es la clave de la API
-        data["tiempo_espera_total"] = total_wait
+            # Validar y estructurar los datos usando el modelo ReportData
+            validated_data = ReportData(**raw_data)
+            logger.info(
+                f"✅ Datos del reporte validados correctamente: steps={validated_data.steps}"
+            )
+            return validated_data
 
-        # TODO: Implementar mejor tipado
-        return cast(dict[Any, Any], data)
+        except ValidationError as e:
+            logger.error(f"❌ Error de validación en datos del reporte: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Error inesperado al procesar datos del reporte: {e}")
+            return None
 
     def _create_table(self) -> None:
         """
@@ -142,24 +164,40 @@ class ReportService:
         """
         sql = """
             CREATE TABLE IF NOT EXISTS reporte (
-                Steps INTEGER PRIMARY KEY,
-                Semaforo1 TEXT,
-                Semaforo2 TEXT,
-                Semaforo3 TEXT,
-                Semaforo4 TEXT,
-                TiempoTotal INTEGER,
-                ZonaA INTEGER,
-                ZonaB INTEGER,
-                ZonaC INTEGER,
-                ZonaD INTEGER,
-                ZonaE INTEGER,
-                ZonaF INTEGER,
-                ZonaG INTEGER,
-                ZonaH INTEGER,
-                ZonaI INTEGER,
-                ZonaJ INTEGER,
-                ZonaK INTEGER,
-                ZonaL INTEGER
+                step_simulacion INTEGER PRIMARY KEY,
+                estado_simulacion TEXT,
+                timestamp_simulacion TEXT,
+                estado_semaforo_1 TEXT,
+                estado_semaforo_2 TEXT,
+                estado_semaforo_3 TEXT,
+                estado_semaforo_4 TEXT,
+                total_tiempo_espera REAL,
+                total_vehiculos INTEGER,
+                zona_a_tiempo_espera REAL,
+                zona_a_vehiculos INTEGER,
+                zona_b_tiempo_espera REAL,
+                zona_b_vehiculos INTEGER,
+                zona_c_tiempo_espera REAL,
+                zona_c_vehiculos INTEGER,
+                zona_d_tiempo_espera REAL,
+                zona_d_vehiculos INTEGER,
+                zona_e_tiempo_espera REAL,
+                zona_e_vehiculos INTEGER,
+                zona_f_tiempo_espera REAL,
+                zona_f_vehiculos INTEGER,
+                zona_g_tiempo_espera REAL,
+                zona_g_vehiculos INTEGER,
+                zona_h_tiempo_espera REAL,
+                zona_h_vehiculos INTEGER,
+                zona_i_tiempo_espera REAL,
+                zona_i_vehiculos INTEGER,
+                zona_j_tiempo_espera REAL,
+                zona_j_vehiculos INTEGER,
+                zona_k_tiempo_espera REAL,
+                zona_k_vehiculos INTEGER,
+                zona_l_tiempo_espera REAL,
+                zona_l_vehiculos INTEGER,
+                generado_en TEXT
             );
         """
         if not self._cursor or not self._db_connection:
@@ -167,12 +205,12 @@ class ReportService:
         self._cursor.execute(sql)
         self._db_connection.commit()
 
-    def _save_report(self, data: dict) -> bool:
+    def _save_report(self, data: ReportData) -> bool:
         """
         Guarda los datos del reporte en la base de datos SQLite.
 
         Args:
-            datos (dict): Datos de la simulación.
+            data (ReportData): Datos validados de la simulación.
 
         Returns:
             bool: True si se guardaron los datos correctamente, False en caso contrario.
@@ -180,16 +218,42 @@ class ReportService:
 
         try:
             sql = """
-                INSERT INTO reporte (
-                    Steps,
-                    Semaforo1,
-                    Semaforo2,
-                    Semaforo3,
-                    Semaforo4,
-                    TiempoTotal,
-                    ZonaA, ZonaB, ZonaC, ZonaD, ZonaE, ZonaF, ZonaG, ZonaH, ZonaI, ZonaJ, ZonaK, ZonaL
+                INSERT OR REPLACE INTO reporte (
+                    step_simulacion, estado_simulacion, timestamp_simulacion,
+                    estado_semaforo_1, estado_semaforo_2, estado_semaforo_3, estado_semaforo_4,
+                    total_tiempo_espera, total_vehiculos,
+                    zona_a_tiempo_espera, zona_a_vehiculos,
+                    zona_b_tiempo_espera, zona_b_vehiculos,
+                    zona_c_tiempo_espera, zona_c_vehiculos,
+                    zona_d_tiempo_espera, zona_d_vehiculos,
+                    zona_e_tiempo_espera, zona_e_vehiculos,
+                    zona_f_tiempo_espera, zona_f_vehiculos,
+                    zona_g_tiempo_espera, zona_g_vehiculos,
+                    zona_h_tiempo_espera, zona_h_vehiculos,
+                    zona_i_tiempo_espera, zona_i_vehiculos,
+                    zona_j_tiempo_espera, zona_j_vehiculos,
+                    zona_k_tiempo_espera, zona_k_vehiculos,
+                    zona_l_tiempo_espera, zona_l_vehiculos,
+                    generado_en
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (
+                    :step_simulacion, :estado_simulacion, :timestamp_simulacion,
+                    :estado_semaforo_1, :estado_semaforo_2, :estado_semaforo_3, :estado_semaforo_4,
+                    :total_tiempo_espera, :total_vehiculos,
+                    :zona_a_tiempo_espera, :zona_a_vehiculos,
+                    :zona_b_tiempo_espera, :zona_b_vehiculos,
+                    :zona_c_tiempo_espera, :zona_c_vehiculos,
+                    :zona_d_tiempo_espera, :zona_d_vehiculos,
+                    :zona_e_tiempo_espera, :zona_e_vehiculos,
+                    :zona_f_tiempo_espera, :zona_f_vehiculos,
+                    :zona_g_tiempo_espera, :zona_g_vehiculos,
+                    :zona_h_tiempo_espera, :zona_h_vehiculos,
+                    :zona_i_tiempo_espera, :zona_i_vehiculos,
+                    :zona_j_tiempo_espera, :zona_j_vehiculos,
+                    :zona_k_tiempo_espera, :zona_k_vehiculos,
+                    :zona_l_tiempo_espera, :zona_l_vehiculos,
+                    :generado_en
+                );
             """
             logger = logging.getLogger(
                 f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
@@ -197,29 +261,57 @@ class ReportService:
             if not self._cursor:
                 return False
             else:
-                self._cursor.execute(
-                    sql,
-                    (
-                        data["steps"],
-                        data["estados_semaforos"][0],
-                        data["estados_semaforos"][1],
-                        data["estados_semaforos"][2],
-                        data["estados_semaforos"][3],
-                        data["tiempo_espera_total"],
-                        data["tiempos_espera"][0],
-                        data["tiempos_espera"][1],
-                        data["tiempos_espera"][2],
-                        data["tiempos_espera"][3],
-                        data["tiempos_espera"][4],
-                        data["tiempos_espera"][5],
-                        data["tiempos_espera"][6],
-                        data["tiempos_espera"][7],
-                        data["tiempos_espera"][8],
-                        data["tiempos_espera"][9],
-                        data["tiempos_espera"][10],
-                        data["tiempos_espera"][11],
-                    ),
-                )
+                # Usar los métodos del modelo para obtener datos estructurados
+                vehiculos_ordenados = data.get_vehiculos_ordenados()
+                tiempo_espera_total = data.get_tiempo_espera_total()
+                total_vehiculos = data.get_total_vehiculos()
+
+                # Usar diccionario con parámetros nombrados para mejor legibilidad y mantenibilidad
+                params = {
+                    # Información básica de simulación
+                    "step_simulacion": data.steps,
+                    "estado_simulacion": data.status,
+                    "timestamp_simulacion": data.timestamp,
+                    # Estados de semáforos
+                    "estado_semaforo_1": data.estados_semaforos[0],
+                    "estado_semaforo_2": data.estados_semaforos[1],
+                    "estado_semaforo_3": data.estados_semaforos[2],
+                    "estado_semaforo_4": data.estados_semaforos[3],
+                    # Totales
+                    "total_tiempo_espera": tiempo_espera_total,
+                    "total_vehiculos": total_vehiculos,
+                    # Zonas A-F
+                    "zona_a_tiempo_espera": data.tiempos_espera[0],
+                    "zona_a_vehiculos": vehiculos_ordenados[0],
+                    "zona_b_tiempo_espera": data.tiempos_espera[1],
+                    "zona_b_vehiculos": vehiculos_ordenados[1],
+                    "zona_c_tiempo_espera": data.tiempos_espera[2],
+                    "zona_c_vehiculos": vehiculos_ordenados[2],
+                    "zona_d_tiempo_espera": data.tiempos_espera[3],
+                    "zona_d_vehiculos": vehiculos_ordenados[3],
+                    "zona_e_tiempo_espera": data.tiempos_espera[4],
+                    "zona_e_vehiculos": vehiculos_ordenados[4],
+                    "zona_f_tiempo_espera": data.tiempos_espera[5],
+                    "zona_f_vehiculos": vehiculos_ordenados[5],
+                    # Zonas G-L
+                    "zona_g_tiempo_espera": data.tiempos_espera[6],
+                    "zona_g_vehiculos": vehiculos_ordenados[6],
+                    "zona_h_tiempo_espera": data.tiempos_espera[7],
+                    "zona_h_vehiculos": vehiculos_ordenados[7],
+                    "zona_i_tiempo_espera": data.tiempos_espera[8],
+                    "zona_i_vehiculos": vehiculos_ordenados[8],
+                    "zona_j_tiempo_espera": data.tiempos_espera[9],
+                    "zona_j_vehiculos": vehiculos_ordenados[9],
+                    "zona_k_tiempo_espera": data.tiempos_espera[10],
+                    "zona_k_vehiculos": vehiculos_ordenados[10],
+                    "zona_l_tiempo_espera": data.tiempos_espera[11],
+                    "zona_l_vehiculos": vehiculos_ordenados[11],
+                    # Metadata
+                    "generado_en": data.generated_at,
+                }
+
+                self._cursor.execute(sql, params)
+
                 if not self._db_connection:
                     return False
                 else:
@@ -229,24 +321,58 @@ class ReportService:
             logger.error(f"❌ Error al guardar el reporte en la base de datos: {e}")
             return False
 
-    def _check_and_alert(self, data: dict) -> None:
+    def _evaluate_thresholds(self, data: ReportData) -> bool:
+        """
+        Evalúa si algún umbral crítico de congestión se supera.
+
+        Args:
+            data (ReportData): Datos validados de la simulación.
+
+        Returns:
+            bool: True si se debe guardar el reporte (umbral superado), False en caso contrario.
+        """
+        # 1. Verificar tiempo total de espera
+        tiempo_espera_total = data.get_tiempo_espera_total()
+        if tiempo_espera_total >= self.settings.tiempo_total_espera_maximo:
+            return True
+
+        # 2. Verificar tiempo de espera por zona
+        for zone_wait_time in data.tiempos_espera:
+            if zone_wait_time >= self.settings.tiempo_zona_espera_maximo:
+                return True
+
+        # 3. Verificar total de vehículos
+        total_vehiculos = data.get_total_vehiculos()
+        if total_vehiculos >= self.settings.total_vehiculos_maximo:
+            return True
+
+        # 4. Verificar cantidad de vehículos por zona
+        for zone_vehicles in data.cantidad_vehiculos_por_zona.values():
+            if zone_vehicles >= self.settings.zona_vehiculos_maximo:
+                return True
+
+        # Ningún umbral superado
+        return False
+
+    def _check_and_alert(self, data: ReportData) -> None:
         """
         Revisa si se tiene que generar alguna alerta. Condiciones:
         - Tiempo de espera total mayor al tiempo de espera máximo permitido.
         - Tiempo de espera de una zona mayor al tiempo de espera máximo permitido.
 
         Args:
-            datos (dict): Datos de la simulación.
+            data (ReportData): Datos validados de la simulación.
         """
+        tiempo_espera_total = data.get_tiempo_espera_total()
 
-        if data["tiempo_espera_total"] > self.settings.tiempo_total_espera_maximo:
+        if tiempo_espera_total > self.settings.tiempo_total_espera_maximo:
             self.logger.warning(
-                f"⚠️ Step {data['steps']}: Tiempo de espera total mayor al permitido ({data['tiempo_espera_total']})."
+                f"ALERTA Step {data.steps}: Tiempo de espera total mayor al permitido ({tiempo_espera_total})."
             )
 
-        for i, zone_wait_time in enumerate(data["tiempos_espera"]):
+        for i, zone_wait_time in enumerate(data.tiempos_espera):
             if zone_wait_time > self.settings.tiempo_zona_espera_maximo:
                 max_wait_zone_name = chr(ord("A") + i)  #! Convertir índice a letra
                 self.logger.warning(
-                    f"⚠️ Step {data['steps']}: Tiempo de espera en la zona {max_wait_zone_name} mayor permitido ({zone_wait_time})."
+                    f"ALERTA Step {data.steps}: Tiempo de espera en la zona {max_wait_zone_name} mayor permitido ({zone_wait_time})."
                 )
