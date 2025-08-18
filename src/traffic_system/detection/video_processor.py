@@ -6,6 +6,7 @@ from typing import Any
 import cv2
 
 from src.traffic_system.core.config_loader import load_app_settings
+from src.traffic_system.core.types import Resolution
 from src.traffic_system.detection.zones.zone import Zone
 
 
@@ -18,7 +19,7 @@ class VideoProcessor:
         zone (Zona): Zona de interés.
         result_path (str | None): Ruta para guardar el video procesado. Si es None, se genera automáticamente.
         fps (float | None): FPS del video. Si es None, se obtiene del archivo.
-        resolution (tuple[int, int] | None): Resolución (ancho, alto). Si es None, se obtiene del archivo.
+        resolution (Resolution | None): Resolución (ancho, alto). Si es None, se obtiene del archivo.
         scale_factor (float | None): Factor de escala. Si es None, se calcula automáticamente.
     """
 
@@ -28,7 +29,7 @@ class VideoProcessor:
         zone: Zone,
         result_path: str | None = None,
         fps: float | None = None,
-        resolution: tuple[int, int] | None = None,
+        resolution: Resolution | None = None,
         scale_factor: float | None = None,
         is_camera: bool = False,
     ):
@@ -78,7 +79,7 @@ class VideoProcessor:
         self.logger.info(f"   🎞️ FPS: {self.fps}")
         self.logger.info(f"   ⚖️ Factor de escala: {self.scale_factor:.3f}")
 
-    def _get_resolution(self) -> tuple[int, int]:
+    def _get_resolution(self) -> Resolution:
         try:
             if self.is_camera:
                 # Para cámara en vivo, abrir dispositivo de captura

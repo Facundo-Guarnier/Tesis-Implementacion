@@ -3,6 +3,8 @@ import logging
 import cv2
 import numpy as np
 
+from src.traffic_system.core.types import Resolution
+
 
 class WindowManager:
     """Gestiona ventanas de OpenCV para visualización de streams"""
@@ -13,7 +15,7 @@ class WindowManager:
         self.should_close = False
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
 
-    def create_window(self, display_size: tuple[int, int] | None = None) -> bool:
+    def create_window(self, display_size: Resolution | None = None) -> bool:
         """
         Crear y configurar la ventana de visualización
 

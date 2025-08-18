@@ -236,7 +236,24 @@ class ReportService:
                     zona_l_tiempo_espera, zona_l_vehiculos,
                     generado_en
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (
+                    :step_simulacion, :estado_simulacion, :timestamp_simulacion,
+                    :estado_semaforo_1, :estado_semaforo_2, :estado_semaforo_3, :estado_semaforo_4,
+                    :total_tiempo_espera, :total_vehiculos,
+                    :zona_a_tiempo_espera, :zona_a_vehiculos,
+                    :zona_b_tiempo_espera, :zona_b_vehiculos,
+                    :zona_c_tiempo_espera, :zona_c_vehiculos,
+                    :zona_d_tiempo_espera, :zona_d_vehiculos,
+                    :zona_e_tiempo_espera, :zona_e_vehiculos,
+                    :zona_f_tiempo_espera, :zona_f_vehiculos,
+                    :zona_g_tiempo_espera, :zona_g_vehiculos,
+                    :zona_h_tiempo_espera, :zona_h_vehiculos,
+                    :zona_i_tiempo_espera, :zona_i_vehiculos,
+                    :zona_j_tiempo_espera, :zona_j_vehiculos,
+                    :zona_k_tiempo_espera, :zona_k_vehiculos,
+                    :zona_l_tiempo_espera, :zona_l_vehiculos,
+                    :generado_en
+                );
             """
             logger = logging.getLogger(
                 f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
@@ -249,50 +266,51 @@ class ReportService:
                 tiempo_espera_total = data.get_tiempo_espera_total()
                 total_vehiculos = data.get_total_vehiculos()
 
-                self._cursor.execute(
-                    sql,
-                    (
-                        # Información básica de simulación
-                        data.steps,
-                        data.status,
-                        data.timestamp,
-                        # Estados de semáforos
-                        data.estados_semaforos[0],
-                        data.estados_semaforos[1],
-                        data.estados_semaforos[2],
-                        data.estados_semaforos[3],
-                        # Totales (agrupados al principio)
-                        tiempo_espera_total,
-                        total_vehiculos,
-                        # Zonas agrupadas (tiempo + vehículos por zona)
-                        data.tiempos_espera[0],
-                        vehiculos_ordenados[0],  # zona_a
-                        data.tiempos_espera[1],
-                        vehiculos_ordenados[1],  # zona_b
-                        data.tiempos_espera[2],
-                        vehiculos_ordenados[2],  # zona_c
-                        data.tiempos_espera[3],
-                        vehiculos_ordenados[3],  # zona_d
-                        data.tiempos_espera[4],
-                        vehiculos_ordenados[4],  # zona_e
-                        data.tiempos_espera[5],
-                        vehiculos_ordenados[5],  # zona_f
-                        data.tiempos_espera[6],
-                        vehiculos_ordenados[6],  # zona_g
-                        data.tiempos_espera[7],
-                        vehiculos_ordenados[7],  # zona_h
-                        data.tiempos_espera[8],
-                        vehiculos_ordenados[8],  # zona_i
-                        data.tiempos_espera[9],
-                        vehiculos_ordenados[9],  # zona_j
-                        data.tiempos_espera[10],
-                        vehiculos_ordenados[10],  # zona_k
-                        data.tiempos_espera[11],
-                        vehiculos_ordenados[11],  # zona_l
-                        # Metadata
-                        data.generated_at,
-                    ),
-                )
+                # Usar diccionario con parámetros nombrados para mejor legibilidad y mantenibilidad
+                params = {
+                    # Información básica de simulación
+                    "step_simulacion": data.steps,
+                    "estado_simulacion": data.status,
+                    "timestamp_simulacion": data.timestamp,
+                    # Estados de semáforos
+                    "estado_semaforo_1": data.estados_semaforos[0],
+                    "estado_semaforo_2": data.estados_semaforos[1],
+                    "estado_semaforo_3": data.estados_semaforos[2],
+                    "estado_semaforo_4": data.estados_semaforos[3],
+                    # Totales
+                    "total_tiempo_espera": tiempo_espera_total,
+                    "total_vehiculos": total_vehiculos,
+                    # Zonas A-F
+                    "zona_a_tiempo_espera": data.tiempos_espera[0],
+                    "zona_a_vehiculos": vehiculos_ordenados[0],
+                    "zona_b_tiempo_espera": data.tiempos_espera[1],
+                    "zona_b_vehiculos": vehiculos_ordenados[1],
+                    "zona_c_tiempo_espera": data.tiempos_espera[2],
+                    "zona_c_vehiculos": vehiculos_ordenados[2],
+                    "zona_d_tiempo_espera": data.tiempos_espera[3],
+                    "zona_d_vehiculos": vehiculos_ordenados[3],
+                    "zona_e_tiempo_espera": data.tiempos_espera[4],
+                    "zona_e_vehiculos": vehiculos_ordenados[4],
+                    "zona_f_tiempo_espera": data.tiempos_espera[5],
+                    "zona_f_vehiculos": vehiculos_ordenados[5],
+                    # Zonas G-L
+                    "zona_g_tiempo_espera": data.tiempos_espera[6],
+                    "zona_g_vehiculos": vehiculos_ordenados[6],
+                    "zona_h_tiempo_espera": data.tiempos_espera[7],
+                    "zona_h_vehiculos": vehiculos_ordenados[7],
+                    "zona_i_tiempo_espera": data.tiempos_espera[8],
+                    "zona_i_vehiculos": vehiculos_ordenados[8],
+                    "zona_j_tiempo_espera": data.tiempos_espera[9],
+                    "zona_j_vehiculos": vehiculos_ordenados[9],
+                    "zona_k_tiempo_espera": data.tiempos_espera[10],
+                    "zona_k_vehiculos": vehiculos_ordenados[10],
+                    "zona_l_tiempo_espera": data.tiempos_espera[11],
+                    "zona_l_vehiculos": vehiculos_ordenados[11],
+                    # Metadata
+                    "generado_en": data.generated_at,
+                }
+
+                self._cursor.execute(sql, params)
 
                 if not self._db_connection:
                     return False

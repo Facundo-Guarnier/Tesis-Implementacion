@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import cv2
 import numpy as np
 
+from src.traffic_system.core.types import Resolution
+
 
 class StreamSource(ABC):
     """Clase base abstracta para fuentes de stream (video/cámara)"""
@@ -76,7 +78,7 @@ class VideoStreamSource(StreamSource):
 class CameraStreamSource(StreamSource):
     """Fuente de stream para cámara"""
 
-    def __init__(self, camera_index: int, display_size: tuple[int, int] | None = None):
+    def __init__(self, camera_index: int, display_size: Resolution | None = None):
         super().__init__(camera_index)
         self.camera_index = camera_index
         self.display_size = display_size

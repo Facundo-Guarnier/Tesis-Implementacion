@@ -1,6 +1,6 @@
 # --- Modelos para la sección 'deteccion' ---
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 
 # --- Modelos para datos del reporte ---
@@ -15,7 +15,7 @@ class ReportData(BaseModel):
     estados_semaforos: list[str]
     generated_at: str
 
-    @validator("tiempos_espera")
+    @field_validator("tiempos_espera")
     def validate_tiempos_espera_length(cls, v: list[float]) -> list[float]:
         """Validar que tiempos_espera tenga exactamente 12 elementos (zonas A-L)."""
         if len(v) != 12:
@@ -24,7 +24,7 @@ class ReportData(BaseModel):
             )
         return v
 
-    @validator("cantidad_vehiculos_por_zona")
+    @field_validator("cantidad_vehiculos_por_zona")
     def validate_cantidad_vehiculos_zonas(cls, v: dict[str, int]) -> dict[str, int]:
         """Validar que cantidad_vehiculos_por_zona tenga las zonas A-L."""
         expected_zones = {chr(ord("A") + i) for i in range(12)}
@@ -40,7 +40,7 @@ class ReportData(BaseModel):
             raise ValueError(f"Zonas incorrectas. {', '.join(error_msg)}")
         return v
 
-    @validator("estados_semaforos")
+    @field_validator("estados_semaforos")
     def validate_estados_semaforos_length(cls, v: list[str]) -> list[str]:
         """Validar que estados_semaforos tenga exactamente 4 elementos."""
         if len(v) != 4:

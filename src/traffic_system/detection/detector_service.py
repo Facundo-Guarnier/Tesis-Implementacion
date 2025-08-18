@@ -11,6 +11,7 @@ import ultralytics as ul
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.config_models import DeteccionSettings
+from src.traffic_system.core.types import Resolution
 from src.traffic_system.detection.stream_processing import StreamCoordinator
 from src.traffic_system.detection.ui import InfoOverlay
 from src.traffic_system.detection.video_processor import VideoProcessor
@@ -45,7 +46,7 @@ class DetectorService:
 
         self.zones = zones_instance if zones_instance is not None else ZoneList()
 
-        self.detection_times: dict[int, float] = (
+        self.detection_times_fps_normalized: dict[int, float] = (
             {}
         )  # Diccionario para almacenar tiempos de detección (normalizados por FPS)
 
@@ -140,7 +141,7 @@ class DetectorService:
 
     def _compute_display_size(
         self, width: int, height: int, max_long_side: int = 820
-    ) -> tuple[int, int]:
+    ) -> Resolution:
         """Calcular tamaño de ventana manteniendo relación de aspecto."""
         if width <= 0 or height <= 0:
             return (460, 820)
@@ -152,7 +153,7 @@ class DetectorService:
             new_h = max(1, int(max_long_side * (height / width)))
         return (new_w, new_h)
 
-    def _prepare_orientation_for_stream(self) -> tuple[int, int]:
+    def _prepare_orientation_for_stream(self) -> Resolution:
         """Decidir rotación y resolución efectiva para mantener orientación de la zona.
 
         Returns:
@@ -240,8 +241,11 @@ class DetectorService:
             # Video grabado: usar FPS del video porque todos los frames se procesan secuencialmente
             fps_for_calculation = self.video_processor.fps
 
-        # CORREGIDO: Usar round() en lugar de división entera (//) para evitar
-        # discrepancias entre videos con diferentes FPS debido al truncamiento
+        if fps_for_calculation is None or fps_for_calculation <= 0:
+            logging.error(
+                f"FPS for calculation is invalid (value: {fps_for_calculation}). Returning wait time as 0."
+            )
+            return 0
         return round(total_frames / fps_for_calculation)
 
     def _update_zone_metrics(self, vehicle_count: int, wait_time_seconds: int) -> None:
@@ -296,15 +300,19 @@ class DetectorService:
 
                 # Contar frames de detección normalizados
                 if tracker_id is not None:
-                    if tracker_id in self.detection_times:
-                        self.detection_times[tracker_id] += fps_normalization_factor
+                    if tracker_id in self.detection_times_fps_normalized:
+                        self.detection_times_fps_normalized[
+                            tracker_id
+                        ] += fps_normalization_factor
                     else:
-                        self.detection_times[tracker_id] = fps_normalization_factor
+                        self.detection_times_fps_normalized[tracker_id] = (
+                            fps_normalization_factor
+                        )
             else:
                 color = [0, 0, 255]  # Rojo para objetos fuera de zona
                 # Reiniciar contador si sale de la zona
                 if tracker_id is not None:
-                    self.detection_times[tracker_id] = 0.0
+                    self.detection_times_fps_normalized[tracker_id] = 0.0
 
             # Dibujar centro
             cv2.circle(
@@ -332,17 +340,17 @@ class DetectorService:
         if detections.tracker_id is not None:
             expired_tracker_ids = [
                 tracker_id
-                for tracker_id in self.detection_times
+                for tracker_id in self.detection_times_fps_normalized
                 if tracker_id not in detections.tracker_id
             ]
             for tracker_id in expired_tracker_ids:
-                del self.detection_times[tracker_id]
+                del self.detection_times_fps_normalized[tracker_id]
 
         # Dibujar centros y contar vehículos en zona
         frame, vehicles_in_zone = self._draw_detection_centers(frame, detections)
 
         # Calcular métricas de tiempo
-        total_frames_in_zone = sum(self.detection_times.values())
+        total_frames_in_zone = sum(self.detection_times_fps_normalized.values())
         wait_time_seconds = self._calculate_wait_time(total_frames_in_zone, fps_real)
 
         # Actualizar métricas del sistema
@@ -395,7 +403,9 @@ class DetectorService:
             _data,
         ) in detections:
             if tracker_id is not None:
-                detection_time_frames = self.detection_times.get(tracker_id, 0)
+                detection_time_frames = self.detection_times_fps_normalized.get(
+                    tracker_id, 0
+                )
                 # Convertir frames a segundos usando la misma lógica que _calculate_wait_time
                 if (
                     hasattr(self.video_processor, "is_camera")
@@ -510,7 +520,7 @@ class DetectorService:
                 frame = self._process_fines(frame, detections)
         else:
             # Cuando no hay detecciones activas, limpiar métricas
-            self.detection_times.clear()
+            self.detection_times_fps_normalized.clear()
             self._update_zone_metrics(0, 0)
 
         return frame
@@ -551,8 +561,8 @@ class DetectorService:
         window_name: str,
         save_output: bool = False,
         output_path: str | None = None,
-        display_size: tuple[int, int] | None = None,
-        override_display_size: tuple[int, int] | None = None,
+        display_size: Resolution | None = None,
+        override_display_size: Resolution | None = None,
     ) -> None:
         """
         Método unificado para procesar streams en vivo (video o cámara).

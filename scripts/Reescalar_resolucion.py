@@ -1,12 +1,18 @@
 import os
 
+# Importar tipo Resolution desde el core del proyecto
+import sys
+
 import cv2
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from src.traffic_system.core.types import Resolution
 
 
 def reescalar_video(
     ruta_entrada: str,
     ruta_salida: str,
-    nueva_resolucion: tuple[int, int],
+    nueva_resolucion: Resolution,
     factor_reduccion_fps: int = 3,
 ) -> None:
     """
@@ -57,7 +63,7 @@ def reescalar_video(
 def reescalar_carpeta_videos(
     carpeta_entrada: str,
     carpeta_salida: str,
-    nueva_resolucion: tuple[int, int],
+    nueva_resolucion: Resolution,
     factor_reduccion_fps: int,
 ) -> None:
     #! Crear la carpeta de salida si no existe

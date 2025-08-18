@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from src.traffic_system.core.types import Resolution
+
 from ..ui import InfoOverlay
 from .output_manager import OutputManager
 from .stream_sources import CameraStreamSource, StreamSource, VideoStreamSource
@@ -21,7 +23,7 @@ class StreamCoordinator:
 
     def _compute_display_size(
         self, width: int, height: int, max_long_side: int = 820
-    ) -> tuple[int, int]:
+    ) -> Resolution:
         """Calcular tamaño de ventana manteniendo relación de aspecto del stream"""
         try:
             if width <= 0 or height <= 0:
@@ -47,7 +49,7 @@ class StreamCoordinator:
         frame_processor: Callable[[np.ndarray, int], np.ndarray],
         save_output: bool = False,
         output_path: str | None = None,
-        display_size: tuple[int, int] | None = None,
+        display_size: Resolution | None = None,
         scale_factor: float = 1.0,
     ) -> None:
         """
@@ -115,7 +117,7 @@ class StreamCoordinator:
             output_manager.cleanup()
 
     def _create_stream_source(
-        self, source_input: str | int, display_size: tuple[int, int] | None
+        self, source_input: str | int, display_size: Resolution | None
     ) -> StreamSource:
         """Crear la fuente de stream apropiada"""
         if isinstance(source_input, int):
@@ -207,7 +209,7 @@ class StreamCoordinator:
         frame_processor_with_fps: Callable[[np.ndarray, int, int], np.ndarray],
         save_output: bool = False,
         output_path: str | None = None,
-        display_size: tuple[int, int] | None = None,
+        display_size: Resolution | None = None,
         scale_factor: float = 1.0,
     ) -> None:
         """
