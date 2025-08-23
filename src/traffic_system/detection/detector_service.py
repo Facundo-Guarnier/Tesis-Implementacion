@@ -390,45 +390,15 @@ class DetectorService:
     ) -> np.ndarray:
         """
         - Dibuja una box por cada objeto.
-        - Hace las etiquetas de cada box.
+        - Las etiquetas de tiempo están deshabilitadas para limpiar la visualización.
         """
-        labels = []
-
-        for (
-            _xyxy,
-            _mask,
-            _confianza,
-            _class_id,
-            tracker_id,
-            _data,
-        ) in detections:
-            if tracker_id is not None:
-                detection_time_frames = self.detection_times_fps_normalized.get(
-                    tracker_id, 0
-                )
-                # Convertir frames a segundos usando la misma lógica que _calculate_wait_time
-                if (
-                    hasattr(self.video_processor, "is_camera")
-                    and self.video_processor.is_camera
-                ):
-                    # Para cámara: usar FPS del video (asumiendo que fps_real no está disponible aquí)
-                    fps_for_calculation = self.video_processor.fps
-                else:
-                    # Para video grabado: usar FPS del video
-                    fps_for_calculation = self.video_processor.fps
-
-                detection_time_seconds = round(
-                    detection_time_frames / fps_for_calculation
-                )
-                label = f"{detection_time_seconds}s"
-                labels.append(label)
-            else:
-                labels.append("No ID")
+        # Nota: Se eliminó la lógica de etiquetas de tiempo para limpiar la visualización
+        # Solo se mantienen los bounding boxes sin texto arriba
 
         frame = self.bounding_box_annotator.annotate(scene=frame, detections=detections)
-        frame = self.label_annotator.annotate(
-            scene=frame, detections=detections, labels=labels
-        )
+        # frame = self.label_annotator.annotate(
+        #     scene=frame, detections=detections, labels=labels
+        # )
         return frame
 
     def _process_fines(
@@ -620,21 +590,34 @@ class DetectorService:
     def process_and_save_video(self, video_processor: VideoProcessor) -> None:
         """
         Procesa un video y guarda el resultado sin mostrarlo en una ventana en vivo.
+        Usa StreamCoordinator para consistencia con otros métodos y soporte de rotación.
         """
 
         self.video_processor = video_processor
+
+        # Aplicar lógica de orientación automática (como en _process_live_stream)
+        eff_w, eff_h = self._prepare_orientation_for_stream()
+
         self._create_fines_folder()
-        self.video_processor.zone.scale_points(self.video_processor.resolution)
-        self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
+
+        # Usar la resolución efectiva (después de rotación) para escalar las zonas
+        self.video_processor.zone.scale_points((eff_w, eff_h))
+        self.video_processor.zone.scale_fine_points((eff_w, eff_h))
         self._define_supervision_parameters()
         self.logger.info(
             f"⚙️ Factor de escala aplicado: {self.video_processor.scale_factor}"
         )
+        self.logger.info(f"📐 Resolución efectiva (post-rotación): {eff_w}x{eff_h}")
 
-        sv.process_video(
-            source_path=video_processor.origin_path,
-            target_path=video_processor.result_path,
-            callback=self._process_frame_callback,
+        # Usar StreamCoordinator para procesamiento consistente y robusto
+        # window_name=None indica procesamiento sin ventana (headless)
+        self.stream_coordinator.process_stream_with_fps_callback(
+            source_input=video_processor.origin_path,
+            window_name=None,  # Sin ventana para dataset
+            frame_processor_with_fps=self._process_frame_with_fps_callback,
+            save_output=True,
+            output_path=video_processor.result_path,
+            scale_factor=getattr(self.video_processor, "scale_factor", 1.0),
         )
 
     def process_and_show_live_video(self, video_processor: VideoProcessor) -> None:

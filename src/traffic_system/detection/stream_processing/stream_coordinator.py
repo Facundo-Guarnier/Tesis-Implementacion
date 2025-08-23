@@ -205,7 +205,7 @@ class StreamCoordinator:
     def process_stream_with_fps_callback(
         self,
         source_input: str | int,
-        window_name: str,
+        window_name: str | None,
         frame_processor_with_fps: Callable[[np.ndarray, int, int], np.ndarray],
         save_output: bool = False,
         output_path: str | None = None,
@@ -216,6 +216,7 @@ class StreamCoordinator:
         Versión mejorada que pasa los FPS reales al frame processor
 
         Args:
+            window_name: Nombre de ventana o None para procesamiento sin ventana (headless)
             frame_processor_with_fps: Función que acepta (frame, frame_number, fps_real)
         """
         # Actualizar factor de escala del overlay
@@ -229,20 +230,24 @@ class StreamCoordinator:
             return
 
         # Configurar componentes
-        window_manager = WindowManager(window_name)
+        window_manager = None
+        if window_name is not None:
+            window_manager = WindowManager(window_name)
+
         output_manager = OutputManager(output_path if save_output else None)
 
         try:
-            # Configurar ventana
-            computed_display_size = display_size
-            if computed_display_size is None:
-                props = stream_source.get_properties()
-                computed_display_size = self._compute_display_size(
-                    int(props.get("width", 0)), int(props.get("height", 0))
-                )
+            # Configurar ventana solo si se requiere
+            if window_manager is not None:
+                computed_display_size = display_size
+                if computed_display_size is None:
+                    props = stream_source.get_properties()
+                    computed_display_size = self._compute_display_size(
+                        int(props.get("width", 0)), int(props.get("height", 0))
+                    )
 
-            if not window_manager.create_window(computed_display_size):
-                return
+                if not window_manager.create_window(computed_display_size):
+                    return
 
             # Configurar salida si se requiere
             if save_output and output_path:
@@ -266,13 +271,14 @@ class StreamCoordinator:
         finally:
             # Cleanup de todos los componentes
             stream_source.cleanup()
-            window_manager.cleanup()
+            if window_manager is not None:
+                window_manager.cleanup()
             output_manager.cleanup()
 
     def _process_frames_with_fps_callback(
         self,
         stream_source: StreamSource,
-        window_manager: WindowManager,
+        window_manager: WindowManager | None,
         output_manager: OutputManager,
         frame_processor_with_fps: Callable[[np.ndarray, int, int], np.ndarray],
         source_input: str | int,
@@ -283,7 +289,8 @@ class StreamCoordinator:
         second_start_time = time.time()
         total_frames_processed = 0
 
-        while window_manager.is_active and (
+        # Condición de loop: si hay ventana, usar window_manager.is_active; si no, usar shutdown_event
+        while (window_manager is None or window_manager.is_active) and (
             self.shutdown_event is None or not self.shutdown_event.is_set()
         ):
             frames_in_second += 1
@@ -305,16 +312,17 @@ class StreamCoordinator:
             if output_manager.is_ready:
                 output_manager.write_frame(frame)
 
-            # Mostrar frame
-            if not window_manager.show_frame(frame):
-                break
+            # Mostrar frame solo si hay ventana
+            if window_manager is not None:
+                if not window_manager.show_frame(frame):
+                    break
 
-            # Verificar entrada de teclado
-            key = window_manager.check_keyboard_input()
-            if key == "q":
-                stream_type = "cámara" if isinstance(source_input, int) else "video"
-                self.logger.info(f"⌨️ Tecla 'q' presionada, cerrando {stream_type}")
-                break
+                # Verificar entrada de teclado
+                key = window_manager.check_keyboard_input()
+                if key == "q":
+                    stream_type = "cámara" if isinstance(source_input, int) else "video"
+                    self.logger.info(f"⌨️ Tecla 'q' presionada, cerrando {stream_type}")
+                    break
 
             # Calcular FPS
             if time.time() - second_start_time >= 1:

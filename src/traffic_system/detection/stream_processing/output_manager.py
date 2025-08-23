@@ -12,6 +12,8 @@ class OutputManager:
         self.output_path = output_path
         self.writer: cv2.VideoWriter | None = None
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
+        # Tracking interno de la configuración del writer
+        self._configured_size: tuple[int, int] | None = None
 
     def setup_writer(
         self,
@@ -47,9 +49,12 @@ class OutputManager:
             )
 
             if self.writer.isOpened():
+                # Registrar la configuración exitosa
+                self._configured_size = (frame_width, frame_height)
                 self.logger.info(f"📹 Video de salida configurado: {self.output_path}")
                 return True
             else:
+                self._configured_size = None
                 self.logger.error(
                     f"❌ Error configurando video de salida: {self.output_path}"
                 )
@@ -73,18 +78,19 @@ class OutputManager:
             return False
 
         try:
-            # Si el tamaño del frame cambió respecto al writer, reconfigurar
-            if self.writer:
-                current_size = (
-                    int(self.writer.get(cv2.CAP_PROP_FRAME_WIDTH)),  # type: ignore
-                    int(self.writer.get(cv2.CAP_PROP_FRAME_HEIGHT)),  # type: ignore
-                )
-            else:
-                current_size = (0, 0)
-
+            # Obtener dimensiones del frame actual
             fh, fw = frame.shape[0], frame.shape[1]
-            if current_size != (fw, fh):
-                # Intentar reconfigurar escritor con nuevo tamaño
+            frame_size = (fw, fh)
+
+            # Solo reconfigurar si realmente cambió la resolución
+            if (
+                self._configured_size is not None
+                and self._configured_size != frame_size
+            ):
+                self.logger.warning(
+                    f"⚠️ Cambio de resolución detectado: {self._configured_size} → {frame_size}"
+                )
+                # Reconfigurar con nueva resolución
                 if self.output_path:
                     self.cleanup()
                     self.setup_writer(
@@ -92,9 +98,17 @@ class OutputManager:
                         frame_width=fw,
                         frame_height=fh,
                     )
+                    if not self.writer:
+                        return False
 
-            self.writer.write(frame)
-            return True
+            # Escribir frame
+            if self.writer and self.writer.isOpened():
+                self.writer.write(frame)
+                return True
+            else:
+                self.logger.error("❌ VideoWriter no está disponible")
+                return False
+
         except Exception as e:
             self.logger.error(f"❌ Error escribiendo frame: {e}")
             return False
@@ -106,6 +120,8 @@ class OutputManager:
             self.writer = None
             if self.output_path:
                 self.logger.info(f"💾 Video guardado: {self.output_path}")
+        # Limpiar tracking interno
+        self._configured_size = None
 
     @property
     def is_ready(self) -> bool:
