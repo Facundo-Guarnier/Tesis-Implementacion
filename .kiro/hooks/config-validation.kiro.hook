@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Configuration Validation Hook",
+  "description": "Validates synchronization between configuration YAML and Pydantic models, checking DQN parameters, API endpoints, file paths, and boolean flags",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "config.yaml",
+      "src/traffic_system/core/config_models.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "🔧 Configuration files have been modified. Please validate the synchronization between config.yaml and config_models.py by:\n\n1. **DQN Parameters Validation**: Check that all DQN training parameters (learning_rate, batch_size, epsilon values, network architecture, etc.) are properly defined in both files with matching types and constraints\n2. **API Endpoints Validation**: Verify that all service ports and API endpoint configurations are consistent between YAML and Pydantic models\n3. **File Paths Validation**: Ensure all asset paths (SUMO maps, DQN models, YOLO models, datasets) are properly validated with Path types and existence checks\n4. **Boolean Flags Validation**: Confirm all boolean configuration flags (GUI enabled, comparison mode, training vs inference) are correctly typed and have appropriate defaults\n\nFollow these patterns:\n- Use absolute imports from src/traffic_system/\n- Apply Pydantic validation with proper Field constraints\n- Include structured logging with emojis (✅❌⚠️)\n- Handle ValidationError exceptions gracefully\n- Ensure Poetry compatibility and never use pip commands\n\nValidate that config_models.py remains the SOURCE OF TRUTH for all configuration structure and that config.yaml values align with the Pydantic model definitions."
+  }
+}

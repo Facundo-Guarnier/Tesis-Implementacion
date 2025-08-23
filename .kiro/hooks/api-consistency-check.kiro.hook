@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "API Consistency Hook",
+  "description": "Verifies that DTOs, endpoints and documentation are aligned when API files are modified in the traffic system",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/traffic_system/api/**/*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "API files have been modified in the traffic system. Please verify that:\n\n1. **DTOs (Data Transfer Objects)** in `src/traffic_system/core/api_models.py` are consistent with the API changes\n2. **API endpoints** in the modified files have matching request/response models\n3. **Documentation** reflects the current API structure and any new endpoints\n4. **Pydantic validation** is properly implemented for all new data models\n5. **Type annotations** are complete and accurate\n6. **Error handling** follows the project standards with proper ValidationError handling\n\nFocus on ensuring consistency between:\n- API endpoint definitions\n- Request/response DTOs in api_models.py\n- Configuration models in config_models.py (if API config changed)\n- Any related documentation\n\nCheck that all changes maintain the microservices architecture patterns and follow the project's type safety requirements."
+  }
+}
