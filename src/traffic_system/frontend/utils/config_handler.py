@@ -20,24 +20,9 @@ from src.traffic_system.core.config_models import AppSettings
 
 logger = logging.getLogger(__name__)
 
-try:
-    from src.traffic_system.frontend.utils.security import (
-        SecureBackupManager,
-        get_security_validator,
-        validate_operation_security,
-    )
-
-    SECURITY_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Security module not available: {e}")
-    SECURITY_AVAILABLE = False
-
 
 class ConfigHandler:
     """Handles YAML configuration file operations with backup and validation."""
-
-    security_validator: Any
-    secure_backup_manager: Any
 
     def __init__(self, config_path: str = "config.yaml"):
         """
@@ -49,16 +34,6 @@ class ConfigHandler:
         self.config_path = Path(config_path)
         self.backup_dir = Path("backups/config")
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize security components if available
-        if SECURITY_AVAILABLE:
-            self.security_validator: Any = get_security_validator()
-            self.secure_backup_manager: Any = SecureBackupManager(
-                self.backup_dir, self.security_validator
-            )
-        else:
-            self.security_validator: Any = None
-            self.secure_backup_manager: Any = None
 
     def read_config(self) -> dict[str, Any]:
         """
@@ -79,6 +54,18 @@ class ConfigHandler:
 
             with open(self.config_path, encoding="utf-8") as file:
                 config = yaml.safe_load(file)
+
+            # Validate loaded configuration
+            if config is None:
+                logger.warning(
+                    "⚠️ Configuration file is empty or contains only null values"
+                )
+                return {}
+            elif not isinstance(config, dict):
+                logger.error(f"❌ Configuration is not a dictionary: {type(config)}")
+                return {}
+            elif len(config) == 0:
+                logger.warning("⚠️ Configuration dictionary is empty")
 
             logger.info(f"✅ Configuración cargada desde {self.config_path}")
             return config or {}
@@ -102,25 +89,6 @@ class ConfigHandler:
             True if successful, False otherwise
         """
         try:
-            # Security validation
-            if SECURITY_AVAILABLE:
-                is_allowed, security_error = validate_operation_security(
-                    "file_access", file_path=str(self.config_path)
-                )
-                if not is_allowed:
-                    logger.error(
-                        f"🔒 Security validation failed for write_config: {security_error}"
-                    )
-                    return False
-
-                # Validate configuration values
-                for key, value in config.items():
-                    is_valid, error = self.security_validator.validate_config_value(
-                        key, value
-                    )
-                    if not is_valid:
-                        logger.error(f"🔒 Invalid config value for {key}: {error}")
-                        return False
             # Create backup if requested and file exists
             if create_backup and self.config_path.exists():
                 backup_path = self.create_backup()
@@ -175,17 +143,6 @@ class ConfigHandler:
                 f"Cannot backup non-existent file: {self.config_path}"
             )
 
-        # Security validation
-        if SECURITY_AVAILABLE:
-            is_allowed, security_error = validate_operation_security(
-                "file_access", file_path=str(self.config_path)
-            )
-            if not is_allowed:
-                logger.error(
-                    f"🔒 Security validation failed for create_backup: {security_error}"
-                )
-                raise PermissionError(f"Backup operation not allowed: {security_error}")
-
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if custom_name:
@@ -196,27 +153,8 @@ class ConfigHandler:
         backup_path = self.backup_dir / backup_filename
 
         try:
-            # Additional security validation for backup path
-            if SECURITY_AVAILABLE and self.secure_backup_manager:
-                is_valid, error = self.secure_backup_manager.validate_backup_operation(
-                    backup_path
-                )
-                if not is_valid:
-                    logger.error(f"🔒 Backup path validation failed: {error}")
-                    raise PermissionError(f"Backup path not allowed: {error}")
-
             shutil.copy2(self.config_path, backup_path)
             logger.info(f"📦 Backup creado: {backup_path}")
-
-            # Cleanup old backups if security manager is available
-            if SECURITY_AVAILABLE and self.secure_backup_manager:
-                deleted_count, errors = self.secure_backup_manager.cleanup_old_backups()
-                if deleted_count > 0:
-                    logger.info(f"🧹 Cleaned up {deleted_count} old backups")
-                if errors:
-                    for error in errors:
-                        logger.warning(f"⚠️ Cleanup warning: {error}")
-
             return backup_path
 
         except Exception as e:

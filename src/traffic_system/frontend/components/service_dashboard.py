@@ -120,20 +120,31 @@ class ServiceDashboard:
                 with col3:
                     if st.button("🧹 Limpiar Historial de Errores"):
                         self.service_manager.clear_error_history()
-                        st.success("✅ Historial de errores limpiado")
+                        success_msg = "✅ Historial de errores limpiado"
+                        logger.info("Error history cleared by user")
+                        st.success(success_msg)
                         st.rerun()
 
             # System health indicator
             if running_count == total_count:
-                st.success("✅ Todos los servicios están funcionando correctamente")
+                success_msg = "✅ Todos los servicios están funcionando correctamente"
+                logger.info(f"All services running: {running_count}/{total_count}")
+                st.success(success_msg)
             elif running_count > 0:
-                st.warning(f"⚠️ {total_count - running_count} servicios inactivos")
+                warning_msg = f"⚠️ {total_count - running_count} servicios inactivos"
+                logger.warning(
+                    f"Some services inactive: {running_count}/{total_count} running"
+                )
+                st.warning(warning_msg)
             else:
-                st.error("❌ Ningún servicio está activo")
+                error_msg = "❌ Ningún servicio está activo"
+                logger.error("No services are active")
+                st.error(error_msg)
 
         except Exception as e:
-            st.error(f"❌ Error obteniendo métricas del sistema: {e}")
+            error_msg = f"❌ Error obteniendo métricas del sistema: {e}"
             logger.error(f"Error getting system metrics: {e}")
+            st.error(error_msg)
 
     def render_service_controls(self) -> None:
         """Render global service control buttons."""
@@ -156,7 +167,9 @@ class ServiceDashboard:
         with col4:
             if st.button("🧹 Limpiar Cache", use_container_width=True):
                 self.service_manager.clear_cache()
-                st.success("✅ Cache limpiado")
+                success_msg = "✅ Cache limpiado"
+                logger.info("Service cache cleared by user")
+                st.success(success_msg)
                 st.rerun()
 
     def render_service_list(self, auto_refresh: bool = False) -> None:
@@ -203,8 +216,9 @@ class ServiceDashboard:
                 self._render_service_card(service_name, status)
 
         except Exception as e:
-            st.error(f"❌ Error obteniendo estado de servicios: {e}")
+            error_msg = f"❌ Error obteniendo estado de servicios: {e}"
             logger.error(f"Error getting services status: {e}")
+            st.error(error_msg)
 
     def _render_service_card(self, service_name: str, status: ServiceStatus) -> None:
         """
@@ -231,16 +245,22 @@ class ServiceDashboard:
 
             with col2:
                 if status.is_running:
+                    logger.debug(f"Service {service_name} is running")
                     st.success("🟢 Activo")
                 else:
+                    logger.debug(f"Service {service_name} is not running")
                     st.error("🔴 Inactivo")
 
             with col3:
                 # Health check
                 health = self.service_manager.check_service_health(service_name)
                 if health["healthy"]:
+                    logger.debug(f"Service {service_name} is healthy")
                     st.success("💚 Saludable")
                 else:
+                    logger.warning(
+                        f"Service {service_name} has {len(health['issues'])} health issues"
+                    )
                     st.warning(f"⚠️ {len(health['issues'])} problemas")
 
             # Service details (expandable)
@@ -380,8 +400,10 @@ class ServiceDashboard:
         self._log_service_operation(service_name, "start", success, message)
 
         if success:
+            logger.info(f"Service {service_name} started successfully: {message}")
             st.success(f"✅ {message}")
         else:
+            logger.error(f"Failed to start service {service_name}: {message}")
             st.error(f"❌ {message}")
 
         st.rerun()
@@ -395,8 +417,10 @@ class ServiceDashboard:
         self._log_service_operation(service_name, "stop", success, message)
 
         if success:
+            logger.info(f"Service {service_name} stopped successfully: {message}")
             st.success(f"✅ {message}")
         else:
+            logger.error(f"Failed to stop service {service_name}: {message}")
             st.error(f"❌ {message}")
 
         st.rerun()
@@ -410,8 +434,10 @@ class ServiceDashboard:
         self._log_service_operation(service_name, "restart", success, message)
 
         if success:
+            logger.info(f"Service {service_name} restarted successfully: {message}")
             st.success(f"✅ {message}")
         else:
+            logger.error(f"Failed to restart service {service_name}: {message}")
             st.error(f"❌ {message}")
 
         st.rerun()
@@ -425,17 +451,25 @@ class ServiceDashboard:
         total_count = len(results)
 
         if success_count == total_count:
-            st.success(
-                f"✅ Todos los servicios iniciados correctamente ({success_count}/{total_count})"
+            success_msg = f"✅ Todos los servicios iniciados correctamente ({success_count}/{total_count})"
+            logger.info(
+                f"All services started successfully: {success_count}/{total_count}"
             )
+            st.success(success_msg)
         else:
-            st.warning(f"⚠️ {success_count}/{total_count} servicios iniciados")
+            warning_msg = f"⚠️ {success_count}/{total_count} servicios iniciados"
+            logger.warning(
+                f"Partial service startup: {success_count}/{total_count} services started"
+            )
+            st.warning(warning_msg)
 
         # Show individual results
         for service, (success, message) in results.items():
             if success:
+                logger.info(f"Service {service} started: {message}")
                 st.success(f"✅ {service}: {message}")
             else:
+                logger.error(f"Service {service} failed to start: {message}")
                 st.error(f"❌ {service}: {message}")
 
         st.rerun()

@@ -4,7 +4,6 @@ Main Streamlit Application for Traffic System Configuration
 Provides web interface for managing configuration and controlling services.
 """
 
-import hashlib
 import logging
 import time
 import traceback
@@ -16,12 +15,9 @@ import streamlit as st
 from src.traffic_system.frontend.utils.config_handler import ConfigHandler
 from src.traffic_system.frontend.utils.service_manager import ServiceManager
 
-try:
-    from src.traffic_system.frontend.utils.security import get_session_manager
-
-    SECURITY_AVAILABLE = True
-except ImportError:
-    SECURITY_AVAILABLE = False
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 try:
     from src.traffic_system.frontend.utils.performance import (
@@ -36,12 +32,11 @@ try:
     )
 
     PERFORMANCE_AVAILABLE = True
-except ImportError:
+    logger.info("✅ Performance utilities loaded successfully")
+except ImportError as e:
     PERFORMANCE_AVAILABLE = False
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    logger.warning(f"⚠️ Performance utilities not available: {e}")
+    logger.info("🔄 Running with basic functionality only")
 
 
 def initialize_session_state() -> None:
@@ -64,20 +59,6 @@ def initialize_session_state() -> None:
                 logger.info(f"🧹 Cleaned up {cleaned} old session state keys")
             st.session_state.last_cleanup = time.time()
 
-    # Initialize session management
-    if SECURITY_AVAILABLE and "session_id" not in st.session_state:
-        # Create a unique session ID based on browser session
-        session_data = f"{time.time()}_{st.session_state.get('_session_id', 'unknown')}"
-        st.session_state.session_id = hashlib.md5(session_data.encode()).hexdigest()
-
-        # Register session with session manager
-        session_manager = get_session_manager()
-        session_manager.create_session(
-            st.session_state.session_id,
-            {"created_at": time.time(), "user_agent": "streamlit_frontend"},
-        )
-        logger.info(f"🔐 Created session: {st.session_state.session_id}")
-
     # Initialize core components with caching
     if "config_handler" not in st.session_state:
         st.session_state.config_handler = ConfigHandler()
@@ -97,6 +78,9 @@ def initialize_session_state() -> None:
         except Exception as e:
             logger.error(f"Error importing ValidationFeedbackUI: {e}")
             # Create a dummy validation UI to prevent crashes
+            logger.warning(
+                "⚠️ ValidationFeedbackUI not available - running with limited validation"
+            )
             st.session_state.validator = None
 
     # Load configuration with caching
@@ -110,7 +94,9 @@ def initialize_session_state() -> None:
                     st.session_state.config_handler.read_config()
                 )
         except Exception as e:
-            st.error(f"❌ Error cargando configuración: {e}")
+            error_msg = f"❌ Error cargando configuración: {e}"
+            logger.error(error_msg)
+            st.error(error_msg)
             st.session_state.current_config = {}
 
     # Initialize state flags
@@ -191,16 +177,6 @@ def render_sidebar() -> str:
     except Exception as e:
         st.sidebar.error(f"❌ Error verificando servicios: {e}")
 
-    # Security status
-    if SECURITY_AVAILABLE:
-        st.sidebar.success("🔒 Seguridad activa")
-        if "session_id" in st.session_state:
-            session_manager = get_session_manager()
-            active_sessions = len(session_manager.active_sessions)
-            st.sidebar.info(f"👥 Sesiones activas: {active_sessions}")
-    else:
-        st.sidebar.warning("⚠️ Seguridad limitada")
-
     # Configuration status
     if st.session_state.config_modified:
         st.sidebar.warning("⚠️ Configuración modificada")
@@ -264,9 +240,13 @@ def render_dashboard() -> None:
                 results = st.session_state.service_manager.start_all_services()
                 for service, (success, msg) in results.items():
                     if success:
-                        st.success(f"✅ {service}: {msg}")
+                        log_msg = f"✅ {service}: {msg}"
+                        logger.info(log_msg)
+                        st.success(log_msg)
                     else:
-                        st.error(f"❌ {service}: {msg}")
+                        log_msg = f"❌ {service}: {msg}"
+                        logger.error(log_msg)
+                        st.error(log_msg)
 
     with col2:
         if st.button("⏹️ Detener Todos", use_container_width=True):
@@ -274,9 +254,13 @@ def render_dashboard() -> None:
                 results = st.session_state.service_manager.stop_all_services()
                 for service, (success, msg) in results.items():
                     if success:
-                        st.success(f"✅ {service}: {msg}")
+                        log_msg = f"✅ {service}: {msg}"
+                        logger.info(log_msg)
+                        st.success(log_msg)
                     else:
-                        st.error(f"❌ {service}: {msg}")
+                        log_msg = f"❌ {service}: {msg}"
+                        logger.error(log_msg)
+                        st.error(log_msg)
 
     with col3:
         if st.button("🔄 Recargar Config", use_container_width=True):
@@ -285,24 +269,34 @@ def render_dashboard() -> None:
                     st.session_state.config_handler.read_config()
                 )
                 st.session_state.config_modified = False
-                st.success("✅ Configuración recargada")
+                success_msg = "✅ Configuración recargada"
+                logger.info(success_msg)
+                st.success(success_msg)
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Error recargando configuración: {e}")
+                error_msg = f"❌ Error recargando configuración: {e}"
+                logger.error(error_msg)
+                st.error(error_msg)
 
     with col4:
         if st.button("📦 Backup Rápido", use_container_width=True):
             try:
                 backup_path = st.session_state.config_handler.create_backup("manual")
-                st.success(f"✅ Backup creado: {backup_path.name}")
+                success_msg = f"✅ Backup creado: {backup_path.name}"
+                logger.info(success_msg)
+                st.success(success_msg)
             except Exception as e:
-                st.error(f"❌ Error creando backup: {e}")
+                error_msg = f"❌ Error creando backup: {e}"
+                logger.error(error_msg)
+                st.error(error_msg)
 
     st.markdown("---")
 
     # Recent activity placeholder
     st.subheader("📊 Actividad Reciente")
-    st.info("🔄 Implementación pendiente: logs y actividad del sistema")
+    info_msg = "🔄 Implementación pendiente: logs y actividad del sistema"
+    logger.info(info_msg)
+    st.info(info_msg)
 
 
 def render_config_page() -> None:
@@ -337,6 +331,23 @@ def render_config_page() -> None:
     with col1:
         # Check validation status for save button
         try:
+            # Check if validator is properly initialized
+            if st.session_state.validator is None:
+                logger.error(
+                    "❌ Validator is None - validation system not properly initialized"
+                )
+                raise ValueError("Validator not available")
+
+            if st.session_state.config_handler is None:
+                logger.error(
+                    "❌ Config handler is None - configuration system not properly initialized"
+                )
+                raise ValueError("Config handler not available")
+
+            if st.session_state.current_config is None:
+                logger.error("❌ Current config is None - no configuration loaded")
+                raise ValueError("No configuration loaded")
+
             is_valid, errors, _ = st.session_state.validator.validate_full_config(
                 st.session_state.current_config
             )
@@ -392,13 +403,19 @@ def render_config_page() -> None:
     # Enhanced status indicator with validation info
     if st.session_state.config_modified:
         if overall_valid:
-            st.warning("⚠️ Hay cambios sin guardar (configuración válida)")
+            warning_msg = "⚠️ Hay cambios sin guardar (configuración válida)"
+            logger.warning(warning_msg)
+            st.warning(warning_msg)
         else:
-            st.error(
+            error_msg = (
                 f"❌ Hay cambios sin guardar ({total_errors} errores de validación)"
             )
+            logger.error(error_msg)
+            st.error(error_msg)
     else:
-        st.success("✅ Configuración sincronizada y válida")
+        success_msg = "✅ Configuración sincronizada y válida"
+        logger.info(success_msg)
+        st.success(success_msg)
 
     # Quick validation panel
     with st.expander("🔍 Estado de Validación", expanded=not overall_valid):
@@ -433,11 +450,15 @@ def render_config_page() -> None:
                     pass  # Ignore validation errors during auto-validation
 
     except Exception as e:
-        st.error(f"❌ Error renderizando editor de configuración: {e}")
+        error_msg = f"❌ Error renderizando editor de configuración: {e}"
+        logger.error(error_msg)
+        st.error(error_msg)
         logger.error(f"Error in config editor: {e}")
 
         # Show fallback configuration editor
-        st.warning("⚠️ Usando editor de configuración básico")
+        warning_msg = "⚠️ Usando editor de configuración básico"
+        logger.warning(warning_msg)
+        st.warning(warning_msg)
         with st.expander("Editor Básico", expanded=True):
             st.text_area(
                 "Configuración YAML",
@@ -447,7 +468,9 @@ def render_config_page() -> None:
             )
 
         # Fallback to basic editor
-        st.warning("⚠️ Usando editor básico como respaldo")
+        fallback_msg = "⚠️ Usando editor básico como respaldo"
+        logger.warning(fallback_msg)
+        st.warning(fallback_msg)
         render_basic_config_editor()
 
 
@@ -507,7 +530,9 @@ def render_config_field(key: str, value: Any, path: str) -> None:
                         if item.strip()
                     ]
                 except ValueError:
-                    st.error(f"❌ Error: valores inválidos en {key}")
+                    error_msg = f"❌ Error: valores inválidos en {key}"
+                    logger.error(f"Invalid values in {key}: {text_value}")
+                    st.error(error_msg)
                     new_value = value
         elif isinstance(value, dict):
             st.write(f"**{key}** (Sección):")
@@ -526,8 +551,10 @@ def render_config_field(key: str, value: Any, path: str) -> None:
             is_valid, error_msg = validate_field_value(path, new_value)
 
             if is_valid:
+                logger.info(f"✅ Field validation passed for {path}")
                 st.success("✅")
             else:
+                logger.warning(f"❌ Field validation failed for {path}: {error_msg}")
                 st.error("❌")
                 if error_msg:
                     st.caption(error_msg)
@@ -1555,25 +1582,6 @@ def main() -> None:
 
     # Initialize session state with optimizations
     initialize_session_state()
-
-    # Validate session if security is available
-    if SECURITY_AVAILABLE and "session_id" in st.session_state:
-        session_manager = get_session_manager()
-        is_valid, error = session_manager.validate_session(st.session_state.session_id)
-
-        if not is_valid:
-            st.error(f"🔒 Sesión inválida: {error}")
-            st.info("🔄 Recarga la página para crear una nueva sesión")
-            st.stop()
-
-        # Cleanup expired sessions periodically
-        if (
-            st.session_state.get("last_cleanup", 0) < time.time() - 300
-        ):  # Every 5 minutes
-            cleaned = session_manager.cleanup_expired_sessions()
-            if cleaned > 0:
-                logger.info(f"🧹 Cleaned up {cleaned} expired sessions")
-            st.session_state.last_cleanup = time.time()
 
     # Auto-refresh functionality
     if PERFORMANCE_AVAILABLE and st.session_state.get("auto_refresh", True):

@@ -79,7 +79,11 @@ class BackupManagerUI:
             backups = self.config_handler.list_backups()
 
             if not backups:
-                st.info("📭 No hay backups disponibles. Crea tu primer backup arriba.")
+                info_msg = (
+                    "📭 No hay backups disponibles. Crea tu primer backup arriba."
+                )
+                logger.info("No backups available for display")
+                st.info(info_msg)
                 return
 
             # Backup statistics
@@ -121,8 +125,9 @@ class BackupManagerUI:
             self._render_backup_items(filtered_backups)
 
         except Exception as e:
-            st.error(f"❌ Error listando backups: {e}")
+            error_msg = f"❌ Error listando backups: {e}"
             logger.error(f"Error listing backups: {e}")
+            st.error(error_msg)
 
     def _render_backup_statistics(self, backups: list[dict]) -> None:
         """Render backup statistics."""
@@ -279,19 +284,24 @@ class BackupManagerUI:
             with st.spinner("Creando backup..."):
                 backup_path = self.config_handler.create_backup(backup_name)
 
-            st.success(f"✅ Backup creado exitosamente: `{backup_path.name}`")
+            success_msg = f"✅ Backup creado exitosamente: `{backup_path.name}`"
+            logger.info(f"Backup created successfully: {backup_path.name}")
+            st.success(success_msg)
             st.balloons()  # Celebration effect
 
             # Auto-refresh the page to show new backup
             st.rerun()
 
         except Exception as e:
-            st.error(f"❌ Error creando backup: {e}")
+            error_msg = f"❌ Error creando backup: {e}"
             logger.error(f"Error creating backup: {e}")
+            st.error(error_msg)
 
     def _restore_backup_action(self, backup: dict) -> None:
         """Handle backup restoration with confirmation."""
-        st.warning("⚠️ **Confirmación de Restauración**")
+        warning_msg = "⚠️ **Confirmación de Restauración**"
+        logger.warning(f"User attempting to restore backup: {backup['filename']}")
+        st.warning(warning_msg)
         st.write(
             f"¿Estás seguro de que quieres restaurar el backup `{backup['filename']}`?"
         )
@@ -312,34 +322,56 @@ class BackupManagerUI:
 
         with col2:
             if st.button("❌ Cancelar", key=f"cancel_restore_{backup['filename']}"):
-                st.info("Restauración cancelada")
+                info_msg = "Restauración cancelada"
+                logger.info(f"Backup restoration cancelled for: {backup['filename']}")
+                st.info(info_msg)
                 st.rerun()
 
     def _perform_restore(self, backup: dict) -> None:
         """Perform the actual backup restoration."""
         try:
             # Step 1: Validate backup before restore
-            st.info("🔍 Validando backup...")
+            validate_info_msg = "🔍 Validando backup..."
+            logger.info(f"Validating backup before restore: {backup['filename']}")
+            st.info(validate_info_msg)
             if not self._validate_backup_before_restore(backup):
-                st.error("❌ El backup no es válido y no se puede restaurar")
+                error_msg = "❌ El backup no es válido y no se puede restaurar"
+                logger.error(f"Backup validation failed: {backup['filename']}")
+                st.error(error_msg)
                 return
 
             # Step 2: Create pre-restore backup
-            st.info("📦 Creando backup de seguridad...")
+            backup_info_msg = "📦 Creando backup de seguridad..."
+            logger.info("Creating pre-restore backup")
+            st.info(backup_info_msg)
             pre_restore_backup = self.config_handler.create_backup("pre_restore")
-            st.success(f"✅ Backup de seguridad creado: {pre_restore_backup.name}")
+            backup_success_msg = (
+                f"✅ Backup de seguridad creado: {pre_restore_backup.name}"
+            )
+            logger.info(f"Pre-restore backup created: {pre_restore_backup.name}")
+            st.success(backup_success_msg)
 
             # Step 3: Perform restore
             with st.spinner("🔄 Restaurando configuración..."):
                 success = self.config_handler.restore_backup(backup["path"])
 
             if success:
-                st.success(f"✅ Backup `{backup['filename']}` restaurado exitosamente")
+                restore_success_msg = (
+                    f"✅ Backup `{backup['filename']}` restaurado exitosamente"
+                )
+                logger.info(f"Backup restored successfully: {backup['filename']}")
+                st.success(restore_success_msg)
 
                 # Step 4: Validate restored configuration
-                st.info("🔍 Validando configuración restaurada...")
+                validate_restore_msg = "🔍 Validando configuración restaurada..."
+                logger.info("Validating restored configuration")
+                st.info(validate_restore_msg)
                 if self._validate_restored_config():
-                    st.success("✅ Configuración restaurada y validada correctamente")
+                    final_success_msg = (
+                        "✅ Configuración restaurada y validada correctamente"
+                    )
+                    logger.info("Restored configuration validated successfully")
+                    st.success(final_success_msg)
 
                     # Update session state
                     if "current_config" in st.session_state:
@@ -351,28 +383,62 @@ class BackupManagerUI:
                     st.balloons()
                     st.rerun()
                 else:
-                    st.error("❌ La configuración restaurada no es válida")
-                    st.warning("🔄 Restaurando backup de seguridad...")
+                    error_msg = "❌ La configuración restaurada no es válida"
+                    logger.error("Restored configuration validation failed")
+                    st.error(error_msg)
+                    warning_msg = "🔄 Restaurando backup de seguridad..."
+                    logger.warning("Rolling back to pre-restore backup")
+                    st.warning(warning_msg)
                     self._rollback_restore(pre_restore_backup)
             else:
-                st.error("❌ Error durante la restauración del backup")
+                error_msg = "❌ Error durante la restauración del backup"
+                logger.error(f"Backup restoration failed: {backup['filename']}")
+                st.error(error_msg)
 
         except Exception as e:
-            st.error(f"❌ Error restaurando backup: {e}")
+            error_msg = f"❌ Error restaurando backup: {e}"
             logger.error(f"Error restoring backup: {e}")
+            st.error(error_msg)
 
             # Try to rollback if we have a pre-restore backup
             if "pre_restore_backup" in locals():
-                st.warning("🔄 Intentando restaurar backup de seguridad...")
+                rollback_msg = "🔄 Intentando restaurar backup de seguridad..."
+                logger.warning("Attempting rollback to pre-restore backup")
+                st.warning(rollback_msg)
                 self._rollback_restore(pre_restore_backup)
 
     def _view_backup_action(self, backup: dict) -> None:
         """Display backup content preview."""
         try:
-            # Read backup content
+            # Validate backup path
+            if "path" not in backup:
+                logger.error(f"❌ Backup entry missing 'path' field: {backup}")
+                st.error("❌ Error: información de backup incompleta")
+                return
+
             backup_path = Path(backup["path"])
+
+            # Check if backup file exists
+            if not backup_path.exists():
+                logger.error(f"❌ Backup file does not exist: {backup_path}")
+                st.error(f"❌ Error: archivo de backup no encontrado: {backup_path}")
+                return
+
+            # Check if backup file is readable
+            if not backup_path.is_file():
+                logger.error(f"❌ Backup path is not a file: {backup_path}")
+                st.error(f"❌ Error: la ruta no es un archivo válido: {backup_path}")
+                return
+
+            # Read backup content
             with open(backup_path, encoding="utf-8") as file:
                 content = file.read()
+
+            # Validate content is not empty
+            if not content.strip():
+                logger.warning(f"⚠️ Backup file is empty: {backup_path}")
+                st.warning("⚠️ El archivo de backup está vacío")
+                return
 
             st.subheader(f"👁️ Vista Previa: {backup['filename']}")
 

@@ -47,7 +47,9 @@ class ValidationFeedbackUI:
 
             if is_valid:
                 if show_success:
-                    st.success("✅ Configuración válida - Sin errores encontrados")
+                    success_msg = "✅ Configuración válida - Sin errores encontrados"
+                    logger.info(success_msg)
+                    st.success(success_msg)
                 return True
             else:
                 # Show validation errors
@@ -55,13 +57,16 @@ class ValidationFeedbackUI:
                 return False
 
         except Exception as e:
-            st.error(f"❌ Error durante validación: {e}")
+            error_msg = f"❌ Error durante validación: {e}"
             logger.error(f"Error during validation: {e}")
+            st.error(error_msg)
             return False
 
     def _display_validation_errors(self, errors: list[str]) -> None:
         """Display validation errors in a user-friendly format."""
-        st.error("❌ **Errores de Validación Encontrados**")
+        error_header = "❌ **Errores de Validación Encontrados**"
+        logger.error(f"Validation errors found: {len(errors)} errors")
+        st.error(error_header)
 
         # Group errors by category
         field_errors = []
@@ -102,13 +107,15 @@ class ValidationFeedbackUI:
                     st.write(f"• {error}")
 
         # Show recommendations
-        st.info(
+        info_msg = (
             "**💡 Recomendaciones:**\n"
             "• Revisa los campos marcados con errores\n"
             "• Verifica que los tipos de datos sean correctos\n"
             "• Asegúrate de que todos los campos requeridos estén completos\n"
             "• Usa los valores por defecto como referencia"
         )
+        logger.info("Validation recommendations shown to user")
+        st.info(info_msg)
 
     def show_validation_summary(self, config: dict[str, Any]) -> None:
         """Show a comprehensive validation summary."""
@@ -122,9 +129,15 @@ class ValidationFeedbackUI:
                 config
             )
             if basic_valid:
-                st.success("✅ Estructura Básica")
+                success_msg = "✅ Estructura Básica"
+                logger.info("Basic structure validation passed")
+                st.success(success_msg)
             else:
-                st.error(f"❌ Estructura ({len(basic_errors)} errores)")
+                error_msg = f"❌ Estructura ({len(basic_errors)} errores)"
+                logger.error(
+                    f"Basic structure validation failed: {len(basic_errors)} errors"
+                )
+                st.error(error_msg)
 
         # Pydantic validation
         with col2:
@@ -132,18 +145,28 @@ class ValidationFeedbackUI:
                 self.config_handler.validate_config_with_pydantic(config)
             )
             if pydantic_valid:
-                st.success("✅ Validación Completa")
+                success_msg = "✅ Validación Completa"
+                logger.info("Pydantic validation passed")
+                st.success(success_msg)
             else:
-                st.error(f"❌ Validación ({len(pydantic_errors)} errores)")
+                error_msg = f"❌ Validación ({len(pydantic_errors)} errores)"
+                logger.error(
+                    f"Pydantic validation failed: {len(pydantic_errors)} errors"
+                )
+                st.error(error_msg)
 
         # Overall status
         with col3:
             overall_valid = basic_valid and pydantic_valid
             if overall_valid:
-                st.success("✅ Todo Válido")
+                success_msg = "✅ Todo Válido"
+                logger.info("Overall validation passed - all checks successful")
+                st.success(success_msg)
             else:
                 total_errors = len(basic_errors) + len(pydantic_errors)
-                st.error(f"❌ {total_errors} Errores Total")
+                error_msg = f"❌ {total_errors} Errores Total"
+                logger.error(f"Overall validation failed: {total_errors} total errors")
+                st.error(error_msg)
 
         # Detailed breakdown if there are errors
         if not overall_valid:
@@ -164,14 +187,18 @@ class ValidationFeedbackUI:
         is_valid, errors = self.config_handler.test_load_config(config)
 
         if is_valid:
-            st.success("✅ Configuración válida - Lista para guardar")
+            success_msg = "✅ Configuración válida - Lista para guardar"
+            logger.info("Configuration validation passed - ready to save")
+            st.success(success_msg)
             return True
 
         # Show errors and ask for confirmation
-        st.error("❌ **Errores de Validación Encontrados**")
+        error_header = "❌ **Errores de Validación Encontrados**"
+        logger.warning(f"Validation errors found before save: {len(errors)} errors")
+        st.error(error_header)
         self._display_validation_errors(errors)
 
-        st.warning(
+        warning_msg = (
             "⚠️ **¿Deseas guardar la configuración con errores?**\n\n"
             "**Advertencia:** Guardar una configuración inválida puede causar:\n"
             "• Fallos en el inicio de servicios\n"
@@ -179,17 +206,25 @@ class ValidationFeedbackUI:
             "• Pérdida de funcionalidad\n\n"
             "**Recomendación:** Corrige los errores antes de guardar."
         )
+        logger.warning("User prompted to save configuration with validation errors")
+        st.warning(warning_msg)
 
         col1, col2, col3 = st.columns([1, 1, 2])
 
         with col1:
             if st.button("💾 Guardar Anyway", type="primary"):
-                st.warning("⚠️ Guardando configuración con errores...")
+                warning_save_msg = "⚠️ Guardando configuración con errores..."
+                logger.warning(
+                    "User chose to save configuration despite validation errors"
+                )
+                st.warning(warning_save_msg)
                 return True
 
         with col2:
             if st.button("❌ Cancelar"):
-                st.info("Guardado cancelado - Corrige los errores primero")
+                info_msg = "Guardado cancelado - Corrige los errores primero"
+                logger.info("User cancelled save operation due to validation errors")
+                st.info(info_msg)
                 return False
 
         return False
@@ -208,30 +243,54 @@ class ValidationFeedbackUI:
         try:
             # Basic type checking
             if expected_type and not isinstance(value, expected_type):
-                st.error(f"❌ Tipo incorrecto: esperado {expected_type.__name__}")
+                error_msg = f"❌ Tipo incorrecto: esperado {expected_type.__name__}"
+                logger.error(
+                    f"Field type validation failed for {field_path}: expected {expected_type.__name__}, got {type(value).__name__}"
+                )
+                st.error(error_msg)
                 return
 
             # Field-specific validation
             if "port" in field_path.lower():
                 if isinstance(value, int) and 1024 <= value <= 65535:
-                    st.success("✅ Puerto válido")
+                    success_msg = "✅ Puerto válido"
+                    logger.debug(f"Port validation passed for {field_path}: {value}")
+                    st.success(success_msg)
                 else:
-                    st.error("❌ Puerto debe estar entre 1024-65535")
+                    error_msg = "❌ Puerto debe estar entre 1024-65535"
+                    logger.error(f"Port validation failed for {field_path}: {value}")
+                    st.error(error_msg)
             elif "path" in field_path.lower():
                 if isinstance(value, str) and value.strip():
-                    st.success("✅ Ruta especificada")
+                    success_msg = "✅ Ruta especificada"
+                    logger.debug(f"Path validation passed for {field_path}")
+                    st.success(success_msg)
                 else:
-                    st.error("❌ Ruta requerida")
+                    error_msg = "❌ Ruta requerida"
+                    logger.error(
+                        f"Path validation failed for {field_path}: empty or invalid path"
+                    )
+                    st.error(error_msg)
             elif field_path.endswith(("detectar", "decision", "simular", "generar")):
                 if isinstance(value, bool):
-                    st.success("✅ Valor booleano válido")
+                    success_msg = "✅ Valor booleano válido"
+                    logger.debug(f"Boolean validation passed for {field_path}: {value}")
+                    st.success(success_msg)
                 else:
-                    st.error("❌ Debe ser verdadero o falso")
+                    error_msg = "❌ Debe ser verdadero o falso"
+                    logger.error(
+                        f"Boolean validation failed for {field_path}: {value} is not boolean"
+                    )
+                    st.error(error_msg)
             else:
-                st.success("✅ Campo válido")
+                success_msg = "✅ Campo válido"
+                logger.debug(f"Generic field validation passed for {field_path}")
+                st.success(success_msg)
 
         except Exception as e:
-            st.error(f"❌ Error validando campo: {e}")
+            error_msg = f"❌ Error validando campo: {e}"
+            logger.error(f"Exception during field validation for {field_path}: {e}")
+            st.error(error_msg)
 
     def validate_field(
         self, field_path: str, value: Any, config: dict[str, Any]
@@ -372,19 +431,27 @@ def validate_config_section(
 
         if section_name not in section_models:
             if show_feedback:
-                st.warning(f"⚠️ Sección desconocida: {section_name}")
+                warning_msg = f"⚠️ Sección desconocida: {section_name}"
+                logger.warning(f"Unknown configuration section: {section_name}")
+                st.warning(warning_msg)
             return False
 
         # Validate section directly with its specific model
         section_models[section_name](**section_data)
 
         if show_feedback:
-            st.success(f"✅ Sección '{section_name}' válida")
+            success_msg = f"✅ Sección '{section_name}' válida"
+            logger.info(f"Section validation passed: {section_name}")
+            st.success(success_msg)
         return True
 
     except ValidationError as e:
         if show_feedback:
-            st.error(f"❌ Errores en sección '{section_name}':")
+            error_header = f"❌ Errores en sección '{section_name}':"
+            logger.error(
+                f"Validation errors in section {section_name}: {len(e.errors())} errors"
+            )
+            st.error(error_header)
             for error in e.errors():
                 field_path = " -> ".join(str(loc) for loc in error["loc"])
                 st.write(f"• {field_path}: {error['msg']}")
@@ -392,5 +459,7 @@ def validate_config_section(
 
     except Exception as e:
         if show_feedback:
-            st.error(f"❌ Error validando sección '{section_name}': {e}")
+            error_msg = f"❌ Error validando sección '{section_name}': {e}"
+            logger.error(f"Exception during section validation for {section_name}: {e}")
+            st.error(error_msg)
         return False

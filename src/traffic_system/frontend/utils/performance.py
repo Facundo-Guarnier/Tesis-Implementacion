@@ -228,7 +228,12 @@ class UIOptimizer:
 
 
 class SessionStateManager:
-    """Efficient session state management."""
+    """
+    Efficient Streamlit session state management.
+
+    Note: This manages Streamlit's built-in session state for UI persistence,
+    not user authentication sessions (which have been removed from the system).
+    """
 
     @staticmethod
     def initialize_if_missing(key: str, default_value: Any) -> Any:
@@ -334,7 +339,11 @@ def get_ui_optimizer() -> UIOptimizer:
 
 
 def get_session_manager() -> SessionStateManager:
-    """Get global session state manager instance."""
+    """
+    Get global Streamlit session state manager instance.
+
+    Note: This manages Streamlit UI state, not user authentication sessions.
+    """
     global _session_manager
     if _session_manager is None:
         _session_manager = SessionStateManager()
@@ -411,7 +420,9 @@ def add_performance_metrics_sidebar() -> None:
 
             if st.button("🧹 Clear Cache", key="clear_cache_btn"):
                 cleared = optimizer.clear_cache()
-                st.success(f"Cleared {cleared} cache entries")
+                success_msg = f"Cleared {cleared} cache entries"
+                logger.info(f"Cache cleared: {cleared} entries removed")
+                st.success(success_msg)
                 st.rerun()
 
     except Exception as e:

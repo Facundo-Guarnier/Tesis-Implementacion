@@ -243,7 +243,9 @@ class ServiceErrorHandler:
         self, error: ServiceError, error_info: dict[str, Any]
     ) -> None:
         """Display error information in the UI."""
-        st.error(f"{error_info['icon']} **{error_info['title']}**")
+        error_title = f"{error_info['icon']} **{error_info['title']}**"
+        logger.error(f"Service error displayed: {error.service_name} - {error.message}")
+        st.error(error_title)
 
         # Error message
         st.write(f"**Servicio:** {error.service_name}")
@@ -262,11 +264,19 @@ class ServiceErrorHandler:
 
         # Recovery options
         if error.is_recoverable:
-            st.info(
+            info_msg = (
                 "🔄 Este error puede ser recuperable. Intenta las acciones sugeridas."
             )
+            logger.info(
+                f"Recoverable error for service {error.service_name}: {error.message}"
+            )
+            st.info(info_msg)
         else:
-            st.warning("⚠️ Este error requiere intervención manual para resolverse.")
+            warning_msg = "⚠️ Este error requiere intervención manual para resolverse."
+            logger.warning(
+                f"Non-recoverable error for service {error.service_name}: {error.message}"
+            )
+            st.warning(warning_msg)
 
     def create_timeout_handler(
         self, operation_name: str, timeout_seconds: int = 30

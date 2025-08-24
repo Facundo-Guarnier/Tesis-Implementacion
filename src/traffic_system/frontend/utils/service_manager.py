@@ -22,17 +22,6 @@ from src.traffic_system.frontend.utils.service_error_handler import (
     with_service_timeout,
 )
 
-try:
-    from src.traffic_system.frontend.utils.security import validate_operation_security
-
-    SECURITY_AVAILABLE = True
-except ImportError:
-
-    def validate_operation_security(operation: str, **kwargs: Any) -> tuple[bool, str]:
-        return True, ""
-
-    SECURITY_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
 
 
@@ -406,17 +395,6 @@ class ServiceManager:
         Returns:
             Tuple of (success, message)
         """
-        # Security validation
-        is_allowed, security_error = validate_operation_security(
-            "service_control",
-            service_name=service_name,
-            command=self.SERVICES.get(service_name, {}).get("command", []),
-        )
-        if not is_allowed:
-            logger.error(
-                f"🔒 Security validation failed for start_service({service_name}): {security_error}"
-            )
-            return False, f"Operación no permitida: {security_error}"
 
         if service_name not in self.SERVICES:
             self.error_handler.handle_service_error(
@@ -582,15 +560,6 @@ class ServiceManager:
         Returns:
             Tuple of (success, message)
         """
-        # Security validation
-        is_allowed, security_error = validate_operation_security(
-            "service_control", service_name=service_name
-        )
-        if not is_allowed:
-            logger.error(
-                f"🔒 Security validation failed for stop_service({service_name}): {security_error}"
-            )
-            return False, f"Operación no permitida: {security_error}"
 
         if service_name not in self.SERVICES:
             self.error_handler.handle_service_error(
@@ -876,8 +845,14 @@ class ServiceManager:
                     import importlib.util
 
                     if importlib.util.find_spec("ultralytics") is None:
+                        logger.warning(
+                            "❌ Ultralytics (YOLOv8) dependency missing for detection service"
+                        )
                         return False, "Ultralytics (YOLOv8) no está instalado"
                 except ImportError:
+                    logger.warning(
+                        "❌ Failed to import importlib.util while checking Ultralytics dependency"
+                    )
                     return False, "Ultralytics (YOLOv8) no está instalado"
 
                 # Check OpenCV
@@ -885,8 +860,14 @@ class ServiceManager:
                     import importlib.util
 
                     if importlib.util.find_spec("cv2") is None:
+                        logger.warning(
+                            "❌ OpenCV dependency missing for detection service"
+                        )
                         return False, "OpenCV no está instalado"
                 except ImportError:
+                    logger.warning(
+                        "❌ Failed to import importlib.util while checking OpenCV dependency"
+                    )
                     return False, "OpenCV no está instalado"
 
             return True, ""
@@ -978,6 +959,20 @@ class ServiceManager:
         self, service_name: str, operation: str
     ) -> dict[str, Any]:
         """Create enhanced error context for debugging."""
+        service_config = self.SERVICES.get(service_name, {})
+
+        # Log warning if service config is empty or missing critical fields
+        if not service_config:
+            logger.warning(f"⚠️ Service config for '{service_name}' is empty or missing")
+        elif "command" not in service_config:
+            logger.warning(
+                f"⚠️ Service config for '{service_name}' missing 'command' field"
+            )
+        elif "port" not in service_config:
+            logger.warning(
+                f"⚠️ Service config for '{service_name}' missing 'port' field"
+            )
+
         context: dict[str, Any] = {
             "service_name": service_name,
             "operation": operation,
@@ -987,7 +982,7 @@ class ServiceManager:
                 "python_version": __import__("sys").version,
                 "working_directory": os.getcwd(),
             },
-            "service_config": self.SERVICES.get(service_name, {}),
+            "service_config": service_config,
             "system_resources": {
                 "memory_available": psutil.virtual_memory().available,
                 "cpu_percent": psutil.cpu_percent(),

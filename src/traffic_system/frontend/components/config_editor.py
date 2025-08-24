@@ -391,7 +391,11 @@ class ConfigSectionRenderer:
                 )
 
                 if not field_valid and field_error:
-                    st.error(f"⚠️ {format_validation_error_for_ui(field_error)}")
+                    error_msg = f"⚠️ {format_validation_error_for_ui(field_error)}"
+                    logger.warning(
+                        f"Field validation error for {field_path}: {field_error}"
+                    )
+                    st.error(error_msg)
 
                 # Add spacing between fields
                 st.markdown("")
@@ -438,10 +442,16 @@ class ConfigSectionRenderer:
         if not is_valid:
             with st.expander("❌ Errores de Validación", expanded=False):
                 for i, error in enumerate(errors[:10], 1):  # Show first 10 errors
-                    st.error(f"{i}. {format_validation_error_for_ui(error)}")
+                    error_msg = f"{i}. {format_validation_error_for_ui(error)}"
+                    logger.error(f"Validation error {i}: {error}")
+                    st.error(error_msg)
 
                 if len(errors) > 10:
-                    st.warning(f"... y {len(errors) - 10} errores más")
+                    warning_msg = f"... y {len(errors) - 10} errores más"
+                    logger.warning(
+                        f"Truncated validation errors: {len(errors) - 10} additional errors not shown"
+                    )
+                    st.warning(warning_msg)
 
 
 class ConfigChangePreview:
@@ -464,7 +474,9 @@ class ConfigChangePreview:
         changes = self._detect_changes(original_config, new_config)
 
         if not changes:
-            st.info("ℹ️ No hay cambios en la configuración")
+            info_msg = "ℹ️ No hay cambios en la configuración"
+            logger.info("No configuration changes detected")
+            st.info(info_msg)
             return
 
         st.subheader("🔍 Vista Previa de Cambios")
