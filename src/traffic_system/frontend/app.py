@@ -78,7 +78,13 @@ def render_sidebar() -> str:
     st.sidebar.title("🚦 Traffic System")
     st.sidebar.markdown("---")
 
-    # Navigation menu
+    # Navigation menu with persistent buttons
+    st.sidebar.subheader("📋 Navegación")
+
+    # Initialize current page if not set
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "dashboard"
+
     pages = {
         "🏠 Dashboard": "dashboard",
         "⚙️ Configuración": "config",
@@ -86,9 +92,32 @@ def render_sidebar() -> str:
         "ℹ️ Información": "info",
     }
 
-    selected_page = st.sidebar.selectbox(
-        "Navegación", options=list(pages.keys()), index=0
-    )
+    # Create navigation buttons with active state styling
+    selected_page = st.session_state.current_page
+
+    for page_title, page_key in pages.items():
+        # Use different button styling for active page
+        if page_key == st.session_state.current_page:
+            # Active page button - styled as primary but disabled to show selection
+            st.sidebar.button(
+                rf"\> {page_title} <",
+                key=f"nav_active_{page_key}",
+                use_container_width=True,
+                type="primary",
+                disabled=True,
+                help="Página actual",
+            )
+        else:
+            # Inactive page button - clickeable to navigate
+            if st.sidebar.button(
+                page_title, key=f"nav_{page_key}", use_container_width=True
+            ):
+                st.session_state.current_page = page_key
+                selected_page = page_key
+                st.rerun()
+
+    # Return the mapped page key
+    selected_page = st.session_state.current_page
 
     st.sidebar.markdown("---")
 
@@ -146,7 +175,7 @@ def render_sidebar() -> str:
             )
             st.session_state.refresh_interval = refresh_interval
 
-    return pages[selected_page]
+    return str(selected_page)
 
 
 def render_dashboard() -> None:
