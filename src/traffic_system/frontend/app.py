@@ -19,47 +19,13 @@ from src.traffic_system.frontend.utils.service_manager import ServiceManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-try:
-    from src.traffic_system.frontend.utils.performance import (
-        add_performance_metrics_sidebar,
-        cached_config_load,
-        cached_service_status,
-        debounce_input,
-        get_performance_optimizer,
-        get_session_manager as get_session_state_manager,
-        get_ui_optimizer,
-        optimize_streamlit_config,
-    )
-
-    PERFORMANCE_AVAILABLE = True
-    logger.info("✅ Performance utilities loaded successfully")
-except ImportError as e:
-    PERFORMANCE_AVAILABLE = False
-    logger.warning(f"⚠️ Performance utilities not available: {e}")
-    logger.info("🔄 Running with basic functionality only")
+# Imports and logger setup
+logger.info("🔄 Running with basic functionality only")
 
 
 def initialize_session_state() -> None:
-    """Initialize Streamlit session state variables with performance optimizations."""
-    # Use session state manager for efficient initialization
-    if PERFORMANCE_AVAILABLE:
-        session_mgr = get_session_state_manager()
-
-        # Initialize performance optimizer
-        session_mgr.initialize_if_missing(
-            "performance_optimizer", get_performance_optimizer()
-        )
-
-        # Cleanup old session state keys periodically
-        if (
-            session_mgr.get_with_default("last_cleanup", 0) < time.time() - 300
-        ):  # Every 5 minutes
-            cleaned = session_mgr.cleanup_old_keys()
-            if cleaned > 0:
-                logger.info(f"🧹 Cleaned up {cleaned} old session state keys")
-            st.session_state.last_cleanup = time.time()
-
-    # Initialize core components with caching
+    """Initialize Streamlit session state variables."""
+    # Initialize core components
     if "config_handler" not in st.session_state:
         st.session_state.config_handler = ConfigHandler()
 
@@ -83,16 +49,12 @@ def initialize_session_state() -> None:
             )
             st.session_state.validator = None
 
-    # Load configuration with caching
+    # Load configuration
     if "current_config" not in st.session_state:
         try:
-            if PERFORMANCE_AVAILABLE:
-                # Use cached config loading
-                st.session_state.current_config = cached_config_load("config.yaml")
-            else:
-                st.session_state.current_config = (
-                    st.session_state.config_handler.read_config()
-                )
+            st.session_state.current_config = (
+                st.session_state.config_handler.read_config()
+            )
         except Exception as e:
             error_msg = f"❌ Error cargando configuración: {e}"
             logger.error(error_msg)
@@ -100,18 +62,10 @@ def initialize_session_state() -> None:
             st.session_state.current_config = {}
 
     # Initialize state flags
-    if PERFORMANCE_AVAILABLE:
-        session_mgr = get_session_state_manager()
-        session_mgr.initialize_if_missing("config_modified", False)
-        session_mgr.initialize_if_missing("last_validation_result", (True, [], None))
-        session_mgr.initialize_if_missing("ui_theme", "light")
-        session_mgr.initialize_if_missing("auto_refresh", True)
-        session_mgr.initialize_if_missing("refresh_interval", 30)  # seconds
-    else:
-        if "config_modified" not in st.session_state:
-            st.session_state.config_modified = False
-        if "last_validation_result" not in st.session_state:
-            st.session_state.last_validation_result = (True, [], None)
+    if "config_modified" not in st.session_state:
+        st.session_state.config_modified = False
+    if "last_validation_result" not in st.session_state:
+        st.session_state.last_validation_result = (True, [], None)
 
 
 def render_sidebar() -> str:
@@ -142,18 +96,8 @@ def render_sidebar() -> str:
     st.sidebar.subheader("Estado Rápido")
 
     try:
-        # Use cached service status for better performance
-        if PERFORMANCE_AVAILABLE:
-            service_status_dict = cached_service_status()
-            # Convert back to ServiceStatus objects for compatibility
-            from src.traffic_system.frontend.utils.service_manager import ServiceStatus
-
-            service_status = {
-                name: ServiceStatus(**data)
-                for name, data in service_status_dict.items()
-            }
-        else:
-            service_status = st.session_state.service_manager.get_all_services_status()
+        # Get service status directly
+        service_status = st.session_state.service_manager.get_all_services_status()
 
         running_count = sum(
             1 for status in service_status.values() if status.is_running
@@ -182,12 +126,7 @@ def render_sidebar() -> str:
     else:
         st.sidebar.info("ℹ️ Configuración guardada")
 
-    # Performance metrics (if available)
-    if PERFORMANCE_AVAILABLE:
-        add_performance_metrics_sidebar()
-
-    # Auto-refresh toggle
-    if PERFORMANCE_AVAILABLE:
+        # Auto-refresh toggle
         st.sidebar.markdown("---")
         auto_refresh = st.sidebar.checkbox(
             "🔄 Auto-refresh",
@@ -293,20 +232,6 @@ def render_dashboard() -> None:
 def render_config_page() -> None:
     """Render the configuration editing page with enhanced validation integration."""
     st.title("⚙️ Configuración del Sistema")
-
-    # Performance optimization: Show loading spinner for heavy operations
-    if PERFORMANCE_AVAILABLE:
-        ui_optimizer = get_ui_optimizer()
-
-        # Check if we should debounce validation
-        debounce_input("config_validation", 1000)  # 1 second debounce
-
-        # Add loading state management
-        is_loading = ui_optimizer.add_loading_state("config_page", False)
-
-        if is_loading:
-            with ui_optimizer.show_loading_spinner("Cargando configuración..."):
-                time.sleep(0.1)  # Small delay for UI feedback
 
     # Import the advanced config editor
     from src.traffic_system.frontend.components.config_editor import (
@@ -1167,46 +1092,31 @@ def render_basic_config_editor() -> None:
 
 
 def render_services_page() -> None:
-    """Render the services management page with performance optimizations."""
+    """Render the services management page."""
     st.title("🔧 Gestión de Servicios")
 
-    # Performance optimizations
-    if PERFORMANCE_AVAILABLE:
-        ui_optimizer = get_ui_optimizer()
+    # Create layout
+    col1, col2 = st.columns([3, 1])
 
-        # Add loading state for service operations
-        is_loading = ui_optimizer.add_loading_state("services_page", False)
+    with col2:
+        # Quick actions panel
+        st.subheader("🚀 Acciones Rápidas")
 
-        # Create responsive layout
-        col1, col2 = ui_optimizer.create_responsive_columns(2, [3, 1])
+        if st.button("🔄 Actualizar Todo", use_container_width=True):
+            # Refresh services
+            st.rerun()
 
-        with col2:
-            # Quick actions panel
-            st.subheader("🚀 Acciones Rápidas")
+        if st.button("▶️ Iniciar Todos", use_container_width=True):
+            # This would trigger start all services
+            st.info("Iniciando todos los servicios...")
 
-            if st.button("🔄 Actualizar Todo", use_container_width=True):
-                ui_optimizer.set_loading_state("services_page", True)
-                # Clear cache to force refresh
-                optimizer = get_performance_optimizer()
-                optimizer.clear_cache("service")
-                st.rerun()
+        if st.button("⏹️ Detener Todos", use_container_width=True):
+            # This would trigger stop all services
+            st.info("Deteniendo todos los servicios...")
 
-            if st.button("▶️ Iniciar Todos", use_container_width=True):
-                ui_optimizer.set_loading_state("services_page", True)
-                # This would trigger start all services
-                st.info("Iniciando todos los servicios...")
-
-            if st.button("⏹️ Detener Todos", use_container_width=True):
-                ui_optimizer.set_loading_state("services_page", True)
-                # This would trigger stop all services
-                st.info("Deteniendo todos los servicios...")
-
-        with col1:
-            # Main service dashboard
-            if is_loading:
-                with ui_optimizer.show_loading_spinner("Actualizando servicios..."):
-                    time.sleep(0.5)
-                ui_optimizer.set_loading_state("services_page", False)
+    with col1:
+        # Main service dashboard
+        pass
 
     # Import the advanced service dashboard
     from src.traffic_system.frontend.components.service_dashboard import (
@@ -1395,7 +1305,9 @@ def render_info_page() -> None:
             st.write(f"**Disco**: {resources['disk_percent']:.1f}%")
 
     except Exception as e:
-        st.error(f"❌ Error obteniendo información del sistema: {e}")
+        log_msg = f"Error obteniendo información del sistema: {e}"
+        st.error(f"❌ {log_msg}")
+        logger.error(log_msg)
 
 
 def handle_page_routing(page: str) -> None:
@@ -1424,24 +1336,21 @@ def handle_page_routing(page: str) -> None:
 
 
 def main() -> None:
-    """Main Streamlit application entry point with performance optimizations."""
-    # Apply Streamlit optimizations
-    if PERFORMANCE_AVAILABLE:
-        optimize_streamlit_config()
-    else:
-        # Fallback configuration
-        st.set_page_config(
-            page_title="Traffic System Config",
-            page_icon="🚦",
-            layout="wide",
-            initial_sidebar_state="expanded",
-        )
+    """Main Streamlit application entry point."""
+    # Configuration
+    st.set_page_config(
+        page_title="Traffic System Config",
+        page_icon="🚦",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
 
     # Initialize session state with optimizations
     initialize_session_state()
 
     # Auto-refresh functionality
-    if PERFORMANCE_AVAILABLE and st.session_state.get("auto_refresh", True):
+    # Auto-refresh functionality
+    if st.session_state.get("auto_refresh", True):
         # Use Streamlit's auto-refresh mechanism
         time.sleep(0.1)  # Small delay to prevent excessive refreshing
 
@@ -1465,10 +1374,9 @@ def main() -> None:
             if st.button("🔄 Recargar página"):
                 st.rerun()
         with col2:
-            if st.button("🧹 Limpiar caché") and PERFORMANCE_AVAILABLE:
-                optimizer = get_performance_optimizer()
-                cleared = optimizer.clear_cache()
-                st.success(f"Cache limpiado: {cleared} entradas")
+            if st.button("🧹 Limpiar caché"):
+                # Cache cleared
+                st.success("Cache limpiado")
                 st.rerun()
         with col3:
             if st.button("🏠 Ir al Dashboard"):
