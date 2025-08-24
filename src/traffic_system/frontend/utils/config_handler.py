@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
+
+from src.traffic_system.core.config_models import AppSettings
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +275,184 @@ class ConfigHandler:
 
         is_valid = len(errors) == 0
         return is_valid, errors
+
+    def validate_config_with_pydantic(
+        self, config: dict[str, Any]
+    ) -> tuple[bool, list[str], AppSettings | None]:
+        """
+        Comprehensive validation using Pydantic models.
+
+        Args:
+            config: Configuration dictionary to validate
+
+        Returns:
+            Tuple of (is_valid, list_of_errors, validated_model_or_none)
+        """
+        try:
+            # Attempt to create AppSettings model from config
+            validated_config = AppSettings(**config)
+            logger.info("✅ Configuración validada exitosamente con Pydantic")
+            return True, [], validated_config
+
+        except ValidationError as e:
+            # Extract detailed error messages
+            errors = []
+            for error in e.errors():
+                field_path = " -> ".join(str(loc) for loc in error["loc"])
+                error_msg = error["msg"]
+                error_type = error["type"]
+
+                # Create user-friendly error message
+                if field_path:
+                    errors.append(
+                        f"Campo '{field_path}': {error_msg} (tipo: {error_type})"
+                    )
+                else:
+                    errors.append(
+                        f"Error de validación: {error_msg} (tipo: {error_type})"
+                    )
+
+            logger.warning(
+                f"⚠️ Errores de validación Pydantic: {len(errors)} errores encontrados"
+            )
+            return False, errors, None
+
+        except Exception as e:
+            logger.error(f"❌ Error inesperado durante validación Pydantic: {e}")
+            return False, [f"Error inesperado: {str(e)}"], None
+
+    def test_load_config(self, config: dict[str, Any]) -> tuple[bool, list[str]]:
+        """
+        Test-load configuration without saving to verify it's valid.
+
+        Args:
+            config: Configuration dictionary to test
+
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        try:
+            # First, basic structure validation
+            basic_valid, basic_errors = self.validate_config_structure(config)
+
+            # Then, comprehensive Pydantic validation
+            pydantic_valid, pydantic_errors, _ = self.validate_config_with_pydantic(
+                config
+            )
+
+            # Combine results
+            all_errors = basic_errors + pydantic_errors
+            is_valid = basic_valid and pydantic_valid
+
+            if is_valid:
+                logger.info("✅ Test de configuración exitoso")
+            else:
+                logger.warning(
+                    f"⚠️ Test de configuración falló: {len(all_errors)} errores"
+                )
+
+            return is_valid, all_errors
+
+        except Exception as e:
+            logger.error(f"❌ Error durante test de configuración: {e}")
+            return False, [f"Error durante test: {str(e)}"]
+
+    def validate_and_write_config(
+        self, config: dict[str, Any], create_backup: bool = True
+    ) -> tuple[bool, list[str]]:
+        """
+        Validate configuration before writing, with automatic rollback on failure.
+
+        Args:
+            config: Configuration dictionary to validate and write
+            create_backup: Whether to create backup before writing
+
+        Returns:
+            Tuple of (success, list_of_errors)
+        """
+        try:
+            # Step 1: Test-load configuration
+            logger.info("🔍 Validando configuración antes de guardar...")
+            is_valid, errors = self.test_load_config(config)
+
+            if not is_valid:
+                logger.error(
+                    f"❌ Configuración inválida, no se guardará: {len(errors)} errores"
+                )
+                return False, errors
+
+            # Step 2: Create backup if requested
+            backup_path = None
+            if create_backup and self.config_path.exists():
+                backup_path = self.create_backup("pre_save")
+                logger.info(f"📦 Backup de seguridad creado: {backup_path}")
+
+            # Step 3: Write configuration
+            success = self.write_config(
+                config, create_backup=False
+            )  # Backup already created
+
+            if success:
+                logger.info("✅ Configuración validada y guardada exitosamente")
+                return True, []
+            else:
+                logger.error("❌ Error escribiendo configuración")
+                return False, ["Error escribiendo archivo de configuración"]
+
+        except Exception as e:
+            logger.error(f"❌ Error durante validación y escritura: {e}")
+
+            # Try to rollback if we have a backup
+            if backup_path and backup_path.exists():
+                logger.warning("🔄 Intentando restaurar backup de seguridad...")
+                try:
+                    shutil.copy2(backup_path, self.config_path)
+                    logger.info("✅ Backup restaurado exitosamente")
+                except Exception as rollback_error:
+                    logger.error(f"❌ Error durante rollback: {rollback_error}")
+
+            return False, [f"Error crítico: {str(e)}"]
+
+    def format_validation_errors_for_ui(self, errors: list[str]) -> str:
+        """
+        Format validation errors for user-friendly display in UI.
+
+        Args:
+            errors: List of error messages
+
+        Returns:
+            Formatted error message string
+        """
+        if not errors:
+            return ""
+
+        formatted_lines = ["**Errores de Validación Encontrados:**", ""]
+
+        for i, error in enumerate(errors, 1):
+            # Add emoji based on error type
+            if "missing" in error.lower() or "required" in error.lower():
+                emoji = "❌"
+            elif "must be" in error.lower() or "invalid" in error.lower():
+                emoji = "⚠️"
+            elif "path" in error.lower() or "file" in error.lower():
+                emoji = "📁"
+            else:
+                emoji = "🔍"
+
+            formatted_lines.append(f"{emoji} **Error {i}:** {error}")
+
+        formatted_lines.extend(
+            [
+                "",
+                "**Recomendaciones:**",
+                "• Revisa los campos marcados con errores",
+                "• Verifica que los tipos de datos sean correctos",
+                "• Asegúrate de que todos los campos requeridos estén completos",
+                "• Consulta la documentación si necesitas ayuda con algún campo",
+            ]
+        )
+
+        return "\n".join(formatted_lines)
 
     def cleanup_old_backups(self, keep_count: int = 10) -> int:
         """

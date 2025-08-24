@@ -150,7 +150,7 @@ class BackupManagerUI:
             st.metric("Esta Semana", recent_count)
 
     def _filter_and_sort_backups(
-        self, backups: list[dict], search_term: str, sort_by: str, show_count
+        self, backups: list[dict], search_term: str, sort_by: str, show_count: int | str
     ) -> list[dict]:
         """Filter and sort backup list."""
         filtered = backups
@@ -175,7 +175,7 @@ class BackupManagerUI:
 
         # Apply count limit
         if show_count != "Todos":
-            filtered = filtered[:show_count]
+            filtered = filtered[: int(show_count)]
 
         return filtered
 
@@ -315,26 +315,53 @@ class BackupManagerUI:
     def _perform_restore(self, backup: dict) -> None:
         """Perform the actual backup restoration."""
         try:
-            with st.spinner("Restaurando backup..."):
+            # Step 1: Validate backup before restore
+            st.info("🔍 Validando backup...")
+            if not self._validate_backup_before_restore(backup):
+                st.error("❌ El backup no es válido y no se puede restaurar")
+                return
+
+            # Step 2: Create pre-restore backup
+            st.info("📦 Creando backup de seguridad...")
+            pre_restore_backup = self.config_handler.create_backup("pre_restore")
+            st.success(f"✅ Backup de seguridad creado: {pre_restore_backup.name}")
+
+            # Step 3: Perform restore
+            with st.spinner("🔄 Restaurando configuración..."):
                 success = self.config_handler.restore_backup(backup["path"])
 
             if success:
                 st.success(f"✅ Backup `{backup['filename']}` restaurado exitosamente")
-                st.info("🔄 Recargando configuración...")
 
-                # Update session state
-                if "current_config" in st.session_state:
-                    st.session_state.current_config = self.config_handler.read_config()
-                    st.session_state.config_modified = False
+                # Step 4: Validate restored configuration
+                st.info("🔍 Validando configuración restaurada...")
+                if self._validate_restored_config():
+                    st.success("✅ Configuración restaurada y validada correctamente")
 
-                st.balloons()
-                st.rerun()
+                    # Update session state
+                    if "current_config" in st.session_state:
+                        st.session_state.current_config = (
+                            self.config_handler.read_config()
+                        )
+                        st.session_state.config_modified = False
+
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ La configuración restaurada no es válida")
+                    st.warning("🔄 Restaurando backup de seguridad...")
+                    self._rollback_restore(pre_restore_backup)
             else:
                 st.error("❌ Error durante la restauración del backup")
 
         except Exception as e:
             st.error(f"❌ Error restaurando backup: {e}")
             logger.error(f"Error restoring backup: {e}")
+
+            # Try to rollback if we have a pre-restore backup
+            if "pre_restore_backup" in locals():
+                st.warning("🔄 Intentando restaurar backup de seguridad...")
+                self._rollback_restore(pre_restore_backup)
 
     def _view_backup_action(self, backup: dict) -> None:
         """Display backup content preview."""
@@ -435,6 +462,97 @@ class BackupManagerUI:
         except Exception as e:
             st.error(f"❌ Error durante limpieza: {e}")
             logger.error(f"Error during cleanup: {e}")
+
+    def _validate_backup_before_restore(self, backup: dict) -> bool:
+        """Validate backup file before restoration."""
+        try:
+            import yaml
+
+            backup_path = Path(backup["path"])
+
+            # Check if file exists
+            if not backup_path.exists():
+                st.error(f"❌ Archivo de backup no encontrado: {backup_path}")
+                return False
+
+            # Check if file is readable
+            with open(backup_path, encoding="utf-8") as file:
+                content = file.read()
+
+            # Check if content is valid YAML
+            try:
+                config_data = yaml.safe_load(content)
+                if not config_data:
+                    st.error("❌ El backup está vacío o no contiene datos válidos")
+                    return False
+            except yaml.YAMLError as e:
+                st.error(f"❌ El backup no contiene YAML válido: {e}")
+                return False
+
+            # Basic structure validation
+            required_sections = ["services", "deteccion", "decision", "sumo", "reporte"]
+            missing_sections = [
+                section for section in required_sections if section not in config_data
+            ]
+
+            if missing_sections:
+                st.warning(
+                    f"⚠️ Secciones faltantes en el backup: {', '.join(missing_sections)}"
+                )
+                # Don't fail, just warn - might be an older backup format
+
+            return True
+
+        except Exception as e:
+            st.error(f"❌ Error validando backup: {e}")
+            logger.error(f"Error validating backup: {e}")
+            return False
+
+    def _validate_restored_config(self) -> bool:
+        """Validate the restored configuration."""
+        try:
+            # Try to load the restored configuration
+            restored_config = self.config_handler.read_config()
+
+            # Basic validation - check if config loaded successfully
+            if not restored_config:
+                return False
+
+            # Check for required sections
+            required_sections = ["services", "deteccion", "decision", "sumo", "reporte"]
+            for section in required_sections:
+                if section not in restored_config:
+                    st.warning(f"⚠️ Sección faltante: {section}")
+
+            return True
+
+        except Exception as e:
+            st.error(f"❌ Error validando configuración restaurada: {e}")
+            logger.error(f"Error validating restored config: {e}")
+            return False
+
+    def _rollback_restore(self, pre_restore_backup: Path) -> None:
+        """Rollback to pre-restore backup in case of failure."""
+        try:
+            st.warning("🔄 Ejecutando rollback...")
+            success = self.config_handler.restore_backup(str(pre_restore_backup))
+
+            if success:
+                st.success("✅ Rollback completado exitosamente")
+                # Update session state
+                if "current_config" in st.session_state:
+                    st.session_state.current_config = self.config_handler.read_config()
+                    st.session_state.config_modified = False
+            else:
+                st.error(
+                    "❌ Error durante rollback - configuración puede estar corrupta"
+                )
+                st.error("🚨 Revisa manualmente el archivo config.yaml")
+
+        except Exception as e:
+            st.error(f"❌ Error crítico durante rollback: {e}")
+            st.error("🚨 Configuración puede estar corrupta - revisa manualmente")
+            logger.error(f"Critical error during rollback: {e}")
 
 
 def render_advanced_backup_manager(config_handler: ConfigHandler) -> None:

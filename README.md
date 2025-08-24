@@ -67,12 +67,45 @@ poetry run pre-commit install
 
 ### Ejecución del Sistema
 
+#### Servicios Principales
+
 ```bash
 # Terminal 1: Iniciar simulación
 poetry run python run_simulation_provider.py
 
 # Terminal 2: Iniciar agente de decisión
 poetry run python run_decision_agent.py
+
+# Terminal 3 (opcional): Iniciar detección
+poetry run python run_detection_provider.py
+
+# Terminal 4 (opcional): Iniciar reportes
+poetry run python run_reporting_service.py
 ```
+
+#### Frontend de Configuración
+
+El sistema incluye una interfaz web moderna para gestionar la configuración y servicios:
+
+```bash
+# Iniciar frontend de configuración
+poetry run streamlit run run_frontend.py
+```
+
+**Accede a la interfaz en:** http://localhost:8501
+
+**Funcionalidades del Frontend:**
+- 🏠 **Dashboard**: Métricas del sistema y estado general
+- ⚙️ **Configuración**: Editor visual con validación en tiempo real
+- 🔧 **Servicios**: Control y monitoreo de microservicios
+- 📦 **Backups**: Gestión de copias de seguridad automáticas
+
+**Características Avanzadas:**
+- ✅ Validación en tiempo real con Pydantic
+- 🔄 Sistema de backups automáticos antes de cambios
+- 📊 Monitoreo de rendimiento y alertas
+- 🚨 Detección de crashes de servicios
+- 📋 Log de auditoría de cambios
+- 🔒 Validación de seguridad en operaciones de archivos
 
 Para más detalles, consulta la [documentación completa](docs/)

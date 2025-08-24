@@ -12,7 +12,6 @@ import streamlit as st
 
 from src.traffic_system.frontend.utils.config_handler import ConfigHandler
 from src.traffic_system.frontend.utils.service_manager import ServiceManager
-from src.traffic_system.frontend.utils.validators import ConfigValidator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +27,18 @@ def initialize_session_state() -> None:
         st.session_state.service_manager = ServiceManager()
 
     if "validator" not in st.session_state:
-        st.session_state.validator = ConfigValidator()
+        try:
+            from src.traffic_system.frontend.utils.validation_utils import (
+                ValidationFeedbackUI,
+            )
+
+            st.session_state.validator = ValidationFeedbackUI(
+                st.session_state.config_handler
+            )
+        except Exception as e:
+            logger.error(f"Error importing ValidationFeedbackUI: {e}")
+            # Create a dummy validation UI to prevent crashes
+            st.session_state.validator = None
 
     if "current_config" not in st.session_state:
         try:
@@ -214,6 +224,14 @@ def render_config_page() -> None:
     else:
         st.success("✅ Configuración sincronizada")
 
+    # Validation summary
+    with st.expander("🔍 Estado de Validación", expanded=False):
+        show_validation_summary()
+
+    # Configuration audit log
+    with st.expander("📋 Log de Cambios", expanded=False):
+        show_configuration_audit_log()
+
     st.markdown("---")
 
     # Advanced configuration editor
@@ -252,7 +270,7 @@ def render_config_section(section_keys: list[str]) -> None:
 
 def render_config_field(key: str, value: Any, path: str) -> None:
     """
-    Render a configuration field with appropriate widget.
+    Render a configuration field with appropriate widget and real-time validation.
 
     Args:
         key: Configuration key name
@@ -260,43 +278,70 @@ def render_config_field(key: str, value: Any, path: str) -> None:
         path: Full path to the field
     """
     new_value: Any = None
+    validation_key = f"validation_{path}"
 
-    if isinstance(value, bool):
-        new_value = st.checkbox(f"{key}", value=value, key=f"config_{path}")
-    elif isinstance(value, int):
-        new_value = st.number_input(f"{key}", value=value, key=f"config_{path}")
-    elif isinstance(value, float):
-        new_value = st.number_input(
-            f"{key}", value=value, format="%.6f", key=f"config_{path}"
-        )
-    elif isinstance(value, str):
-        new_value = st.text_input(f"{key}", value=value, key=f"config_{path}")
-    elif isinstance(value, list):
-        st.write(f"**{key}** (Lista):")
-        text_value = st.text_area(
-            "Valores separados por líneas",
-            value="\n".join(str(item) for item in value),
-            key=f"config_{path}",
-        )
-        new_value = text_value.split("\n")
-        # Convert back to appropriate types if needed
-        if value and isinstance(value[0], int | float):
-            try:
-                new_value = [
-                    type(value[0])(item.strip()) for item in new_value if item.strip()
-                ]
-            except ValueError:
-                st.error(f"❌ Error: valores inválidos en {key}")
-                new_value = value
-    elif isinstance(value, dict):
-        st.write(f"**{key}** (Sección):")
-        with st.container():
-            for sub_key, sub_value in value.items():
-                render_config_field(sub_key, sub_value, f"{path}.{sub_key}")
-        return  # Don't update value for dict sections
-    else:
-        st.write(f"**{key}**: {value} (tipo no soportado)")
-        return
+    # Create columns for field and validation feedback
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        if isinstance(value, bool):
+            new_value = st.checkbox(f"{key}", value=value, key=f"config_{path}")
+        elif isinstance(value, int):
+            new_value = st.number_input(f"{key}", value=value, key=f"config_{path}")
+        elif isinstance(value, float):
+            new_value = st.number_input(
+                f"{key}", value=value, format="%.6f", key=f"config_{path}"
+            )
+        elif isinstance(value, str):
+            new_value = st.text_input(f"{key}", value=value, key=f"config_{path}")
+        elif isinstance(value, list):
+            st.write(f"**{key}** (Lista):")
+            text_value = st.text_area(
+                "Valores separados por líneas",
+                value="\n".join(str(item) for item in value),
+                key=f"config_{path}",
+            )
+            new_value = text_value.split("\n")
+            # Convert back to appropriate types if needed
+            if value and isinstance(value[0], int | float):
+                try:
+                    new_value = [
+                        type(value[0])(item.strip())
+                        for item in new_value
+                        if item.strip()
+                    ]
+                except ValueError:
+                    st.error(f"❌ Error: valores inválidos en {key}")
+                    new_value = value
+        elif isinstance(value, dict):
+            st.write(f"**{key}** (Sección):")
+            with st.container():
+                for sub_key, sub_value in value.items():
+                    render_config_field(sub_key, sub_value, f"{path}.{sub_key}")
+            return  # Don't update value for dict sections
+        else:
+            st.write(f"**{key}**: {value} (tipo no soportado)")
+            return
+
+    with col2:
+        # Real-time validation feedback
+        if new_value != value and new_value is not None:
+            # Validate the new value
+            is_valid, error_msg = validate_field_value(path, new_value)
+
+            if is_valid:
+                st.success("✅")
+            else:
+                st.error("❌")
+                if error_msg:
+                    st.caption(error_msg)
+        else:
+            # Show current validation status
+            is_valid, _ = validate_field_value(path, value)
+            if is_valid:
+                st.success("✅")
+            else:
+                st.warning("⚠️")
 
     # Update configuration if value changed
     if new_value != value:
@@ -327,34 +372,88 @@ def update_config_value(path: str, new_value: Any) -> None:
 
 
 def save_configuration() -> None:
-    """Save the current configuration to file."""
+    """Save the current configuration to file with comprehensive validation."""
     try:
-        # Validate configuration
-        is_valid, errors, _ = st.session_state.validator.validate_full_config(
-            st.session_state.current_config
+        # Step 1: Pre-save validation using new validation system
+        st.info("🔍 Validando configuración...")
+
+        # Use the validation dialog to check if user wants to proceed
+        if st.session_state.validation_ui is not None:
+            if not st.session_state.validation_ui.validate_before_save_dialog(
+                st.session_state.current_config
+            ):
+                return  # User cancelled save due to validation errors
+        else:
+            st.warning(
+                "⚠️ Sistema de validación no disponible, guardando sin validación avanzada..."
+            )
+
+            return
+
+        # Step 2: Create backup before saving
+        st.info("📦 Creando backup de seguridad...")
+        try:
+            backup_path = st.session_state.config_handler.create_backup("pre_save")
+            st.success(f"✅ Backup creado: {backup_path.name}")
+        except Exception as backup_error:
+            st.warning(f"⚠️ No se pudo crear backup: {backup_error}")
+            # Continue with save anyway
+
+        # Step 3: Test configuration loading
+        st.info("🧪 Probando configuración...")
+        test_success = test_configuration_loading(st.session_state.current_config)
+
+        if not test_success:
+            st.error("❌ La configuración no pasa las pruebas de carga")
+            return
+
+        # Step 2: Save to file with validation
+        st.info("💾 Guardando configuración...")
+        success, save_errors = (
+            st.session_state.config_handler.validate_and_write_config(
+                st.session_state.current_config
+            )
         )
 
-        if not is_valid:
-            st.error("❌ No se puede guardar: configuración inválida")
-            for error in errors[:5]:  # Show first 5 errors
+        if not success and save_errors:
+            st.error("❌ Error durante el guardado:")
+            for error in save_errors:
                 st.error(f"• {error}")
             return
 
-        # Save to file
-        success = st.session_state.config_handler.write_config(
-            st.session_state.current_config
-        )
-
         if success:
-            st.session_state.config_modified = False
-            st.success("✅ Configuración guardada correctamente")
-            st.rerun()
+            # Step 5: Verify saved configuration
+            st.info("✅ Verificando configuración guardada...")
+            verification_success = verify_saved_configuration()
+
+            if verification_success:
+                st.session_state.config_modified = False
+                st.success("✅ Configuración guardada y verificada correctamente")
+                st.balloons()
+
+                # Log the save operation
+                log_configuration_change(
+                    "save", "success", "Configuración guardada exitosamente"
+                )
+
+                st.rerun()
+            else:
+                st.error("❌ Error en la verificación post-guardado")
+                # Attempt rollback
+                attempt_configuration_rollback()
         else:
             st.error("❌ Error guardando configuración")
+            log_configuration_change("save", "error", "Error durante el guardado")
 
     except Exception as e:
-        st.error(f"❌ Error guardando configuración: {e}")
-        logger.error(f"Error saving configuration: {e}")
+        st.error(f"❌ Error crítico guardando configuración: {e}")
+        logger.error(f"Critical error saving configuration: {e}")
+
+        # Log the error
+        log_configuration_change("save", "error", f"Error crítico: {e}")
+
+        # Attempt rollback
+        attempt_configuration_rollback()
 
 
 def cancel_changes() -> None:
@@ -379,6 +478,245 @@ def reload_configuration() -> None:
         st.error(f"❌ Error recargando configuración: {e}")
 
 
+def test_configuration_loading(config_data: dict[str, Any]) -> bool:
+    """Test if configuration can be loaded by the system."""
+    try:
+        # Import the config models to test loading
+        from src.traffic_system.core.config_models import TrafficSystemConfig
+
+        # Try to create a config object
+        test_config = TrafficSystemConfig(**config_data)
+
+        # Basic sanity checks
+        if not test_config.services:
+            st.warning("⚠️ No hay configuración de servicios")
+            return False
+
+        # Check required sections
+        required_sections = ["services", "deteccion", "decision", "sumo", "reporte"]
+        missing_sections = [
+            section
+            for section in required_sections
+            if not getattr(test_config, section, None)
+        ]
+
+        if missing_sections:
+            st.warning(f"⚠️ Secciones faltantes: {', '.join(missing_sections)}")
+            # Don't fail, just warn
+
+        return True
+
+    except Exception as e:
+        st.error(f"❌ Error en prueba de carga: {e}")
+        logger.error(f"Error testing configuration loading: {e}")
+        return False
+
+
+def verify_saved_configuration() -> bool:
+    """Verify that the saved configuration is valid."""
+    try:
+        # Reload from file to verify it was saved correctly
+        reloaded_config = st.session_state.config_handler.read_config()
+
+        if not reloaded_config:
+            st.error("❌ No se pudo recargar la configuración guardada")
+            return False
+
+        # Validate the reloaded configuration using new validation system
+        is_valid, errors = st.session_state.config_handler.test_load_config(
+            reloaded_config
+        )
+
+        if not is_valid:
+            st.error("❌ La configuración guardada no es válida")
+            for error in errors[:3]:
+                st.error(f"• {error}")
+            return False
+
+        return True
+
+    except Exception as e:
+        st.error(f"❌ Error verificando configuración guardada: {e}")
+        logger.error(f"Error verifying saved configuration: {e}")
+        return False
+
+
+def attempt_configuration_rollback() -> None:
+    """Attempt to rollback configuration to last known good state."""
+    try:
+        st.warning("🔄 Intentando rollback automático...")
+
+        # Try to find the most recent backup
+        backups = st.session_state.config_handler.list_backups()
+
+        if not backups:
+            st.error("❌ No hay backups disponibles para rollback")
+            return
+
+        # Get the most recent backup
+        latest_backup = max(backups, key=lambda x: x["created"])
+
+        # Attempt restore
+        success = st.session_state.config_handler.restore_backup(
+            latest_backup["filename"]
+        )
+
+        if success:
+            st.success(
+                f"✅ Rollback exitoso usando backup: {latest_backup['filename']}"
+            )
+            st.session_state.current_config = (
+                st.session_state.config_handler.read_config()
+            )
+            st.session_state.config_modified = False
+            log_configuration_change(
+                "rollback", "success", f"Rollback usando {latest_backup['filename']}"
+            )
+        else:
+            st.error("❌ Rollback falló")
+            log_configuration_change("rollback", "error", "Rollback falló")
+
+    except Exception as e:
+        st.error(f"❌ Error durante rollback: {e}")
+        logger.error(f"Error during rollback: {e}")
+        log_configuration_change("rollback", "error", f"Error durante rollback: {e}")
+
+
+def log_configuration_change(operation: str, status: str, message: str) -> None:
+    """Log configuration changes for audit trail."""
+    try:
+        if "config_change_log" not in st.session_state:
+            st.session_state.config_change_log = []
+
+        log_entry = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "operation": operation,
+            "status": status,
+            "message": message,
+            "user": "frontend_user",  # Could be enhanced with actual user info
+        }
+
+        st.session_state.config_change_log.append(log_entry)
+
+        # Keep only last 100 entries
+        if len(st.session_state.config_change_log) > 100:
+            st.session_state.config_change_log = st.session_state.config_change_log[
+                -100:
+            ]
+
+    except Exception as e:
+        logger.error(f"Error logging configuration change: {e}")
+
+
+def validate_field_value(field_path: str, value: Any) -> tuple[bool, str | None]:
+    """
+    Validate a single field value.
+
+    Args:
+        field_path: Path to the field (e.g., 'services.port')
+        value: Value to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    try:
+        # Use the validator to check the field
+        is_valid, error = st.session_state.validator.validate_field(
+            field_path, value, st.session_state.current_config
+        )
+
+        return is_valid, error
+
+    except Exception as e:
+        logger.error(f"Error validating field {field_path}: {e}")
+        return False, f"Error de validación: {e}"
+
+
+def show_validation_summary() -> None:
+    """Show a summary of current validation status."""
+    st.subheader("🔍 Estado de Validación")
+
+    try:
+        is_valid, errors, warnings = st.session_state.validator.validate_full_config(
+            st.session_state.current_config
+        )
+
+        # Overall status
+        if is_valid:
+            st.success("✅ Configuración válida")
+        else:
+            st.error(f"❌ Configuración inválida ({len(errors)} errores)")
+
+        # Warnings
+        if warnings:
+            st.warning(f"⚠️ {len(warnings)} advertencias encontradas")
+            with st.expander("Ver advertencias", expanded=False):
+                for warning in warnings:
+                    st.warning(f"• {warning}")
+
+        # Errors
+        if errors:
+            st.error(f"❌ {len(errors)} errores encontrados")
+            with st.expander("Ver errores", expanded=True):
+                for error in errors:
+                    st.error(f"• {error}")
+
+        # Validation statistics
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Errores", len(errors))
+
+        with col2:
+            st.metric("Advertencias", len(warnings))
+
+        with col3:
+            status = "Válida" if is_valid else "Inválida"
+            st.metric("Estado", status)
+
+    except Exception as e:
+        st.error(f"❌ Error obteniendo estado de validación: {e}")
+        logger.error(f"Error getting validation summary: {e}")
+
+
+def show_configuration_audit_log() -> None:
+    """Show configuration change audit log."""
+    st.subheader("📋 Log de Cambios de Configuración")
+
+    if (
+        "config_change_log" not in st.session_state
+        or not st.session_state.config_change_log
+    ):
+        st.info("ℹ️ No hay cambios registrados")
+        return
+
+    # Show recent changes
+    import pandas as pd
+
+    log_df = pd.DataFrame(st.session_state.config_change_log)
+
+    # Display with color coding
+    for _, entry in log_df.tail(20).iterrows():
+        if entry["status"] == "success":
+            st.success(
+                f"✅ {entry['timestamp']} - {entry['operation']}: {entry['message']}"
+            )
+        elif entry["status"] == "error":
+            st.error(
+                f"❌ {entry['timestamp']} - {entry['operation']}: {entry['message']}"
+            )
+        else:
+            st.info(
+                f"ℹ️ {entry['timestamp']} - {entry['operation']}: {entry['message']}"
+            )
+
+    # Clear log button
+    if st.button("🧹 Limpiar Log"):
+        st.session_state.config_change_log = []
+        st.success("✅ Log limpiado")
+        st.rerun()
+
+
 def render_basic_config_editor() -> None:
     """Render basic configuration editor as fallback."""
     # Configuration sections
@@ -401,6 +739,26 @@ def render_services_page() -> None:
     """Render the services management page."""
     st.title("🔧 Gestión de Servicios")
 
+    # Import the advanced service dashboard
+    from src.traffic_system.frontend.components.service_dashboard import (
+        render_advanced_service_dashboard,
+    )
+
+    try:
+        # Use the advanced service dashboard
+        render_advanced_service_dashboard(st.session_state.service_manager)
+
+    except Exception as e:
+        st.error(f"❌ Error en el dashboard de servicios: {e}")
+        logger.error(f"Error in service dashboard: {e}")
+
+        # Fallback to basic service interface
+        st.warning("⚠️ Usando interfaz básica de servicios como respaldo")
+        render_basic_services_interface()
+
+
+def render_basic_services_interface() -> None:
+    """Render basic services interface as fallback."""
     # Auto-refresh toggle
     auto_refresh = st.checkbox("🔄 Actualización automática", value=False)
 

@@ -15,6 +15,11 @@ from typing import Any
 
 import psutil
 
+from src.traffic_system.frontend.utils.service_error_handler import (
+    ServiceErrorHandler,
+    with_service_timeout,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +40,13 @@ class ServiceStatus:
 
 class ServiceManager:
     """Manages traffic system microservices."""
+
+    def __init__(self):
+        """Initialize the service manager."""
+        self.error_handler = ServiceErrorHandler()
+        self._process_cache: dict[str, psutil.Process | None] = {}
+        self._cache_timestamp = 0
+        self._cache_ttl = 5  # Cache TTL in seconds
 
     # Service definitions with their run commands and ports
     SERVICES: dict[str, dict[str, Any]] = {
@@ -63,12 +75,6 @@ class ServiceManager:
             "description": "Analytics and Reporting Service",
         },
     }
-
-    def __init__(self) -> None:
-        """Initialize the service manager."""
-        self._process_cache: dict[str, psutil.Process] = {}
-        self._last_update = 0
-        self._cache_duration = 2  # Cache duration in seconds
 
     def get_service_status(self, service_name: str) -> ServiceStatus:
         """
@@ -361,9 +367,22 @@ class ServiceManager:
         self._last_update = 0
         logger.info("🔄 Cache de procesos limpiado")
 
+    def show_service_troubleshooting(self, service_name: str) -> None:
+        """Show troubleshooting information for a service."""
+        self.error_handler.show_service_troubleshooting(service_name)
+
+    def get_error_statistics(self) -> dict[str, int]:
+        """Get error statistics for all services."""
+        return self.error_handler.get_error_statistics()
+
+    def clear_error_history(self) -> None:
+        """Clear the error history."""
+        self.error_handler.clear_error_history()
+
+    @with_service_timeout(timeout_seconds=30)
     def start_service(self, service_name: str) -> tuple[bool, str]:
         """
-        Start a service using poetry run.
+        Start a service using poetry run with comprehensive error handling.
 
         Args:
             service_name: Name of the service to start
@@ -372,24 +391,33 @@ class ServiceManager:
             Tuple of (success, message)
         """
         if service_name not in self.SERVICES:
-            error_msg = f"Servicio desconocido: {service_name}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
+            self.error_handler.handle_service_error(
+                ServiceErrorType.UNKNOWN_SERVICE, service_name
+            )
+            return False, f"Servicio desconocido: {service_name}"
 
         try:
             # Check if service is already running
             status = self.get_service_status(service_name)
             if status.is_running:
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.ALREADY_RUNNING,
+                    service_name,
+                    f"PID: {status.process_id}",
+                    show_in_ui=False,  # This is not really an error
+                )
                 msg = f"El servicio {service_name} ya está ejecutándose (PID: {status.process_id})"
-                logger.info(f"ℹ️ {msg}")
                 return True, msg
 
             # Check for port conflicts
             service_config = self.SERVICES[service_name]
             if service_config["port"] and self.is_port_in_use(service_config["port"]):
-                error_msg = f"Puerto {service_config['port']} ya está en uso"
-                logger.error(f"❌ {error_msg}")
-                return False, error_msg
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.PORT_CONFLICT,
+                    service_name,
+                    f"Puerto {service_config['port']} en uso",
+                )
+                return False, f"Puerto {service_config['port']} ya está en uso"
 
             # Start the service
             command: list[str] = service_config["command"]
@@ -426,18 +454,40 @@ class ServiceManager:
                 logger.error(f"❌ {error_msg}")
                 return False, error_msg
 
-        except FileNotFoundError:
-            error_msg = "Poetry no encontrado. Asegúrate de que Poetry esté instalado y en el PATH"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
+        except FileNotFoundError as e:
+            self.error_handler.handle_service_error(
+                ServiceErrorType.POETRY_NOT_FOUND, service_name, str(e)
+            )
+            return (
+                False,
+                "Poetry no encontrado. Instala Poetry y reinicia la aplicación",
+            )
+        except PermissionError as e:
+            self.error_handler.handle_service_error(
+                ServiceErrorType.PERMISSION_DENIED, service_name, str(e)
+            )
+            return False, "Permisos insuficientes para iniciar el servicio"
+        except OSError as e:
+            if "No space left on device" in str(e):
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.RESOURCE_UNAVAILABLE, service_name, str(e)
+                )
+                return False, "Espacio en disco insuficiente"
+            else:
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.UNEXPECTED_ERROR, service_name, str(e)
+                )
+                return False, f"Error del sistema: {str(e)}"
         except Exception as e:
-            error_msg = f"Error iniciando servicio {service_name}: {str(e)}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
+            self.error_handler.handle_service_error(
+                ServiceErrorType.UNEXPECTED_ERROR, service_name, str(e)
+            )
+            return False, f"Error inesperado: {str(e)}"
 
+    @with_service_timeout(timeout_seconds=20)
     def stop_service(self, service_name: str) -> tuple[bool, str]:
         """
-        Stop a running service gracefully.
+        Stop a running service gracefully with comprehensive error handling.
 
         Args:
             service_name: Name of the service to stop
@@ -446,17 +496,22 @@ class ServiceManager:
             Tuple of (success, message)
         """
         if service_name not in self.SERVICES:
-            error_msg = f"Servicio desconocido: {service_name}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
+            self.error_handler.handle_service_error(
+                ServiceErrorType.UNKNOWN_SERVICE, service_name
+            )
+            return False, f"Servicio desconocido: {service_name}"
 
         try:
             # Find the service process
             process = self._find_service_process(service_name)
 
             if not process:
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.NOT_RUNNING,
+                    service_name,
+                    show_in_ui=False,  # This is not really an error
+                )
                 msg = f"El servicio {service_name} no está ejecutándose"
-                logger.info(f"ℹ️ {msg}")
                 return True, msg
 
             logger.info(f"🛑 Deteniendo servicio {service_name} (PID: {process.pid})")
@@ -490,10 +545,21 @@ class ServiceManager:
                 logger.info(f"ℹ️ {msg}")
                 return True, msg
 
+        except psutil.AccessDenied as e:
+            self.error_handler.handle_service_error(
+                ServiceErrorType.PERMISSION_DENIED, service_name, str(e)
+            )
+            return False, "Permisos insuficientes para detener el servicio"
+        except psutil.TimeoutExpired as e:
+            self.error_handler.handle_service_error(
+                ServiceErrorType.TIMEOUT, service_name, str(e)
+            )
+            return False, "Tiempo de espera agotado al detener el servicio"
         except Exception as e:
-            error_msg = f"Error deteniendo servicio {service_name}: {str(e)}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
+            self.error_handler.handle_service_error(
+                ServiceErrorType.SHUTDOWN_FAILED, service_name, str(e)
+            )
+            return False, f"Error deteniendo servicio: {str(e)}"
 
     def restart_service(self, service_name: str) -> tuple[bool, str]:
         """

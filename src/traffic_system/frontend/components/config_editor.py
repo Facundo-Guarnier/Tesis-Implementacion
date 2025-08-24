@@ -10,12 +10,11 @@ from typing import Any
 
 import streamlit as st
 
-from src.traffic_system.frontend.utils.validators import (
-    ConfigValidator,
-    format_validation_error_for_ui,
-    get_validation_status_color,
-    get_validation_status_icon,
+from src.traffic_system.frontend.utils.validation_utils import (
+    ValidationFeedbackUI,
+    validate_config_section,
 )
+from src.traffic_system.frontend.utils.validators import format_validation_error_for_ui
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +22,14 @@ logger = logging.getLogger(__name__)
 class ConfigWidgetFactory:
     """Factory for creating configuration editing widgets."""
 
-    def __init__(self, validator: ConfigValidator):
+    def __init__(self, validation_ui: ValidationFeedbackUI):
         """
         Initialize the widget factory.
 
         Args:
-            validator: Configuration validator instance
+            validation_ui: Validation feedback UI instance
         """
-        self.validator = validator
+        self.validation_ui = validation_ui
         self._widget_counter = 0
 
     def create_widget(
@@ -55,7 +54,9 @@ class ConfigWidgetFactory:
             New value from widget
         """
         if constraints is None:
-            constraints = self.validator.get_field_constraints(path)
+            constraints = (
+                {}
+            )  # Default empty constraints since get_field_constraints doesn't exist
 
         widget_key = f"config_widget_{path}_{self._widget_counter}"
         self._widget_counter += 1
@@ -208,23 +209,26 @@ class ConfigWidgetFactory:
         list_container = st.container()
 
         with list_container:
-            new_list = []
+            new_list: list[Any] = []
 
             # Edit existing items
             for i, item in enumerate(value):
                 col1, col2, col3 = st.columns([4, 1, 1])
 
                 with col1:
+                    new_item: Any
                     if item_type == bool:
                         new_item = st.checkbox(
-                            f"Elemento {i+1}", value=item, key=f"{widget_key}_item_{i}"
+                            f"Elemento {i+1}",
+                            value=bool(item),
+                            key=f"{widget_key}_item_{i}",
                         )
                     elif item_type in (int, float):
                         new_item = st.number_input(
                             f"Elemento {i+1}", value=item, key=f"{widget_key}_item_{i}"
                         )
                     else:
-                        new_item = st.text_input(
+                        text_value = st.text_input(
                             f"Elemento {i+1}",
                             value=str(item),
                             key=f"{widget_key}_item_{i}",
@@ -232,9 +236,11 @@ class ConfigWidgetFactory:
                         # Convert back to original type if needed
                         if item_type != str:
                             try:
-                                new_item = item_type(new_item)
+                                new_item = item_type(text_value)
                             except (ValueError, TypeError):
                                 new_item = item  # Keep original if conversion fails
+                        else:
+                            new_item = text_value
 
                 with col2:
                     # Move up button
@@ -255,14 +261,21 @@ class ConfigWidgetFactory:
             col1, col2 = st.columns([3, 1])
 
             with col1:
+                new_item_value: Any
                 if item_type == bool:
                     new_item_value = st.checkbox(
                         "Nuevo elemento", key=f"{widget_key}_new_item"
                     )
-                elif item_type in (int, float):
+                elif item_type == int:
                     new_item_value = st.number_input(
                         "Nuevo elemento",
-                        value=item_type(0),
+                        value=0,
+                        key=f"{widget_key}_new_item",
+                    )
+                elif item_type == float:
+                    new_item_value = st.number_input(
+                        "Nuevo elemento",
+                        value=0.0,
                         key=f"{widget_key}_new_item",
                     )
                 else:
@@ -303,15 +316,15 @@ class ConfigWidgetFactory:
 class ConfigSectionRenderer:
     """Renders configuration sections with validation and organization."""
 
-    def __init__(self, validator: ConfigValidator):
+    def __init__(self, validation_ui: ValidationFeedbackUI):
         """
         Initialize the section renderer.
 
         Args:
-            validator: Configuration validator instance
+            validation_ui: Validation feedback UI instance
         """
-        self.validator = validator
-        self.widget_factory = ConfigWidgetFactory(validator)
+        self.validation_ui = validation_ui
+        self.widget_factory = ConfigWidgetFactory(validation_ui)
 
     def render_section(
         self,
@@ -333,24 +346,25 @@ class ConfigSectionRenderer:
             Tuple of (updated_section_data, has_changes)
         """
         # Validate section
-        is_valid, errors = self.validator.validate_section(
-            section_name, section_data, full_config
+        is_valid = validate_config_section(
+            section_name, section_data, show_feedback=False
         )
 
         # Section header with validation status
-        status_icon = get_validation_status_icon(is_valid)
-        status_color = get_validation_status_color(is_valid)
-
+        status_icon = "✅" if is_valid else "❌"
         section_title = f"{status_icon} **{section_name}**"
         if not is_valid:
-            section_title += f" ({len(errors)} errores)"
+            section_title += " (con errores)"
 
         with st.expander(section_title, expanded=expanded):
-            # Show validation errors if any
+            # Show validation details if section is invalid
             if not is_valid:
-                st.error("❌ Errores de validación:")
-                for error in errors:
-                    st.error(f"• {format_validation_error_for_ui(error)}")
+                if st.button(
+                    "🔍 Ver Detalles de Validación", key=f"validate_{section_name}"
+                ):
+                    validate_config_section(
+                        section_name, section_data, show_feedback=True
+                    )
                 st.markdown("---")
 
             # Render section fields
@@ -372,7 +386,7 @@ class ConfigSectionRenderer:
                 new_section_data[key] = new_value
 
                 # Add field-level validation
-                field_valid, field_error = self.validator.validate_field(
+                field_valid, field_error = self.validation_ui.validate_field(
                     field_path, new_value, full_config
                 )
 
@@ -392,7 +406,7 @@ class ConfigSectionRenderer:
             config: Complete configuration
         """
         # Validate entire configuration
-        is_valid, errors, _ = self.validator.validate_full_config(config)
+        is_valid, errors, _ = self.validation_ui.validate_full_config(config)
 
         # Overview metrics
         col1, col2, col3, col4 = st.columns(4)
@@ -430,20 +444,130 @@ class ConfigSectionRenderer:
                     st.warning(f"... y {len(errors) - 10} errores más")
 
 
+class ConfigChangePreview:
+    """Handles configuration change preview and diff display."""
+
+    def __init__(self):
+        """Initialize the change preview."""
+        pass
+
+    def render_change_preview(
+        self, original_config: dict[str, Any], new_config: dict[str, Any]
+    ) -> None:
+        """
+        Render a preview of configuration changes.
+
+        Args:
+            original_config: Original configuration
+            new_config: Modified configuration
+        """
+        changes = self._detect_changes(original_config, new_config)
+
+        if not changes:
+            st.info("ℹ️ No hay cambios en la configuración")
+            return
+
+        st.subheader("🔍 Vista Previa de Cambios")
+
+        # Summary of changes
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Campos Modificados", len(changes["modified"]))
+        with col2:
+            st.metric("Campos Agregados", len(changes["added"]))
+        with col3:
+            st.metric("Campos Eliminados", len(changes["removed"]))
+
+        # Detailed changes
+        if changes["modified"]:
+            with st.expander("📝 Campos Modificados", expanded=True):
+                for path, (old_val, new_val) in changes["modified"].items():
+                    st.write(f"**{path}**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.code(f"Anterior: {old_val}", language="yaml")
+                    with col2:
+                        st.code(f"Nuevo: {new_val}", language="yaml")
+                    st.markdown("---")
+
+        if changes["added"]:
+            with st.expander("➕ Campos Agregados", expanded=False):
+                for path, value in changes["added"].items():
+                    st.write(f"**{path}**: `{value}`")
+
+        if changes["removed"]:
+            with st.expander("➖ Campos Eliminados", expanded=False):
+                for path, value in changes["removed"].items():
+                    st.write(f"**{path}**: `{value}`")
+
+    def _detect_changes(
+        self, original: dict[str, Any], new: dict[str, Any], prefix: str = ""
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Detect changes between two configuration dictionaries.
+
+        Args:
+            original: Original configuration
+            new: New configuration
+            prefix: Path prefix for nested keys
+
+        Returns:
+            Dictionary with modified, added, and removed changes
+        """
+        changes = {"modified": {}, "added": {}, "removed": {}}
+
+        # Check for modifications and removals
+        for key, value in original.items():
+            path = f"{prefix}.{key}" if prefix else key
+
+            if key not in new:
+                changes["removed"][path] = value
+            elif isinstance(value, dict) and isinstance(new[key], dict):
+                # Recursively check nested dictionaries
+                nested_changes = self._detect_changes(value, new[key], path)
+                changes["modified"].update(nested_changes["modified"])
+                changes["added"].update(nested_changes["added"])
+                changes["removed"].update(nested_changes["removed"])
+            elif value != new[key]:
+                changes["modified"][path] = (value, new[key])
+
+        # Check for additions
+        for key, value in new.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if key not in original:
+                changes["added"][path] = value
+
+        return changes
+
+
 def render_advanced_config_editor(
-    config: dict[str, Any], validator: ConfigValidator
+    config: dict[str, Any], validation_ui: ValidationFeedbackUI
 ) -> tuple[dict[str, Any], bool]:
     """
     Render the advanced configuration editor.
 
     Args:
         config: Current configuration
-        validator: Configuration validator
+        validation_ui: Validation feedback UI
 
     Returns:
         Tuple of (updated_config, has_changes)
     """
-    renderer = ConfigSectionRenderer(validator)
+    renderer = ConfigSectionRenderer(validation_ui)
+    preview = ConfigChangePreview()
+
+    # Store original config for comparison
+    if "original_config" not in st.session_state:
+        st.session_state.original_config = config.copy()
+
+    # Validation status section
+    st.subheader("🔍 Estado de Validación")
+    validation_ui.show_validation_summary(config)
+
+    # Add validation help
+    validation_ui.create_validation_help_section()
+
+    st.markdown("---")
 
     # Configuration overview
     st.subheader("📊 Resumen de Configuración")
@@ -514,7 +638,7 @@ def render_advanced_config_editor(
             st.caption(metadata["description"])
 
             new_section_data, section_has_changes = renderer.render_section(
-                section_name, section_data, config, expanded=metadata["expanded"]
+                section_name, section_data, config, expanded=bool(metadata["expanded"])
             )
 
             if section_has_changes:
@@ -523,5 +647,10 @@ def render_advanced_config_editor(
             new_config[section_name] = new_section_data
 
             st.markdown("---")
+
+    # Show change preview if there are changes
+    if overall_has_changes:
+        st.markdown("---")
+        preview.render_change_preview(st.session_state.original_config, new_config)
 
     return new_config, overall_has_changes
