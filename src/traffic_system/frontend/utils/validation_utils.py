@@ -250,8 +250,9 @@ class ValidationFeedbackUI:
                 st.error(error_msg)
                 return
 
-            # Field-specific validation
-            if "port" in field_path.lower():
+            # Field-specific validation with improved logic
+            if field_path.endswith(("_port", "port")) or "port" in field_path.split("."):
+                # Only apply port validation to actual port fields
                 if isinstance(value, int) and 1024 <= value <= 65535:
                     success_msg = "✅ Puerto válido"
                     logger.debug(f"Port validation passed for {field_path}: {value}")
@@ -260,7 +261,8 @@ class ValidationFeedbackUI:
                     error_msg = "❌ Puerto debe estar entre 1024-65535"
                     logger.error(f"Port validation failed for {field_path}: {value}")
                     st.error(error_msg)
-            elif "path" in field_path.lower():
+            elif "path" in field_path.lower() and not field_path.endswith(("path_reporte", "path_destino", "path_resultado")):
+                # Path validation but exclude some fields that contain "path" but might be different
                 if isinstance(value, str) and value.strip():
                     success_msg = "✅ Ruta especificada"
                     logger.debug(f"Path validation passed for {field_path}")
@@ -307,26 +309,57 @@ class ValidationFeedbackUI:
             Tuple of (is_valid, error_message)
         """
         try:
-            # Field-specific validation
-            if "port" in field_path.lower():
+            # Log field validation for debugging
+            logger.debug(f"🔍 Validating field {field_path} with value {value} (type: {type(value).__name__})")
+            
+            # Field-specific validation with more precise matching
+            if field_path.endswith(("_port", "port")) or "port" in field_path.split("."):
+                # Only apply port validation to actual port fields
                 if isinstance(value, int) and 1024 <= value <= 65535:
+                    logger.debug(f"✅ Port validation passed for {field_path}: {value}")
                     return True, None
                 else:
+                    logger.warning(f"❌ Port validation failed for {field_path}: {value}")
                     return False, "Puerto debe estar entre 1024-65535"
-            elif "path" in field_path.lower():
+            elif "path" in field_path.lower() and field_path != "reporte.path_reporte":
+                # Path validation but exclude some fields that contain "path" but aren't file paths
                 if isinstance(value, str) and value.strip():
+                    logger.debug(f"✅ Path validation passed for {field_path}")
                     return True, None
                 else:
+                    logger.warning(f"❌ Path validation failed for {field_path}: empty path")
                     return False, "Ruta requerida"
             elif field_path.endswith(("detectar", "decision", "simular", "generar")):
+                # Boolean validation for flag fields
                 if isinstance(value, bool):
+                    logger.debug(f"✅ Boolean validation passed for {field_path}: {value}")
                     return True, None
                 else:
+                    logger.warning(f"❌ Boolean validation failed for {field_path}: {value} is not boolean")
                     return False, "Debe ser verdadero o falso"
+            elif field_path.endswith(("steps", "epoca", "batch_size", "memory")):
+                # Integer validation for numeric configuration fields
+                if isinstance(value, int) and value > 0:
+                    logger.debug(f"✅ Integer validation passed for {field_path}: {value}")
+                    return True, None
+                else:
+                    logger.warning(f"❌ Integer validation failed for {field_path}: {value}")
+                    return False, "Debe ser un número entero positivo"
+            elif field_path.endswith(("rate", "gamma", "epsilon", "decay")):
+                # Float validation for rate/percentage fields
+                if isinstance(value, int | float) and 0 <= value <= 1:
+                    logger.debug(f"✅ Float validation passed for {field_path}: {value}")
+                    return True, None
+                else:
+                    logger.warning(f"❌ Float validation failed for {field_path}: {value}")
+                    return False, "Debe ser un número entre 0 y 1"
             else:
+                # Default: accept any value for unspecified fields
+                logger.debug(f"✅ Generic validation passed for {field_path}: using default validation")
                 return True, None
 
         except Exception as e:
+            logger.error(f"❌ Exception during field validation for {field_path}: {e}")
             return False, f"Error validando campo: {e}"
 
     def validate_full_config(
