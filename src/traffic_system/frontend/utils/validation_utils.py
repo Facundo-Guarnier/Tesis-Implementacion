@@ -376,7 +376,7 @@ class ValidationFeedbackUI:
                 - Usa los valores por defecto como referencia
                 - Revisa los mensajes de error específicos
                 - Valida antes de guardar para evitar problemas
-                - Crea backups antes de cambios importantes
+                - Consulta la documentación para configuración válida
                 """
             )
 

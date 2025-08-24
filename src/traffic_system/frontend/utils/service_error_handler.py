@@ -160,7 +160,7 @@ class ServiceErrorHandler:
             "actions": [
                 "Revisa el archivo de configuración",
                 "Valida la configuración antes de iniciar",
-                "Restaura una configuración de backup válida",
+                "Consulta la documentación para configuración válida",
             ],
         },
         ServiceErrorType.NETWORK_ERROR: {

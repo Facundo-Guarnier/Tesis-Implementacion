@@ -203,29 +203,6 @@ def show_system_info() -> None:
         logger.warning(f"⚠️ Error obteniendo información del sistema: {e}")
 
 
-def show_startup_info() -> None:
-    """Show startup information and instructions."""
-    logger.info("=" * 60)
-    logger.info("🚦 SISTEMA DE CONFIGURACIÓN DE TRÁFICO INTELIGENTE")
-    logger.info("=" * 60)
-    logger.info("🚀 Iniciando Frontend de Configuración...")
-    logger.info(f"📁 Directorio del proyecto: {project_root}")
-    logger.info("📱 Interfaz web disponible en: http://localhost:8501")
-    logger.info("")
-    logger.info("🔧 Funcionalidades disponibles:")
-    logger.info("   • Edición de configuración con validación en tiempo real")
-    logger.info("   • Gestión y monitoreo de servicios")
-    logger.info("   • Sistema de backups y restauración")
-    logger.info("   • Alertas de rendimiento y monitoreo")
-    logger.info("   • Log de auditoría de cambios")
-    logger.info("")
-    logger.info("💡 Comandos útiles:")
-    logger.info("   • Ctrl+C para detener el servidor")
-    logger.info("   • F5 para recargar la página web")
-    logger.info("   • Revisa los logs en tiempo real aquí")
-    logger.info("=" * 60)
-
-
 def parse_arguments() -> dict[str, str]:
     """Parse command line arguments for Streamlit configuration."""
     args = {}
@@ -313,7 +290,6 @@ def main_with_error_handling() -> None:
         # Setup
         setup_directories()
         show_system_info()
-        show_startup_info()
 
         # Import and run main app
         from src.traffic_system.frontend.app import main

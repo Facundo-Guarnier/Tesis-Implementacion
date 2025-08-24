@@ -20,7 +20,7 @@ if st.session_state.validator is None:
 
 if st.session_state.config_handler is None:
     logger.error("❌ Config handler is None - configuration system not properly initialized")
-    
+
 if st.session_state.current_config is None:
     logger.error("❌ Current config is None - no configuration loaded")
 ```

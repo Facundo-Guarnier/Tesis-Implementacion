@@ -1,8 +1,12 @@
 """
 Performance Optimization Utilities
 
-Implements caching, session state management, and UI optimizations
+Implements caching, Streamlit UI state management, and UI optimizations
 for improved user experience and application performance.
+
+Note: The SessionStateManager in this module manages Streamlit's built-in
+session state for UI components and form persistence. This is NOT related
+to user authentication or security sessions (which have been removed).
 """
 
 import functools
@@ -229,23 +233,35 @@ class UIOptimizer:
 
 class SessionStateManager:
     """
-    Efficient Streamlit session state management.
+    Streamlit Session State Management Utility.
 
-    Note: This manages Streamlit's built-in session state for UI persistence,
-    not user authentication sessions (which have been removed from the system).
+    This class provides utilities for managing Streamlit's built-in session state
+    for UI persistence and component state management. This is NOT related to
+    user authentication or security sessions (which have been removed).
+
+    Purpose:
+    - Manage UI component states across Streamlit reruns
+    - Handle form data persistence during user interactions
+    - Optimize session state operations for better performance
+    - Provide cleanup utilities for temporary UI states
+
+    Note: This only manages Streamlit's st.session_state, not user sessions.
     """
 
     @staticmethod
     def initialize_if_missing(key: str, default_value: Any) -> Any:
         """
-        Initialize session state key if missing.
+        Initialize Streamlit session state key if missing.
+
+        This manages UI component state persistence across Streamlit reruns,
+        such as form values, widget states, and temporary UI data.
 
         Args:
-            key: Session state key
+            key: Streamlit session state key (for UI components)
             default_value: Default value to set
 
         Returns:
-            Current value
+            Current value from Streamlit session state
         """
         if key not in st.session_state:
             st.session_state[key] = default_value
@@ -285,33 +301,40 @@ class SessionStateManager:
     @staticmethod
     def cleanup_old_keys(max_age_seconds: int = 3600) -> int:
         """
-        Clean up old session state keys.
+        Clean up old Streamlit session state keys for UI components.
+
+        This removes temporary UI state keys that are no longer needed,
+        helping to keep the session state clean and performant.
 
         Args:
-            max_age_seconds: Maximum age for keys
+            max_age_seconds: Maximum age for temporary UI state keys
 
         Returns:
-            Number of keys cleaned up
+            Number of UI state keys cleaned up
         """
         current_time = time.time()
         keys_to_remove = []
 
-        # Look for timestamped keys
-        for key in st.session_state.keys():
-            if isinstance(key, str) and key.startswith("temp_") and "_timestamp" in key:
-                timestamp_key = str(key) + "_timestamp"
+        # Look for timestamped UI state keys
+        for ui_key in st.session_state.keys():
+            if (
+                isinstance(ui_key, str)
+                and ui_key.startswith("temp_ui_")
+                and "_timestamp" in ui_key
+            ):
+                timestamp_key = str(ui_key) + "_timestamp"
                 if timestamp_key in st.session_state:
                     timestamp = st.session_state[timestamp_key]
                     if current_time - timestamp > max_age_seconds:
-                        keys_to_remove.extend([key, timestamp_key])
+                        keys_to_remove.extend([ui_key, timestamp_key])
 
-        # Remove old keys
-        for key in keys_to_remove:
-            if key in st.session_state:
-                del st.session_state[key]
+        # Remove old UI state keys
+        for ui_key in keys_to_remove:
+            if ui_key in st.session_state:
+                del st.session_state[ui_key]
 
         if keys_to_remove:
-            logger.info(f"🧹 Cleaned up {len(keys_to_remove)} old session state keys")
+            logger.info(f"🧹 Cleaned up {len(keys_to_remove)} old UI state keys")
 
         return len(keys_to_remove)
 
@@ -342,7 +365,12 @@ def get_session_manager() -> SessionStateManager:
     """
     Get global Streamlit session state manager instance.
 
-    Note: This manages Streamlit UI state, not user authentication sessions.
+    This returns a utility for managing Streamlit's built-in session state
+    for UI components and form persistence. This is completely separate from
+    any user authentication or security session management.
+
+    Returns:
+        SessionStateManager: Utility for Streamlit UI state management
     """
     global _session_manager
     if _session_manager is None:
@@ -370,15 +398,6 @@ def cached_service_status() -> dict[str, Any]:
         name: status.__dict__
         for name, status in manager.get_all_services_status().items()
     }
-
-
-@st.cache_data(ttl=600)  # 10 minutes TTL
-def cached_backup_list(backup_dir: str) -> list:
-    """Cache backup file listing."""
-    from src.traffic_system.frontend.utils.config_handler import ConfigHandler
-
-    handler = ConfigHandler()
-    return handler.list_backups()
 
 
 def optimize_streamlit_config() -> None:

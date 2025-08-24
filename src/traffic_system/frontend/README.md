@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Interfaz web basada en Streamlit para la gestión completa del Sistema de Tráfico Inteligente. Proporciona una interfaz intuitiva para editar configuraciones, controlar servicios y gestionar backups.
+Interfaz web basada en Streamlit para la gestión completa del Sistema de Tráfico Inteligente. Proporciona una interfaz intuitiva para editar configuraciones y controlar servicios.
 
 ## Inicio Rápido
 
@@ -17,8 +17,7 @@ Accede a http://localhost:8501 en tu navegador.
 
 - ⚙️ **Editor de Configuración**: Edición visual de config.yaml con validación en tiempo real
 - 🎮 **Control de Servicios**: Gestión completa de todos los servicios del sistema
-- 💾 **Sistema de Backups**: Backups automáticos y restauración segura
-- 📊 **Monitoreo**: Dashboard con métricas de rendimiento y alertas
+-  **Monitoreo**: Dashboard con métricas de rendimiento y alertas
 - 🔍 **Diagnósticos**: Health checks automáticos y solución de problemas
 
 ## Estructura

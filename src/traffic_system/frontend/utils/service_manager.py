@@ -35,8 +35,6 @@ class ServiceStatus:
     start_time: datetime | None = None
     command: str = ""
     port: int | None = None
-    cpu_percent: float = 0.0
-    memory_mb: float = 0.0
     runtime_seconds: int = 0
 
 
@@ -105,14 +103,6 @@ class ServiceManager:
                 create_time = datetime.fromtimestamp(process.create_time())
                 runtime = int(time.time() - process.create_time())
 
-                try:
-                    cpu_percent = process.cpu_percent()
-                    memory_info = process.memory_info()
-                    memory_mb = memory_info.rss / 1024 / 1024  # Convert to MB
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    cpu_percent = 0.0
-                    memory_mb = 0.0
-
                 return ServiceStatus(
                     name=service_name,
                     is_running=True,
@@ -120,8 +110,6 @@ class ServiceManager:
                     start_time=create_time,
                     command=" ".join(service_config["command"]),
                     port=service_config["port"],
-                    cpu_percent=cpu_percent,
-                    memory_mb=memory_mb,
                     runtime_seconds=runtime,
                 )
             else:
@@ -253,31 +241,6 @@ class ServiceManager:
 
         return conflicts
 
-    def get_system_resources(self) -> dict[str, float]:
-        """
-        Get current system resource usage.
-
-        Returns:
-            Dictionary with system resource information
-        """
-        try:
-            return {
-                "cpu_percent": psutil.cpu_percent(interval=1),
-                "memory_percent": psutil.virtual_memory().percent,
-                "disk_percent": psutil.disk_usage("/").percent,
-                "load_average": (
-                    os.getloadavg()[0] if hasattr(os, "getloadavg") else 0.0
-                ),
-            }
-        except Exception as e:
-            logger.error(f"❌ Error getting system resources: {e}")
-            return {
-                "cpu_percent": 0.0,
-                "memory_percent": 0.0,
-                "disk_percent": 0.0,
-                "load_average": 0.0,
-            }
-
     def check_service_health(self, service_name: str) -> dict[str, Any]:
         """
         Perform health check on a service.
@@ -302,19 +265,6 @@ class ServiceManager:
                 health_info["issues"].append("Servicio no está ejecutándose")
                 health_info["recommendations"].append("Iniciar el servicio")
                 return health_info
-
-            # Check resource usage
-            if status.cpu_percent > 80:
-                health_info["issues"].append(
-                    f"Alto uso de CPU: {status.cpu_percent:.1f}%"
-                )
-                health_info["recommendations"].append("Revisar carga del sistema")
-
-            if status.memory_mb > 1000:  # More than 1GB
-                health_info["issues"].append(
-                    f"Alto uso de memoria: {status.memory_mb:.1f}MB"
-                )
-                health_info["recommendations"].append("Revisar uso de memoria")
 
             # Check port availability for services that use ports
             service_config = self.SERVICES[service_name]
@@ -780,38 +730,15 @@ class ServiceManager:
             return "No se pudo determinar"
 
     def _check_system_resources(self) -> bool:
-        """Check if system has sufficient resources."""
+        """Check if system has sufficient resources (simplified check)."""
         try:
-            # Check available memory (require at least 500MB free)
-            memory = psutil.virtual_memory()
-            if memory.available < 500 * 1024 * 1024:  # 500MB in bytes
-                logger.warning(
-                    f"⚠️ Memoria disponible baja: {memory.available / 1024 / 1024:.0f}MB"
-                )
-                return False
-
-            # Check CPU usage (require less than 90% usage)
-            cpu_percent = psutil.cpu_percent(interval=1)
-            if cpu_percent > 90:
-                logger.warning(f"⚠️ Alto uso de CPU: {cpu_percent:.1f}%")
-                return False
-
-            # Check disk space (require at least 1GB free)
-            try:
-                disk = psutil.disk_usage("/")
-                if disk.free < 1024 * 1024 * 1024:  # 1GB in bytes
-                    logger.warning(
-                        f"⚠️ Espacio en disco bajo: {disk.free / 1024 / 1024 / 1024:.1f}GB"
-                    )
-                    return False
-            except Exception:
-                # Disk check failed, but don't block service start
-                pass
-
+            # Basic check - just ensure we can access system info
+            # Removed detailed resource monitoring as per simplification requirements
+            psutil.virtual_memory()
             return True
         except Exception as e:
-            logger.error(f"❌ Error verificando recursos del sistema: {e}")
-            return True  # If we can't check, assume it's okay
+            logger.warning(f"⚠️ Error checking system availability: {e}")
+            return True  # Assume resources are available if check fails
 
     def _check_service_dependencies(self, service_name: str) -> tuple[bool, str]:
         """Check service-specific dependencies."""
@@ -983,11 +910,6 @@ class ServiceManager:
                 "working_directory": os.getcwd(),
             },
             "service_config": service_config,
-            "system_resources": {
-                "memory_available": psutil.virtual_memory().available,
-                "cpu_percent": psutil.cpu_percent(),
-                "disk_usage": psutil.disk_usage(".").percent,
-            },
         }
 
         # Add running services info
@@ -1250,8 +1172,6 @@ class ServiceManager:
                     status.start_time.isoformat() if status.start_time else None
                 ),
                 "runtime_seconds": status.runtime_seconds,
-                "cpu_percent": status.cpu_percent,
-                "memory_mb": status.memory_mb,
                 "port": status.port,
             }
 
@@ -1266,9 +1186,6 @@ class ServiceManager:
                 "missing": missing_deps,
                 "required": self.get_service_dependencies().get(service_name, []),
             }
-
-            # System resources
-            report["resources"] = self.get_system_resources()
 
             # Health check
             health = self.check_service_health(service_name)

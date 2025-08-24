@@ -7,7 +7,7 @@ Se ha implementado logging completo para todos los mensajes de error, advertenci
 ## Archivos Actualizados
 
 ### Aplicación Principal
-- **`src/traffic_system/frontend/app.py`**: 
+- **`src/traffic_system/frontend/app.py`**:
   - Agregado logging para errores de carga de configuración
   - Logging de operaciones de inicio/parada de servicios
   - Registro de acciones de recarga de configuración y creación de backups

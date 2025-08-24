@@ -129,7 +129,6 @@ def render_sidebar() -> str:
         "🏠 Dashboard": "dashboard",
         "⚙️ Configuración": "config",
         "🔧 Servicios": "services",
-        "📦 Backups": "backups",
         "ℹ️ Información": "info",
     }
 
@@ -279,16 +278,8 @@ def render_dashboard() -> None:
                 st.error(error_msg)
 
     with col4:
-        if st.button("📦 Backup Rápido", use_container_width=True):
-            try:
-                backup_path = st.session_state.config_handler.create_backup("manual")
-                success_msg = f"✅ Backup creado: {backup_path.name}"
-                logger.info(success_msg)
-                st.success(success_msg)
-            except Exception as e:
-                error_msg = f"❌ Error creando backup: {e}"
-                logger.error(error_msg)
-                st.error(error_msg)
+        if st.button("🔧 Herramientas", use_container_width=True):
+            st.info("� Herramientas de sistema disponibles en otras secciones")
 
     st.markdown("---")
 
@@ -548,7 +539,8 @@ def render_config_field(key: str, value: Any, path: str) -> None:
         # Real-time validation feedback
         if new_value != value and new_value is not None:
             # Validate the new value
-            is_valid, error_msg = validate_field_value(path, new_value)
+            is_valid, error_msg_optional = validate_field_value(path, new_value)
+            error_msg = error_msg_optional or "Unknown validation error"
 
             if is_valid:
                 logger.info(f"✅ Field validation passed for {path}")
@@ -556,8 +548,8 @@ def render_config_field(key: str, value: Any, path: str) -> None:
             else:
                 logger.warning(f"❌ Field validation failed for {path}: {error_msg}")
                 st.error("❌")
-                if error_msg:
-                    st.caption(error_msg)
+                if error_msg_optional:
+                    st.caption(error_msg_optional)
         else:
             # Show current validation status
             is_valid, _ = validate_field_value(path, value)
@@ -601,7 +593,7 @@ def save_configuration() -> None:
         st.info("🔍 Ejecutando validación completa...")
 
         with st.spinner("Validando configuración..."):
-            is_valid, validation_errors, backup_path = validate_config_before_save(
+            is_valid, validation_errors = validate_config_before_save(
                 st.session_state.current_config
             )
 
@@ -645,15 +637,9 @@ def save_configuration() -> None:
             for error in save_errors:
                 st.error(f"• {error}")
 
-            # Attempt rollback if we have a backup
-            if backup_path:
-                st.warning("🔄 Intentando rollback...")
-                rollback_success = handle_validation_failure_rollback(backup_path)
-                if rollback_success:
-                    st.success("✅ Rollback completado - configuración restaurada")
-                else:
-                    st.error("❌ Error durante rollback - revisa manualmente")
-
+            # Configuration save failed - manual check required
+            st.warning("⚠️ Configuration save failed - please check manually")
+            st.info("💡 Please manually check the configuration file")
             return
 
         # Step 3: Post-save verification
@@ -685,35 +671,11 @@ def save_configuration() -> None:
             st.rerun()
 
         else:
-            # Verification failed - attempt rollback
+            # Verification failed - configuration may have issues
             st.error("❌ Error en la verificación post-guardado")
-
-            if backup_path:
-                st.warning("🔄 Ejecutando rollback automático...")
-                rollback_success = handle_validation_failure_rollback(backup_path)
-
-                if rollback_success:
-                    st.success(
-                        "✅ Rollback completado - configuración restaurada al estado anterior"
-                    )
-                    log_configuration_change(
-                        "rollback",
-                        "success",
-                        "Rollback automático después de fallo de verificación",
-                    )
-                else:
-                    st.error(
-                        "❌ Error crítico durante rollback - configuración puede estar corrupta"
-                    )
-                    st.error("🚨 Revisa manualmente el archivo config.yaml")
-                    log_configuration_change(
-                        "rollback", "error", "Fallo de rollback automático"
-                    )
-            else:
-                st.error("❌ No hay backup disponible para rollback")
-                log_configuration_change(
-                    "save", "error", "Error de verificación sin backup disponible"
-                )
+            st.warning("⚠️ Please manually check the config.yaml file")
+            st.error("🚨 Configuration may have errors")
+            log_configuration_change("save", "error", "Verification failed after save")
 
     except Exception as e:
         st.error(f"❌ Error crítico guardando configuración: {e}")
@@ -819,35 +781,25 @@ def attempt_configuration_rollback() -> None:
     try:
         st.warning("🔄 Intentando rollback automático...")
 
-        # Try to find the most recent backup
-        backups = st.session_state.config_handler.list_backups()
+        # Configuration rollback not available - reloading from file
+        st.info("� Reloading configuration from file")
+        st.warning("⚠️ Please manually check the configuration file")
 
-        if not backups:
-            st.error("❌ No hay backups disponibles para rollback")
-            return
-
-        # Get the most recent backup
-        latest_backup = max(backups, key=lambda x: x["created"])
-
-        # Attempt restore
-        success = st.session_state.config_handler.restore_backup(
-            latest_backup["filename"]
-        )
-
-        if success:
-            st.success(
-                f"✅ Rollback exitoso usando backup: {latest_backup['filename']}"
-            )
+        # Try to reload current configuration
+        try:
             st.session_state.current_config = (
                 st.session_state.config_handler.read_config()
             )
             st.session_state.config_modified = False
+            st.success("✅ Configuration reloaded from file")
             log_configuration_change(
-                "rollback", "success", f"Rollback usando {latest_backup['filename']}"
+                "reload", "success", "Configuration reloaded after error"
             )
-        else:
-            st.error("❌ Rollback falló")
-            log_configuration_change("rollback", "error", "Rollback falló")
+        except Exception as reload_error:
+            st.error(f"❌ Error reloading configuration: {reload_error}")
+            log_configuration_change(
+                "reload", "error", f"Reload failed: {reload_error}"
+            )
 
     except Exception as e:
         st.error(f"❌ Error durante rollback: {e}")
@@ -939,7 +891,7 @@ def _set_nested_value(config: dict, field_path: str, value: Any) -> None:
 
 def validate_config_before_save(
     config: dict[str, Any],
-) -> tuple[bool, list[str], str | None]:
+) -> tuple[bool, list[str]]:
     """
     Comprehensive validation before saving configuration.
 
@@ -947,18 +899,11 @@ def validate_config_before_save(
         config: Configuration to validate
 
     Returns:
-        Tuple of (is_valid, errors, backup_path_if_created)
+        Tuple of (is_valid, errors)
     """
     try:
-        # Step 1: Create backup before validation
-        backup_path = None
-        try:
-            backup_path = st.session_state.config_handler.create_backup(
-                "pre_save_validation"
-            )
-            logger.info(f"📦 Backup de seguridad creado: {backup_path}")
-        except Exception as e:
-            logger.warning(f"⚠️ No se pudo crear backup de seguridad: {e}")
+        # Configuration validation proceeding without backup
+        logger.info("ℹ️ Proceeding with direct configuration validation")
 
         # Step 2: Test load configuration with Pydantic
         is_valid, errors, validated_model = (
@@ -966,7 +911,7 @@ def validate_config_before_save(
         )
 
         if not is_valid:
-            return False, errors, str(backup_path) if backup_path else None
+            return False, errors
 
         # Step 3: Test save and reload cycle
         try:
@@ -1003,53 +948,18 @@ def validate_config_before_save(
                 errors.extend(
                     [f"Error en ciclo save/reload: {err}" for err in reload_errors]
                 )
-                return False, errors, str(backup_path) if backup_path else None
+                return False, errors
 
         except Exception as e:
             errors.append(f"Error en test de save/reload: {e}")
-            return False, errors, str(backup_path) if backup_path else None
+            return False, errors
 
         # Step 4: All validations passed
-        return True, [], str(backup_path) if backup_path else None
+        return True, []
 
     except Exception as e:
         logger.error(f"Error en validación pre-guardado: {e}")
-        return False, [f"Error crítico en validación: {e}"], None
-
-
-def handle_validation_failure_rollback(backup_path: str | None) -> bool:
-    """
-    Handle rollback in case of validation failure.
-
-    Args:
-        backup_path: Path to backup file for rollback
-
-    Returns:
-        True if rollback successful, False otherwise
-    """
-    if not backup_path:
-        logger.warning("⚠️ No hay backup disponible para rollback")
-        return False
-
-    try:
-        # Restore from backup
-        success = st.session_state.config_handler.restore_backup(backup_path)
-
-        if success:
-            # Update session state
-            st.session_state.current_config = (
-                st.session_state.config_handler.read_config()
-            )
-            st.session_state.config_modified = False
-            logger.info("✅ Rollback exitoso desde backup")
-            return True
-        else:
-            logger.error("❌ Error durante rollback")
-            return False
-
-    except Exception as e:
-        logger.error(f"❌ Error crítico durante rollback: {e}")
-        return False
+        return False, [f"Error crítico en validación: {e}"]
 
 
 def show_validation_summary() -> None:
@@ -1433,57 +1343,6 @@ def restart_service_action(service_name: str) -> None:
         st.rerun()
 
 
-def render_backups_page() -> None:
-    """Render the backups management page."""
-    st.title("📦 Gestión de Backups")
-
-    # Import the advanced backup manager
-    from src.traffic_system.frontend.components.backup_manager import (
-        render_advanced_backup_manager,
-    )
-
-    try:
-        # Use the advanced backup management interface
-        render_advanced_backup_manager(st.session_state.config_handler)
-
-    except Exception as e:
-        st.error(f"❌ Error en el gestor de backups: {e}")
-        logger.error(f"Error in backup manager: {e}")
-
-        # Fallback to basic backup interface
-        st.warning("⚠️ Usando interfaz básica de backups como respaldo")
-        render_basic_backups_interface()
-
-
-def create_backup_action(custom_name: str | None) -> None:
-    """Create a backup with optional custom name."""
-    try:
-        backup_path = st.session_state.config_handler.create_backup(custom_name)
-        st.success(f"✅ Backup creado: {backup_path.name}")
-        st.rerun()
-    except Exception as e:
-        st.error(f"❌ Error creando backup: {e}")
-
-
-def restore_backup_action(backup_path: str) -> None:
-    """Restore a backup after confirmation."""
-    if st.button("⚠️ Confirmar Restauración", key=f"confirm_restore_{backup_path}"):
-        try:
-            success = st.session_state.config_handler.restore_backup(backup_path)
-            if success:
-                # Reload configuration
-                st.session_state.current_config = (
-                    st.session_state.config_handler.read_config()
-                )
-                st.session_state.config_modified = False
-                st.success("✅ Backup restaurado correctamente")
-                st.rerun()
-            else:
-                st.error("❌ Error restaurando backup")
-        except Exception as e:
-            st.error(f"❌ Error restaurando backup: {e}")
-
-
 def render_info_page() -> None:
     """Render the information/about page."""
     st.title("ℹ️ Información del Sistema")
@@ -1553,8 +1412,6 @@ def handle_page_routing(page: str) -> None:
             render_config_page()
         elif page == "services":
             render_services_page()
-        elif page == "backups":
-            render_backups_page()
         elif page == "info":
             render_info_page()
         else:
@@ -1625,55 +1482,9 @@ if __name__ == "__main__":
 
 def render_basic_backups_interface() -> None:
     """Render basic backup interface as fallback."""
-    # Create backup section
-    st.subheader("Crear Backup")
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        backup_name = st.text_input(
-            "Nombre del backup (opcional)", placeholder="backup_manual"
-        )
-
-    with col2:
-        if st.button("📦 Crear Backup", use_container_width=True):
-            create_backup_action(backup_name if backup_name else None)
-
-    st.markdown("---")
-
-    # List existing backups
-    st.subheader("Backups Disponibles")
-
-    try:
-        backups = st.session_state.config_handler.list_backups()
-
-        if not backups:
-            st.info("📭 No hay backups disponibles")
-        else:
-            for backup in backups:
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-
-                    with col1:
-                        st.write(f"📄 **{backup['filename']}**")
-
-                    with col2:
-                        st.write(f"📅 {backup['created'].strftime('%Y-%m-%d %H:%M')}")
-
-                    with col3:
-                        st.write(f"💾 {backup['size'] / 1024:.1f} KB")
-
-                    with col4:
-                        if st.button(
-                            "🔄",
-                            key=f"restore_{backup['filename']}",
-                            help="Restaurar backup",
-                        ):
-                            restore_backup_action(backup["path"])
-
-                    st.markdown("---")
-
-    except Exception as e:
-        st.error(f"❌ Error listando backups: {e}")
+    # Configuration backup functionality simplified
+    st.info("📦 Configuration backup functionality has been simplified")
+    st.write("Los cambios de configuración se guardan directamente sin crear backups")
 
 
 def create_validation_alert_system() -> None:
@@ -1754,7 +1565,6 @@ def show_validation_progress_indicator(
     # Show progress bar with steps
     steps = [
         "Validación inicial",
-        "Backup de seguridad",
         "Test de configuración",
         "Guardado",
         "Verificación",
@@ -1804,9 +1614,9 @@ def create_validation_help_panel() -> None:
 
         **💡 Consejos:**
         - Usa la validación en tiempo real
-        - Crea backups antes de cambios importantes
         - Revisa los mensajes de error específicos
         - Usa los valores por defecto como referencia
+        - Consulta la documentación para configuración válida
         """
         )
 

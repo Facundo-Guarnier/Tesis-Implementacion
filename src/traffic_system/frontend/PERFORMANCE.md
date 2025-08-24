@@ -94,8 +94,8 @@ def cached_service_status() -> Dict[str, Any]:
     """Cache service status checks."""
 
 @st.cache_data(ttl=600)  # 10 minutes
-def cached_backup_list(backup_dir: str) -> list:
-    """Cache backup file listing."""
+def cached_service_status() -> dict:
+    """Cache service status information."""
 ```
 
 ### Cache Hierarchy
@@ -111,7 +111,6 @@ def cached_backup_list(backup_dir: str) -> list:
    - Performance metrics
 
 3. **File System Data** (10 min TTL)
-   - Backup listings
    - Directory contents
    - File metadata
 
@@ -251,7 +250,7 @@ Typical performance improvements:
 
 - **Configuration loading**: 80% faster on cache hits
 - **Service status**: 90% faster with caching
-- **Backup listings**: 70% faster with caching
+- **System monitoring**: Efficient resource tracking
 - **Validation**: 60% faster with debouncing
 
 ### Memory Usage

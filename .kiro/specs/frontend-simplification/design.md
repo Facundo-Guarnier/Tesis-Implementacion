@@ -2,21 +2,25 @@
 
 ## Overview
 
-This design outlines the systematic removal of session management and security complexity from the traffic system frontend. The goal is to create a simplified, single-user interface that maintains all core functionality while eliminating unnecessary overhead.
+This design outlines the systematic removal of unnecessary complexity from the traffic system frontend, including session management, security features, backup management, and system performance monitoring. The goal is to create a simplified, single-user interface that maintains essential functionality while eliminating overhead that provides no real value in a development environment.
 
 ## Architecture
 
 ### Current Architecture Issues
 - **Complex Security Layer**: Multiple security modules with session management, validation, and access control
-- **Conditional Logic**: Code branches based on `SECURITY_AVAILABLE` flag throughout the application
-- **Resource Overhead**: Session tracking, cleanup processes, and security validation add unnecessary complexity
-- **UI Clutter**: Security status indicators and session counters in the sidebar
+- **Unnecessary Backup Management**: Automatic backup creation, restoration, and cleanup processes
+- **Performance Monitoring Overhead**: System resource tracking, performance metrics, and hardware monitoring
+- **Conditional Logic**: Code branches based on feature flags throughout the application
+- **Resource Overhead**: Session tracking, backup processes, performance monitoring, and validation add unnecessary complexity
+- **UI Clutter**: Security status indicators, performance metrics, backup management, and system resource displays
 
 ### Target Architecture
 - **Direct Access**: Streamlined frontend with direct access to all features
-- **Simplified Imports**: Clean import structure without security dependencies
-- **Focused UI**: Sidebar showing only relevant system and configuration status
-- **Reduced Complexity**: Single-path execution without conditional security logic
+- **Simplified Configuration**: Direct file operations without backup management
+- **Minimal Resource Usage**: No performance monitoring or system resource tracking
+- **Simplified Imports**: Clean import structure without unnecessary dependencies
+- **Focused UI**: Sidebar showing only essential service status information
+- **Reduced Complexity**: Single-path execution without conditional feature logic
 
 ## Components and Interfaces
 
@@ -51,24 +55,34 @@ This design outlines the systematic removal of session management and security c
 - Remove security imports and `SECURITY_AVAILABLE` flag
 - Remove security validation in `load_config()` and `save_config()`
 - Remove `SecureBackupManager` usage
-- Simplify backup operations to use basic file operations
+- **Remove all backup functionality**: `create_backup()`, `restore_backup()`, `list_backups()`, `cleanup_old_backups()`
+- Remove backup directory creation and management
+- Simplify `write_config()` to direct file operations without backup creation
+- Remove backup-related parameters from configuration methods
 
 **Key Methods to Modify:**
-- `__init__()`: Remove security component initialization
+- `__init__()`: Remove security component initialization and backup directory setup
 - `load_config()`: Remove security validation
-- `save_config()`: Remove security validation and secure backup logic
+- `save_config()`: Remove security validation and all backup logic
+- Remove backup-related methods entirely
 
 #### 3. `src/traffic_system/frontend/utils/service_manager.py`
 **Changes Required:**
 - Remove security import and `SECURITY_AVAILABLE` flag
 - Remove `validate_operation_security` calls
-- Simplify service operations to direct execution
+- **Remove system performance monitoring**: `get_system_resources()`, CPU/memory tracking in service status
+- Remove performance metrics from `check_service_health()`
+- Simplify service status to show only running/stopped state and basic process information
+- Remove resource usage monitoring and health check complexity
 
 #### 4. `src/traffic_system/frontend/utils/performance.py`
 **Changes Required:**
 - Keep `SessionStateManager` (this is for Streamlit state, not security sessions)
-- Remove any security-related performance monitoring
-- Clarify naming to avoid confusion with security sessions
+- **Remove performance monitoring components**: `PerformanceOptimizer` class, cache statistics, performance metrics
+- Remove complex caching mechanisms and cache statistics tracking
+- Keep basic UI optimizations (loading spinners, progress bars) that improve user experience
+- Remove system resource monitoring and performance tracking
+- Simplify to focus only on essential UI enhancements
 
 ## Data Models
 
