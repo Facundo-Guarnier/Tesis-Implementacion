@@ -23,7 +23,7 @@ os.environ.setdefault("STREAMLIT_SERVER_PORT", "8501")
 os.environ.setdefault("STREAMLIT_SERVER_HEADLESS", "true")
 
 
-def main():
+def main() -> None:
     """Main entry point for direct frontend execution."""
     try:
         # Import and run Streamlit directly

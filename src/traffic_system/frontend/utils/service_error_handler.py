@@ -43,10 +43,10 @@ class ServiceError:
     service_name: str
     message: str
     technical_details: str = ""
-    suggested_actions: list[str] = None
+    suggested_actions: list[str] | None = None
     is_recoverable: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.suggested_actions is None:
             self.suggested_actions = []
 
@@ -185,7 +185,7 @@ class ServiceErrorHandler:
         },
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the error handler."""
         self.error_history: list[ServiceError] = []
 
@@ -215,9 +215,9 @@ class ServiceErrorHandler:
         service_error = ServiceError(
             error_type=error_type,
             service_name=service_name,
-            message=error_info["message"],
+            message=str(error_info["message"]),
             technical_details=technical_details,
-            suggested_actions=error_info["actions"].copy(),
+            suggested_actions=list(error_info["actions"]),
             is_recoverable=error_type
             not in [
                 ServiceErrorType.POETRY_NOT_FOUND,
@@ -283,7 +283,7 @@ class ServiceErrorHandler:
         """
 
         def timeout_handler(func: Callable) -> Callable:
-            def wrapper(*args, **kwargs):
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
                 start_time = time.time()
 
                 try:
@@ -431,7 +431,7 @@ class ServiceErrorHandler:
 
     def get_error_statistics(self) -> dict[str, int]:
         """Get error statistics."""
-        stats = {}
+        stats: dict[str, int] = {}
         for error in self.error_history:
             error_type = error.error_type.value
             stats[error_type] = stats.get(error_type, 0) + 1
@@ -448,7 +448,7 @@ def create_service_error_handler() -> ServiceErrorHandler:
     return ServiceErrorHandler()
 
 
-def with_service_timeout(timeout_seconds: int = 30):
+def with_service_timeout(timeout_seconds: int = 30) -> Any:
     """
     Decorator to add timeout handling to service operations.
 
@@ -460,20 +460,20 @@ def with_service_timeout(timeout_seconds: int = 30):
     """
 
     def decorator(func: Callable) -> Callable:
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             start_time = time.time()
 
             try:
                 result = func(*args, **kwargs)
                 return result
 
-            except Exception:
+            except Exception as err:
                 elapsed_time = time.time() - start_time
 
                 if elapsed_time >= timeout_seconds:
                     raise TimeoutError(
                         f"Operación '{func.__name__}' excedió {timeout_seconds} segundos"
-                    )
+                    ) from err
                 else:
                     raise
 

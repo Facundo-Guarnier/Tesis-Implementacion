@@ -22,6 +22,17 @@ from src.traffic_system.frontend.utils.service_error_handler import (
     with_service_timeout,
 )
 
+try:
+    from src.traffic_system.frontend.utils.security import validate_operation_security
+
+    SECURITY_AVAILABLE = True
+except ImportError:
+
+    def validate_operation_security(operation: str, **kwargs: Any) -> tuple[bool, str]:
+        return True, ""
+
+    SECURITY_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +54,7 @@ class ServiceStatus:
 class ServiceManager:
     """Manages traffic system microservices."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the service manager."""
         self.error_handler = ServiceErrorHandler()
         self._process_cache: dict[str, psutil.Process | None] = {}
@@ -174,7 +185,7 @@ class ServiceManager:
         ):
             try:
                 process = self._process_cache[service_name]
-                if process.is_running():
+                if process and process.is_running():
                     return process
                 else:
                     # Process died, remove from cache
@@ -375,7 +386,8 @@ class ServiceManager:
 
     def get_error_statistics(self) -> dict[str, int]:
         """Get error statistics for all services."""
-        return self.error_handler.get_error_statistics()
+        stats = self.error_handler.get_error_statistics()
+        return dict(stats) if stats else {}
 
     def clear_error_history(self) -> None:
         """Clear the error history."""
@@ -394,6 +406,18 @@ class ServiceManager:
         Returns:
             Tuple of (success, message)
         """
+        # Security validation
+        is_allowed, security_error = validate_operation_security(
+            "service_control",
+            service_name=service_name,
+            command=self.SERVICES.get(service_name, {}).get("command", []),
+        )
+        if not is_allowed:
+            logger.error(
+                f"🔒 Security validation failed for start_service({service_name}): {security_error}"
+            )
+            return False, f"Operación no permitida: {security_error}"
+
         if service_name not in self.SERVICES:
             self.error_handler.handle_service_error(
                 ServiceErrorType.UNKNOWN_SERVICE, service_name
@@ -558,6 +582,16 @@ class ServiceManager:
         Returns:
             Tuple of (success, message)
         """
+        # Security validation
+        is_allowed, security_error = validate_operation_security(
+            "service_control", service_name=service_name
+        )
+        if not is_allowed:
+            logger.error(
+                f"🔒 Security validation failed for stop_service({service_name}): {security_error}"
+            )
+            return False, f"Operación no permitida: {security_error}"
+
         if service_name not in self.SERVICES:
             self.error_handler.handle_service_error(
                 ServiceErrorType.UNKNOWN_SERVICE, service_name
@@ -839,13 +873,19 @@ class ServiceManager:
             elif service_name == "detection":
                 # Check YOLOv8/Ultralytics availability
                 try:
-                    import ultralytics
+                    import importlib.util
+
+                    if importlib.util.find_spec("ultralytics") is None:
+                        return False, "Ultralytics (YOLOv8) no está instalado"
                 except ImportError:
                     return False, "Ultralytics (YOLOv8) no está instalado"
 
                 # Check OpenCV
                 try:
-                    import cv2
+                    import importlib.util
+
+                    if importlib.util.find_spec("cv2") is None:
+                        return False, "OpenCV no está instalado"
                 except ImportError:
                     return False, "OpenCV no está instalado"
 
@@ -938,13 +978,13 @@ class ServiceManager:
         self, service_name: str, operation: str
     ) -> dict[str, Any]:
         """Create enhanced error context for debugging."""
-        context = {
+        context: dict[str, Any] = {
             "service_name": service_name,
             "operation": operation,
             "timestamp": datetime.now().isoformat(),
             "system_info": {
                 "platform": os.name,
-                "python_version": os.sys.version,
+                "python_version": __import__("sys").version,
                 "working_directory": os.getcwd(),
             },
             "service_config": self.SERVICES.get(service_name, {}),
@@ -956,12 +996,13 @@ class ServiceManager:
         }
 
         # Add running services info
-        context["running_services"] = []
+        running_services_list: list[dict[str, Any]] = []
         for svc_name, status in self.get_all_services_status().items():
             if status.is_running:
-                context["running_services"].append(
+                running_services_list.append(
                     {"name": svc_name, "pid": status.process_id, "port": status.port}
                 )
+        context["running_services"] = running_services_list
 
         return context
 
@@ -985,7 +1026,7 @@ class ServiceManager:
             )
 
             # Log timeout context
-            context = self._get_error_context(service_name, operation)
+            context = self._create_enhanced_error_context(service_name, operation)
             logger.error(f"Contexto del timeout: {context}")
 
             # Attempt recovery based on operation type

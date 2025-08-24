@@ -22,6 +22,7 @@ Features:
     - Comprehensive error handling
 """
 
+import codecs
 import logging
 import os
 import sys
@@ -30,10 +31,11 @@ from pathlib import Path
 # Configure UTF-8 encoding for Windows console (only when not running with Streamlit)
 if sys.platform == "win32" and "streamlit" not in sys.modules:
     try:
-        import codecs
 
-        sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
-        sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
+        if hasattr(sys.stdout, "detach"):
+            sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+        if hasattr(sys.stderr, "detach"):
+            sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
     except (AttributeError, ValueError):
         # If streams are already detached or not available, skip encoding setup
         pass
@@ -48,7 +50,7 @@ os.environ.setdefault("STREAMLIT_CLIENT_SHOW_ERROR_DETAILS", "true")
 os.environ.setdefault("STREAMLIT_GLOBAL_DEVELOPMENT_MODE", "false")
 
 # Configure logging with enhanced format and UTF-8 encoding
-log_handlers = []
+log_handlers: list[logging.Handler] = []
 
 # Console handler with UTF-8 encoding
 console_handler = logging.StreamHandler(sys.stdout)
@@ -71,11 +73,6 @@ logger = logging.getLogger("ConfigFrontend")
 
 def check_python_version() -> bool:
     """Check if Python version is compatible."""
-    if sys.version_info < (3, 11):
-        logger.error(f"❌ Python 3.11+ requerido. Versión actual: {sys.version}")
-        logger.error("💡 Actualiza Python a la versión 3.11 o superior")
-        return False
-
     logger.info(f"✅ Python {sys.version.split()[0]} compatible")
     return True
 

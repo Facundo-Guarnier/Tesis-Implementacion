@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ServiceDashboard:
     """Advanced service management dashboard."""
 
-    def __init__(self, service_manager: ServiceManager):
+    def __init__(self, service_manager: ServiceManager) -> None:
         """
         Initialize the service dashboard.
 
@@ -910,91 +910,3 @@ def render_advanced_service_dashboard(service_manager: ServiceManager) -> None:
     except Exception as e:
         st.error(f"❌ Error en dashboard de monitoreo: {e}")
         logger.error(f"Error in monitoring dashboard: {e}")
-
-    def show_monitoring_dashboard(self) -> None:
-        """Show detailed monitoring dashboard."""
-        st.subheader("📊 Dashboard de Monitoreo")
-
-        try:
-            services_status = self.service_manager.get_all_services_status()
-            system_resources = self.service_manager.get_system_resources()
-
-            # Performance metrics over time (simulated)
-            st.write("**Métricas de Rendimiento:**")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # CPU usage chart (placeholder)
-                import numpy as np
-                import pandas as pd
-
-                # Generate sample data for demonstration
-                times = pd.date_range(start="now", periods=20, freq="1min")
-                cpu_data = np.random.normal(system_resources["cpu_percent"], 10, 20)
-                cpu_data = np.clip(cpu_data, 0, 100)
-
-                chart_data = pd.DataFrame({"time": times, "CPU %": cpu_data})
-
-                st.line_chart(chart_data.set_index("time"))
-
-            with col2:
-                # Memory usage chart (placeholder)
-                memory_data = np.random.normal(
-                    system_resources["memory_percent"], 5, 20
-                )
-                memory_data = np.clip(memory_data, 0, 100)
-
-                chart_data = pd.DataFrame({"time": times, "Memory %": memory_data})
-
-                st.line_chart(chart_data.set_index("time"))
-
-            # Service uptime tracking
-            st.write("**Tiempo de Actividad de Servicios:**")
-
-            uptime_data = []
-            for service_name, status in services_status.items():
-                if status.is_running:
-                    uptime_hours = status.runtime_seconds / 3600
-                    uptime_data.append(
-                        {
-                            "Servicio": service_name,
-                            "Uptime (horas)": uptime_hours,
-                            "Estado": "🟢 Activo",
-                        }
-                    )
-                else:
-                    uptime_data.append(
-                        {
-                            "Servicio": service_name,
-                            "Uptime (horas)": 0,
-                            "Estado": "🔴 Inactivo",
-                        }
-                    )
-
-            if uptime_data:
-                uptime_df = pd.DataFrame(uptime_data)
-                st.dataframe(uptime_df, use_container_width=True)
-
-            # Port usage summary
-            st.write("**Uso de Puertos:**")
-            port_data = []
-            for service_name, status in services_status.items():
-                if status.port:
-                    port_in_use = self.service_manager.is_port_in_use(status.port)
-                    port_data.append(
-                        {
-                            "Puerto": status.port,
-                            "Servicio": service_name,
-                            "En Uso": "✅" if port_in_use else "❌",
-                            "Estado Servicio": "🟢" if status.is_running else "🔴",
-                        }
-                    )
-
-            if port_data:
-                port_df = pd.DataFrame(port_data)
-                st.dataframe(port_df, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"❌ Error en dashboard de monitoreo: {e}")
-            logger.error(f"Error in monitoring dashboard: {e}")

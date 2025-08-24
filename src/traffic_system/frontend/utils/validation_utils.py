@@ -195,7 +195,7 @@ class ValidationFeedbackUI:
         return False
 
     def show_field_validation_status(
-        self, field_path: str, value: Any, expected_type: type = None
+        self, field_path: str, value: Any, expected_type: type | None = None
     ) -> None:
         """
         Show validation status for a specific field.
@@ -284,7 +284,7 @@ class ValidationFeedbackUI:
         """
         try:
             is_valid, errors = self.config_handler.test_load_config(config)
-            warnings = []  # Could add warnings logic here if needed
+            warnings: list[str] = []  # Could add warnings logic here if needed
             return is_valid, errors, warnings
         except Exception as e:
             return False, [f"Error during validation: {e}"], []

@@ -111,7 +111,10 @@ class BackupManagerUI:
 
             # Filter and sort backups
             filtered_backups = self._filter_and_sort_backups(
-                backups, search_term, sort_by, show_count
+                backups,
+                search_term,
+                sort_by,
+                int(str(show_count)) if str(show_count) != "Todos" else "Todos",
             )
 
             # Render backup list

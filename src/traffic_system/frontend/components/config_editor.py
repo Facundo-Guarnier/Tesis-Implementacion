@@ -189,7 +189,7 @@ class ConfigWidgetFactory:
             if constraints.get("required", False):
                 st.caption("🔴 Requerido")
 
-        return new_value
+        return str(new_value)
 
     def _create_list_widget(
         self,
@@ -217,13 +217,13 @@ class ConfigWidgetFactory:
 
                 with col1:
                     new_item: Any
-                    if item_type == bool:
+                    if item_type is bool:
                         new_item = st.checkbox(
                             f"Elemento {i+1}",
                             value=bool(item),
                             key=f"{widget_key}_item_{i}",
                         )
-                    elif item_type in (int, float):
+                    elif item_type is int or item_type is float:
                         new_item = st.number_input(
                             f"Elemento {i+1}", value=item, key=f"{widget_key}_item_{i}"
                         )
@@ -234,7 +234,7 @@ class ConfigWidgetFactory:
                             key=f"{widget_key}_item_{i}",
                         )
                         # Convert back to original type if needed
-                        if item_type != str:
+                        if item_type is not str:
                             try:
                                 new_item = item_type(text_value)
                             except (ValueError, TypeError):
@@ -262,17 +262,17 @@ class ConfigWidgetFactory:
 
             with col1:
                 new_item_value: Any
-                if item_type == bool:
+                if item_type is bool:
                     new_item_value = st.checkbox(
                         "Nuevo elemento", key=f"{widget_key}_new_item"
                     )
-                elif item_type == int:
+                elif item_type is int:
                     new_item_value = st.number_input(
                         "Nuevo elemento",
                         value=0,
                         key=f"{widget_key}_new_item",
                     )
-                elif item_type == float:
+                elif item_type is float:
                     new_item_value = st.number_input(
                         "Nuevo elemento",
                         value=0.0,
@@ -285,7 +285,7 @@ class ConfigWidgetFactory:
 
             with col2:
                 if st.button("➕ Agregar", key=f"{widget_key}_add"):
-                    if new_item_value or item_type == bool:
+                    if new_item_value is bool or item_type is bool:
                         new_list.append(new_item_value)
                         st.rerun()
 
@@ -447,7 +447,7 @@ class ConfigSectionRenderer:
 class ConfigChangePreview:
     """Handles configuration change preview and diff display."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the change preview."""
         pass
 
@@ -514,7 +514,11 @@ class ConfigChangePreview:
         Returns:
             Dictionary with modified, added, and removed changes
         """
-        changes = {"modified": {}, "added": {}, "removed": {}}
+        changes: dict[str, dict[str, Any]] = {
+            "modified": {},
+            "added": {},
+            "removed": {},
+        }
 
         # Check for modifications and removals
         for key, value in original.items():

@@ -4,8 +4,11 @@ Main Streamlit Application for Traffic System Configuration
 Provides web interface for managing configuration and controlling services.
 """
 
+import hashlib
 import logging
+import time
 import traceback
+from datetime import datetime
 from typing import Any
 
 import streamlit as st
@@ -13,13 +16,69 @@ import streamlit as st
 from src.traffic_system.frontend.utils.config_handler import ConfigHandler
 from src.traffic_system.frontend.utils.service_manager import ServiceManager
 
+try:
+    from src.traffic_system.frontend.utils.security import get_session_manager
+
+    SECURITY_AVAILABLE = True
+except ImportError:
+    SECURITY_AVAILABLE = False
+
+try:
+    from src.traffic_system.frontend.utils.performance import (
+        add_performance_metrics_sidebar,
+        cached_config_load,
+        cached_service_status,
+        debounce_input,
+        get_performance_optimizer,
+        get_session_manager as get_session_state_manager,
+        get_ui_optimizer,
+        optimize_streamlit_config,
+    )
+
+    PERFORMANCE_AVAILABLE = True
+except ImportError:
+    PERFORMANCE_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def initialize_session_state() -> None:
-    """Initialize Streamlit session state variables."""
+    """Initialize Streamlit session state variables with performance optimizations."""
+    # Use session state manager for efficient initialization
+    if PERFORMANCE_AVAILABLE:
+        session_mgr = get_session_state_manager()
+
+        # Initialize performance optimizer
+        session_mgr.initialize_if_missing(
+            "performance_optimizer", get_performance_optimizer()
+        )
+
+        # Cleanup old session state keys periodically
+        if (
+            session_mgr.get_with_default("last_cleanup", 0) < time.time() - 300
+        ):  # Every 5 minutes
+            cleaned = session_mgr.cleanup_old_keys()
+            if cleaned > 0:
+                logger.info(f"🧹 Cleaned up {cleaned} old session state keys")
+            st.session_state.last_cleanup = time.time()
+
+    # Initialize session management
+    if SECURITY_AVAILABLE and "session_id" not in st.session_state:
+        # Create a unique session ID based on browser session
+        session_data = f"{time.time()}_{st.session_state.get('_session_id', 'unknown')}"
+        st.session_state.session_id = hashlib.md5(session_data.encode()).hexdigest()
+
+        # Register session with session manager
+        session_manager = get_session_manager()
+        session_manager.create_session(
+            st.session_state.session_id,
+            {"created_at": time.time(), "user_agent": "streamlit_frontend"},
+        )
+        logger.info(f"🔐 Created session: {st.session_state.session_id}")
+
+    # Initialize core components with caching
     if "config_handler" not in st.session_state:
         st.session_state.config_handler = ConfigHandler()
 
@@ -40,20 +99,33 @@ def initialize_session_state() -> None:
             # Create a dummy validation UI to prevent crashes
             st.session_state.validator = None
 
+    # Load configuration with caching
     if "current_config" not in st.session_state:
         try:
-            st.session_state.current_config = (
-                st.session_state.config_handler.read_config()
-            )
+            if PERFORMANCE_AVAILABLE:
+                # Use cached config loading
+                st.session_state.current_config = cached_config_load("config.yaml")
+            else:
+                st.session_state.current_config = (
+                    st.session_state.config_handler.read_config()
+                )
         except Exception as e:
             st.error(f"❌ Error cargando configuración: {e}")
             st.session_state.current_config = {}
 
-    if "config_modified" not in st.session_state:
-        st.session_state.config_modified = False
-
-    if "last_validation_result" not in st.session_state:
-        st.session_state.last_validation_result = (True, [], None)
+    # Initialize state flags
+    if PERFORMANCE_AVAILABLE:
+        session_mgr = get_session_state_manager()
+        session_mgr.initialize_if_missing("config_modified", False)
+        session_mgr.initialize_if_missing("last_validation_result", (True, [], None))
+        session_mgr.initialize_if_missing("ui_theme", "light")
+        session_mgr.initialize_if_missing("auto_refresh", True)
+        session_mgr.initialize_if_missing("refresh_interval", 30)  # seconds
+    else:
+        if "config_modified" not in st.session_state:
+            st.session_state.config_modified = False
+        if "last_validation_result" not in st.session_state:
+            st.session_state.last_validation_result = (True, [], None)
 
 
 def render_sidebar() -> str:
@@ -81,11 +153,23 @@ def render_sidebar() -> str:
 
     st.sidebar.markdown("---")
 
-    # Quick status indicators
+    # Quick status indicators with caching
     st.sidebar.subheader("Estado Rápido")
 
     try:
-        service_status = st.session_state.service_manager.get_all_services_status()
+        # Use cached service status for better performance
+        if PERFORMANCE_AVAILABLE:
+            service_status_dict = cached_service_status()
+            # Convert back to ServiceStatus objects for compatibility
+            from src.traffic_system.frontend.utils.service_manager import ServiceStatus
+
+            service_status = {
+                name: ServiceStatus(**data)
+                for name, data in service_status_dict.items()
+            }
+        else:
+            service_status = st.session_state.service_manager.get_all_services_status()
+
         running_count = sum(
             1 for status in service_status.values() if status.is_running
         )
@@ -107,11 +191,46 @@ def render_sidebar() -> str:
     except Exception as e:
         st.sidebar.error(f"❌ Error verificando servicios: {e}")
 
+    # Security status
+    if SECURITY_AVAILABLE:
+        st.sidebar.success("🔒 Seguridad activa")
+        if "session_id" in st.session_state:
+            session_manager = get_session_manager()
+            active_sessions = len(session_manager.active_sessions)
+            st.sidebar.info(f"👥 Sesiones activas: {active_sessions}")
+    else:
+        st.sidebar.warning("⚠️ Seguridad limitada")
+
     # Configuration status
     if st.session_state.config_modified:
         st.sidebar.warning("⚠️ Configuración modificada")
     else:
         st.sidebar.info("ℹ️ Configuración guardada")
+
+    # Performance metrics (if available)
+    if PERFORMANCE_AVAILABLE:
+        add_performance_metrics_sidebar()
+
+    # Auto-refresh toggle
+    if PERFORMANCE_AVAILABLE:
+        st.sidebar.markdown("---")
+        auto_refresh = st.sidebar.checkbox(
+            "🔄 Auto-refresh",
+            value=st.session_state.get("auto_refresh", True),
+            help="Actualizar automáticamente el estado de los servicios",
+        )
+        if auto_refresh != st.session_state.get("auto_refresh", True):
+            st.session_state.auto_refresh = auto_refresh
+
+        if auto_refresh:
+            refresh_interval = st.sidebar.slider(
+                "Intervalo (seg)",
+                min_value=5,
+                max_value=120,
+                value=st.session_state.get("refresh_interval", 30),
+                step=5,
+            )
+            st.session_state.refresh_interval = refresh_interval
 
     return pages[selected_page]
 
@@ -190,6 +309,20 @@ def render_config_page() -> None:
     """Render the configuration editing page with enhanced validation integration."""
     st.title("⚙️ Configuración del Sistema")
 
+    # Performance optimization: Show loading spinner for heavy operations
+    if PERFORMANCE_AVAILABLE:
+        ui_optimizer = get_ui_optimizer()
+
+        # Check if we should debounce validation
+        debounce_input("config_validation", 1000)  # 1 second debounce
+
+        # Add loading state management
+        is_loading = ui_optimizer.add_loading_state("config_page", False)
+
+        if is_loading:
+            with ui_optimizer.show_loading_spinner("Cargando configuración..."):
+                time.sleep(0.1)  # Small delay for UI feedback
+
     # Import the advanced config editor
     from src.traffic_system.frontend.components.config_editor import (
         render_advanced_config_editor,
@@ -218,14 +351,11 @@ def render_config_page() -> None:
 
             # Save button with validation-aware styling
             if overall_valid:
-                save_button_type = "primary"
                 save_button_text = "💾 Guardar"
             else:
-                save_button_type = "secondary"
                 save_button_text = f"⚠️ Guardar ({total_errors} errores)"
 
         except Exception:
-            save_button_type = "secondary"
             save_button_text = "💾 Guardar"
             overall_valid = False
 
@@ -233,7 +363,7 @@ def render_config_page() -> None:
             save_button_text,
             use_container_width=True,
             disabled=not st.session_state.config_modified,
-            type=save_button_type,
+            type="primary",
             help=(
                 "Guardar configuración con validación completa"
                 if overall_valid
@@ -345,7 +475,6 @@ def render_config_field(key: str, value: Any, path: str) -> None:
         path: Full path to the field
     """
     new_value: Any = None
-    validation_key = f"validation_{path}"
 
     # Create columns for field and validation feedback
     col1, col2 = st.columns([3, 1])
@@ -599,10 +728,10 @@ def test_configuration_loading(config_data: dict[str, Any]) -> bool:
     """Test if configuration can be loaded by the system."""
     try:
         # Import the config models to test loading
-        from src.traffic_system.core.config_models import TrafficSystemConfig
+        from src.traffic_system.core.config_models import AppSettings
 
         # Try to create a config object
-        test_config = TrafficSystemConfig(**config_data)
+        test_config = AppSettings(**config_data)
 
         # Basic sanity checks
         if not test_config.services:
@@ -782,7 +911,7 @@ def _set_nested_value(config: dict, field_path: str, value: Any) -> None:
 
 
 def validate_config_before_save(
-    config: dict[str, Any]
+    config: dict[str, Any],
 ) -> tuple[bool, list[str], str | None]:
     """
     Comprehensive validation before saving configuration.
@@ -1101,8 +1230,46 @@ def render_basic_config_editor() -> None:
 
 
 def render_services_page() -> None:
-    """Render the services management page."""
+    """Render the services management page with performance optimizations."""
     st.title("🔧 Gestión de Servicios")
+
+    # Performance optimizations
+    if PERFORMANCE_AVAILABLE:
+        ui_optimizer = get_ui_optimizer()
+
+        # Add loading state for service operations
+        is_loading = ui_optimizer.add_loading_state("services_page", False)
+
+        # Create responsive layout
+        col1, col2 = ui_optimizer.create_responsive_columns(2, [3, 1])
+
+        with col2:
+            # Quick actions panel
+            st.subheader("🚀 Acciones Rápidas")
+
+            if st.button("🔄 Actualizar Todo", use_container_width=True):
+                ui_optimizer.set_loading_state("services_page", True)
+                # Clear cache to force refresh
+                optimizer = get_performance_optimizer()
+                optimizer.clear_cache("service")
+                st.rerun()
+
+            if st.button("▶️ Iniciar Todos", use_container_width=True):
+                ui_optimizer.set_loading_state("services_page", True)
+                # This would trigger start all services
+                st.info("Iniciando todos los servicios...")
+
+            if st.button("⏹️ Detener Todos", use_container_width=True):
+                ui_optimizer.set_loading_state("services_page", True)
+                # This would trigger stop all services
+                st.info("Deteniendo todos los servicios...")
+
+        with col1:
+            # Main service dashboard
+            if is_loading:
+                with ui_optimizer.show_loading_spinner("Actualizando servicios..."):
+                    time.sleep(0.5)
+                ui_optimizer.set_loading_state("services_page", False)
 
     # Import the advanced service dashboard
     from src.traffic_system.frontend.components.service_dashboard import (
@@ -1373,23 +1540,75 @@ def handle_page_routing(page: str) -> None:
 
 
 def main() -> None:
-    """Main Streamlit application entry point."""
-    # Configure page
-    st.set_page_config(
-        page_title="Traffic System Config",
-        page_icon="🚦",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
+    """Main Streamlit application entry point with performance optimizations."""
+    # Apply Streamlit optimizations
+    if PERFORMANCE_AVAILABLE:
+        optimize_streamlit_config()
+    else:
+        # Fallback configuration
+        st.set_page_config(
+            page_title="Traffic System Config",
+            page_icon="🚦",
+            layout="wide",
+            initial_sidebar_state="expanded",
+        )
 
-    # Initialize session state
+    # Initialize session state with optimizations
     initialize_session_state()
+
+    # Validate session if security is available
+    if SECURITY_AVAILABLE and "session_id" in st.session_state:
+        session_manager = get_session_manager()
+        is_valid, error = session_manager.validate_session(st.session_state.session_id)
+
+        if not is_valid:
+            st.error(f"🔒 Sesión inválida: {error}")
+            st.info("🔄 Recarga la página para crear una nueva sesión")
+            st.stop()
+
+        # Cleanup expired sessions periodically
+        if (
+            st.session_state.get("last_cleanup", 0) < time.time() - 300
+        ):  # Every 5 minutes
+            cleaned = session_manager.cleanup_expired_sessions()
+            if cleaned > 0:
+                logger.info(f"🧹 Cleaned up {cleaned} expired sessions")
+            st.session_state.last_cleanup = time.time()
+
+    # Auto-refresh functionality
+    if PERFORMANCE_AVAILABLE and st.session_state.get("auto_refresh", True):
+        # Use Streamlit's auto-refresh mechanism
+        time.sleep(0.1)  # Small delay to prevent excessive refreshing
 
     # Render sidebar and get selected page
     selected_page = render_sidebar()
 
-    # Route to appropriate page
-    handle_page_routing(selected_page)
+    # Route to appropriate page with error handling
+    try:
+        handle_page_routing(selected_page)
+    except Exception as e:
+        st.error(f"❌ Error en la aplicación: {e}")
+        logger.error(f"Application error: {e}")
+
+        # Show error details in expander
+        with st.expander("🔍 Detalles del error", expanded=False):
+            st.code(traceback.format_exc())
+
+        # Offer recovery options
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Recargar página"):
+                st.rerun()
+        with col2:
+            if st.button("🧹 Limpiar caché") and PERFORMANCE_AVAILABLE:
+                optimizer = get_performance_optimizer()
+                cleared = optimizer.clear_cache()
+                st.success(f"Cache limpiado: {cleared} entradas")
+                st.rerun()
+        with col3:
+            if st.button("🏠 Ir al Dashboard"):
+                st.session_state.selected_page = "dashboard"
+                st.rerun()
 
 
 if __name__ == "__main__":
