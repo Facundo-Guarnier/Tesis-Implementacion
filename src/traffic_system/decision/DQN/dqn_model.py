@@ -133,11 +133,109 @@ class DQNModel:
         # TODO: Agregar que avance hasta los X pasos iniciales de la simulación para que las calles estén cargadas.
 
         logger.info("🚦 Comenzando la toma de decisiones...")
+
+        # Variables para acumular recompensas comparativas
+        self._total_dqn_reward = 0.0
+        self._step_count = 0
+
         done = False
         while not done:
             state = self._get_current_state()
             action_prediction = self.model.predict(state, verbose=0)
             done = self._execute_action_and_advance(int(np.argmax(action_prediction)))
+
+            # Acumular recompensa después de ejecutar la acción
+            if not done:  # No calcular recompensa en el último paso
+                reward = self._calculate_reward()
+                self._total_dqn_reward += reward
+                self._step_count += 1
+
+        # Mostrar resumen final de recompensa acumulada
+        self._log_final_reward_summary()
+
+    def _calculate_reward(self) -> float:
+        """
+        Calcula la recompensa actual usando EXACTAMENTE la misma lógica que SimplifiedDQNTrainer.
+
+        Returns:
+            Recompensa calculada para el estado actual
+        """
+        try:
+            wait_times_response = self._service.get_wait_times()
+            quantities_response = self._service.get_quantities()
+
+            if wait_times_response is None or quantities_response is None:
+                return -10.0
+
+            # Obtener datos (MISMA LÓGICA que trainer)
+            wait_times = wait_times_response.tiempos_espera
+            quantities = list(quantities_response.cantidades.values())
+
+            if not wait_times or not quantities:
+                return -10.0
+
+            # Validación de datos anómalos (IGUAL que trainer)
+            max_wait_time = max(wait_times)
+            total_vehicles = sum(quantities)
+
+            if max_wait_time > 5000 or total_vehicles > 150:
+                return -100.0  # Penalización por datos anómalos
+
+            # Calcular componentes separados (EXACTAMENTE IGUAL que trainer)
+            avg_wait_time = sum(wait_times) / len(wait_times)
+            wait_penalty = -(avg_wait_time * 0.2)
+
+            # Penalización por congestión total
+            congestion_penalty = (
+                -max(0, (total_vehicles - 20) * 0.5) if total_vehicles > 20 else 0.0
+            )
+
+            # Bonificación por eficiencia
+            efficiency_bonus = (
+                min(5.0, total_vehicles * 0.1)
+                if total_vehicles > 0 and avg_wait_time < 50
+                else 0.0
+            )
+
+            # Recompensa total
+            reward_total = wait_penalty + congestion_penalty + efficiency_bonus
+
+            # Clipping para estabilidad (IGUAL que trainer)
+            import numpy as np
+
+            reward_total = float(np.clip(reward_total, -120.0, 10.0))
+
+            return reward_total
+
+        except Exception as e:
+            logger = logging.getLogger(f"{self.__class__.__name__}._calculate_reward")
+            logger.warning(f"⚠️ Error calculando recompensa: {e}")
+            return -10.0
+
+    def _log_final_reward_summary(self) -> None:
+        """
+        Muestra un resumen final de la recompensa acumulada DQN.
+        Para obtener la comparación completa, también necesitas ejecutar el baseline de tiempos fijos.
+        """
+        logger = logging.getLogger(
+            f"{self.__class__.__name__}._log_final_reward_summary"
+        )
+
+        logger.info("=" * 80)
+        logger.info("🏆 === RESUMEN FINAL - RECOMPENSA ACUMULADA DQN ===")
+        logger.info("=" * 80)
+        logger.info(f"📊 Recompensa Total DQN: {self._total_dqn_reward:.2f}")
+        logger.info(f"📊 Pasos de Decisión: {self._step_count}")
+        if self._step_count > 0:
+            avg_reward = self._total_dqn_reward / self._step_count
+            logger.info(f"📊 Recompensa Promedio por Paso: {avg_reward:.2f}")
+
+        logger.info("")
+        logger.info("ℹ️  Para comparación completa:")
+        logger.info(f"   1. Anota esta recompensa DQN: {self._total_dqn_reward:.2f}")
+        logger.info("   2. Ejecuta una simulación con tiempos fijos")
+        logger.info("   3. Compara las recompensas para obtener mejora porcentual")
+        logger.info("=" * 80)
 
     def _get_current_state(self) -> NDArray:
         """
