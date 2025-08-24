@@ -11,12 +11,14 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import psutil
 
 from src.traffic_system.frontend.utils.service_error_handler import (
     ServiceErrorHandler,
+    ServiceErrorType,
     with_service_timeout,
 )
 
@@ -168,7 +170,7 @@ class ServiceManager:
         # Use cache if recent
         if (
             service_name in self._process_cache
-            and current_time - self._last_update < self._cache_duration
+            and current_time - self._cache_timestamp < self._cache_ttl
         ):
             try:
                 process = self._process_cache[service_name]
@@ -194,7 +196,7 @@ class ServiceManager:
                         # Additional check to ensure it's a Python process
                         if any("python" in arg.lower() for arg in cmdline):
                             self._process_cache[service_name] = process
-                            self._last_update = int(current_time)
+                            self._cache_timestamp = int(current_time)
                             return process
 
                 except (
@@ -364,7 +366,7 @@ class ServiceManager:
     def clear_cache(self) -> None:
         """Clear the process cache to force fresh lookups."""
         self._process_cache.clear()
-        self._last_update = 0
+        self._cache_timestamp = 0
         logger.info("🔄 Cache de procesos limpiado")
 
     def show_service_troubleshooting(self, service_name: str) -> None:
@@ -379,10 +381,12 @@ class ServiceManager:
         """Clear the error history."""
         self.error_handler.clear_error_history()
 
-    @with_service_timeout(timeout_seconds=30)
+    @with_service_timeout(
+        timeout_seconds=45
+    )  # Increased timeout for better reliability
     def start_service(self, service_name: str) -> tuple[bool, str]:
         """
-        Start a service using poetry run with comprehensive error handling.
+        Start a service using poetry run with enhanced error handling and diagnostics.
 
         Args:
             service_name: Name of the service to start
@@ -397,6 +401,9 @@ class ServiceManager:
             return False, f"Servicio desconocido: {service_name}"
 
         try:
+            # Pre-flight checks
+            logger.info(f"🔍 Ejecutando verificaciones previas para {service_name}...")
+
             # Check if service is already running
             status = self.get_service_status(service_name)
             if status.is_running:
@@ -409,45 +416,101 @@ class ServiceManager:
                 msg = f"El servicio {service_name} ya está ejecutándose (PID: {status.process_id})"
                 return True, msg
 
+            # Check Poetry availability
+            if not self._check_poetry_available():
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.POETRY_NOT_FOUND,
+                    service_name,
+                    "Poetry no encontrado en PATH",
+                )
+                return False, "Poetry no está disponible"
+
             # Check for port conflicts
             service_config = self.SERVICES[service_name]
             if service_config["port"] and self.is_port_in_use(service_config["port"]):
+                conflicting_process = self._get_process_using_port(
+                    service_config["port"]
+                )
                 self.error_handler.handle_service_error(
                     ServiceErrorType.PORT_CONFLICT,
                     service_name,
-                    f"Puerto {service_config['port']} en uso",
+                    f"Puerto {service_config['port']} usado por: {conflicting_process}",
                 )
-                return False, f"Puerto {service_config['port']} ya está en uso"
+                return (
+                    False,
+                    f"Puerto {service_config['port']} ya está en uso por: {conflicting_process}",
+                )
+
+            # Check system resources
+            if not self._check_system_resources():
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.RESOURCE_UNAVAILABLE,
+                    service_name,
+                    "Recursos del sistema insuficientes",
+                )
+                return False, "Recursos del sistema insuficientes"
+
+            # Check service-specific dependencies
+            dependency_check = self._check_service_dependencies(service_name)
+            if not dependency_check[0]:
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.CONFIGURATION_ERROR,
+                    service_name,
+                    dependency_check[1],
+                )
+                return False, f"Dependencias faltantes: {dependency_check[1]}"
 
             # Start the service
             command: list[str] = service_config["command"]
             logger.info(f"🚀 Iniciando servicio {service_name}: {' '.join(command)}")
 
-            # Start process in background
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=os.getcwd(),
-                creationflags=(
-                    subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-                ),
-            )
+            # Enhanced process startup with better error capture
+            try:
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=os.getcwd(),
+                    text=True,  # Enable text mode for better error handling
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                    ),
+                )
+            except FileNotFoundError as e:
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.STARTUP_FAILED,
+                    service_name,
+                    f"Comando no encontrado: {e}",
+                )
+                return False, f"Error ejecutando comando: {e}"
+            except PermissionError as e:
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.PERMISSION_DENIED,
+                    service_name,
+                    f"Permisos insuficientes: {e}",
+                )
+                return False, f"Permisos insuficientes: {e}"
 
-            # Give the process a moment to start
-            time.sleep(2)
+            # Enhanced startup verification with progressive checks
+            startup_success = self._verify_service_startup(service_name, process)
 
-            # Check if process is still running
-            if process.poll() is None:
+            if startup_success[0]:
                 # Clear cache to force fresh lookup
                 self.clear_cache()
-
                 success_msg = f"Servicio {service_name} iniciado correctamente (PID: {process.pid})"
                 logger.info(f"✅ {success_msg}")
                 return True, success_msg
             else:
-                # Process died immediately
-                stdout, stderr = process.communicate()
+                # Startup failed - get detailed error information
+                stdout, stderr = process.communicate(timeout=5)
+                error_details = self._analyze_startup_failure(
+                    service_name, stdout, stderr
+                )
+
+                self.error_handler.handle_service_error(
+                    ServiceErrorType.STARTUP_FAILED, service_name, error_details
+                )
+                return False, f"Fallo en el inicio: {error_details}"
                 error_msg = f"El servicio {service_name} falló al iniciar"
                 if stderr:
                     error_msg += f": {stderr.decode()[:200]}"
@@ -688,3 +751,512 @@ class ServiceManager:
                 missing.append(dep_service)
 
         return len(missing) == 0, missing
+
+    def _check_poetry_available(self) -> bool:
+        """Check if Poetry is available in the system."""
+        try:
+            result = subprocess.run(
+                ["poetry", "--version"], capture_output=True, text=True, timeout=10
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    def _get_process_using_port(self, port: int) -> str:
+        """Get information about the process using a specific port."""
+        try:
+            for conn in psutil.net_connections():
+                if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+                    try:
+                        process = psutil.Process(conn.pid)
+                        return f"{process.name()} (PID: {conn.pid})"
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        return f"PID: {conn.pid}"
+            return "Proceso desconocido"
+        except Exception:
+            return "No se pudo determinar"
+
+    def _check_system_resources(self) -> bool:
+        """Check if system has sufficient resources."""
+        try:
+            # Check available memory (require at least 500MB free)
+            memory = psutil.virtual_memory()
+            if memory.available < 500 * 1024 * 1024:  # 500MB in bytes
+                logger.warning(
+                    f"⚠️ Memoria disponible baja: {memory.available / 1024 / 1024:.0f}MB"
+                )
+                return False
+
+            # Check CPU usage (require less than 90% usage)
+            cpu_percent = psutil.cpu_percent(interval=1)
+            if cpu_percent > 90:
+                logger.warning(f"⚠️ Alto uso de CPU: {cpu_percent:.1f}%")
+                return False
+
+            # Check disk space (require at least 1GB free)
+            try:
+                disk = psutil.disk_usage("/")
+                if disk.free < 1024 * 1024 * 1024:  # 1GB in bytes
+                    logger.warning(
+                        f"⚠️ Espacio en disco bajo: {disk.free / 1024 / 1024 / 1024:.1f}GB"
+                    )
+                    return False
+            except Exception:
+                # Disk check failed, but don't block service start
+                pass
+
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error verificando recursos del sistema: {e}")
+            return True  # If we can't check, assume it's okay
+
+    def _check_service_dependencies(self, service_name: str) -> tuple[bool, str]:
+        """Check service-specific dependencies."""
+        try:
+            if service_name == "simulation":
+                # Check SUMO availability
+                try:
+                    result = subprocess.run(
+                        ["sumo", "--version"], capture_output=True, timeout=5
+                    )
+                    if result.returncode != 0:
+                        return False, "SUMO no está instalado o no está en PATH"
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    return False, "SUMO no encontrado"
+
+            elif service_name == "decision":
+                # Check TensorFlow availability
+                try:
+                    import tensorflow as tf
+
+                    # Quick TensorFlow test
+                    tf.constant([1, 2, 3])
+                except ImportError:
+                    return False, "TensorFlow no está instalado"
+                except Exception as e:
+                    return False, f"Error en TensorFlow: {e}"
+
+            elif service_name == "detection":
+                # Check YOLOv8/Ultralytics availability
+                try:
+                    import ultralytics
+                except ImportError:
+                    return False, "Ultralytics (YOLOv8) no está instalado"
+
+                # Check OpenCV
+                try:
+                    import cv2
+                except ImportError:
+                    return False, "OpenCV no está instalado"
+
+            return True, ""
+
+        except Exception as e:
+            return False, f"Error verificando dependencias: {e}"
+
+    def _verify_service_startup(
+        self, service_name: str, process: subprocess.Popen
+    ) -> tuple[bool, str]:
+        """Verify that a service started successfully with progressive checks."""
+        try:
+            # Wait for initial startup
+            time.sleep(3)
+
+            # Check if process is still running
+            if process.poll() is not None:
+                return False, "Proceso terminó inmediatamente"
+
+            # For services with ports, check if port is listening
+            service_config = self.SERVICES[service_name]
+            if service_config["port"]:
+                # Wait a bit more for port to be ready
+                time.sleep(2)
+
+                # Check if port is now listening
+                port_listening = False
+                for _ in range(10):  # Try for up to 10 seconds
+                    if self.is_port_in_use(service_config["port"]):
+                        port_listening = True
+                        break
+                    time.sleep(1)
+
+                if not port_listening:
+                    return False, f"Puerto {service_config['port']} no está escuchando"
+
+            # Final process check
+            if process.poll() is not None:
+                return False, "Proceso terminó durante la verificación"
+
+            return True, "Startup verificado exitosamente"
+
+        except Exception as e:
+            return False, f"Error durante verificación: {e}"
+
+    def _analyze_startup_failure(
+        self, service_name: str, stdout: str, stderr: str
+    ) -> str:
+        """Analyze startup failure and provide detailed error information."""
+        error_details = []
+
+        # Analyze stderr for common errors
+        if stderr:
+            stderr_lower = stderr.lower()
+
+            if "modulenotfounderror" in stderr_lower:
+                error_details.append("Módulo Python faltante")
+            elif "permission denied" in stderr_lower:
+                error_details.append("Permisos insuficientes")
+            elif "address already in use" in stderr_lower:
+                error_details.append("Puerto ya en uso")
+            elif "connection refused" in stderr_lower:
+                error_details.append("Conexión rechazada")
+            elif "no such file" in stderr_lower:
+                error_details.append("Archivo no encontrado")
+            elif "tensorflow" in stderr_lower and "error" in stderr_lower:
+                error_details.append("Error de TensorFlow")
+            elif "sumo" in stderr_lower and (
+                "not found" in stderr_lower or "error" in stderr_lower
+            ):
+                error_details.append("Error de SUMO")
+            else:
+                error_details.append("Error desconocido en stderr")
+
+        # Analyze stdout for additional info
+        if stdout and "error" in stdout.lower():
+            error_details.append("Error reportado en stdout")
+
+        # Combine error details
+        if error_details:
+            result = "; ".join(error_details)
+            if stderr:
+                result += f"\nDetalles técnicos: {stderr[:500]}"  # Limit stderr length
+            return result
+        else:
+            return f"Fallo sin detalles específicos. stderr: {stderr[:200] if stderr else 'vacío'}"
+
+    def _create_enhanced_error_context(
+        self, service_name: str, operation: str
+    ) -> dict[str, Any]:
+        """Create enhanced error context for debugging."""
+        context = {
+            "service_name": service_name,
+            "operation": operation,
+            "timestamp": datetime.now().isoformat(),
+            "system_info": {
+                "platform": os.name,
+                "python_version": os.sys.version,
+                "working_directory": os.getcwd(),
+            },
+            "service_config": self.SERVICES.get(service_name, {}),
+            "system_resources": {
+                "memory_available": psutil.virtual_memory().available,
+                "cpu_percent": psutil.cpu_percent(),
+                "disk_usage": psutil.disk_usage(".").percent,
+            },
+        }
+
+        # Add running services info
+        context["running_services"] = []
+        for svc_name, status in self.get_all_services_status().items():
+            if status.is_running:
+                context["running_services"].append(
+                    {"name": svc_name, "pid": status.process_id, "port": status.port}
+                )
+
+        return context
+
+    def handle_service_timeout(
+        self, service_name: str, operation: str, timeout_seconds: int
+    ) -> tuple[bool, str]:
+        """
+        Handle service operation timeout with recovery options.
+
+        Args:
+            service_name: Name of the service
+            operation: Operation that timed out
+            timeout_seconds: Timeout duration
+
+        Returns:
+            Tuple of (recovery_success, message)
+        """
+        try:
+            logger.error(
+                f"⏰ Timeout en operación '{operation}' para {service_name} ({timeout_seconds}s)"
+            )
+
+            # Log timeout context
+            context = self._get_error_context(service_name, operation)
+            logger.error(f"Contexto del timeout: {context}")
+
+            # Attempt recovery based on operation type
+            if operation == "start":
+                # Try to find and kill any partially started process
+                process = self._find_service_process(service_name)
+                if process:
+                    try:
+                        logger.warning(
+                            f"🔄 Terminando proceso parcialmente iniciado: PID {process.pid}"
+                        )
+                        process.terminate()
+                        process.wait(timeout=5)
+                        return (
+                            True,
+                            f"Proceso parcialmente iniciado terminado (PID: {process.pid})",
+                        )
+                    except Exception as e:
+                        logger.error(f"❌ Error terminando proceso: {e}")
+                        return False, f"No se pudo limpiar proceso parcial: {e}"
+
+            elif operation == "stop":
+                # Try force kill if graceful stop timed out
+                process = self._find_service_process(service_name)
+                if process:
+                    try:
+                        logger.warning(
+                            f"💀 Forzando terminación del proceso: PID {process.pid}"
+                        )
+                        process.kill()
+                        process.wait(timeout=5)
+                        self.clear_cache()
+                        return True, f"Proceso forzado a terminar (PID: {process.pid})"
+                    except Exception as e:
+                        logger.error(f"❌ Error en terminación forzada: {e}")
+                        return False, f"No se pudo forzar terminación: {e}"
+
+            return (
+                False,
+                f"Timeout en {operation} - no se pudo recuperar automáticamente",
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Error manejando timeout: {e}")
+            return False, f"Error en manejo de timeout: {e}"
+
+    def validate_service_environment(self, service_name: str) -> tuple[bool, list[str]]:
+        """
+        Validate the environment for a specific service.
+
+        Args:
+            service_name: Name of the service to validate
+
+        Returns:
+            Tuple of (is_valid, list_of_issues)
+        """
+        issues = []
+
+        try:
+            # Check if service exists
+            if service_name not in self.SERVICES:
+                issues.append(f"Servicio '{service_name}' no está definido")
+                return False, issues
+
+            service_config = self.SERVICES[service_name]
+
+            # Check script file exists
+            script_path = Path(service_config["script"])
+            if not script_path.exists():
+                issues.append(f"Script no encontrado: {script_path}")
+
+            # Check Poetry availability
+            if not self._check_poetry_available():
+                issues.append("Poetry no está disponible")
+
+            # Check system resources
+            if not self._check_system_resources():
+                issues.append("Recursos del sistema insuficientes")
+
+            # Check service dependencies
+            deps_ok, deps_msg = self._check_service_dependencies(service_name)
+            if not deps_ok:
+                issues.append(f"Dependencias: {deps_msg}")
+
+            # Check port availability (if service uses a port)
+            if service_config["port"]:
+                if self.is_port_in_use(service_config["port"]):
+                    conflicting_process = self._get_process_using_port(
+                        service_config["port"]
+                    )
+                    issues.append(
+                        f"Puerto {service_config['port']} ocupado por: {conflicting_process}"
+                    )
+
+            # Check service dependencies are running
+            deps_running, missing_deps = self.check_dependencies(service_name)
+            if not deps_running:
+                issues.append(
+                    f"Servicios dependientes no activos: {', '.join(missing_deps)}"
+                )
+
+            return len(issues) == 0, issues
+
+        except Exception as e:
+            issues.append(f"Error validando entorno: {e}")
+            return False, issues
+
+    def get_service_recovery_suggestions(
+        self, service_name: str, error_type: str
+    ) -> list[str]:
+        """
+        Get recovery suggestions for a specific service error.
+
+        Args:
+            service_name: Name of the service
+            error_type: Type of error that occurred
+
+        Returns:
+            List of recovery suggestions
+        """
+        suggestions = []
+
+        try:
+            # General suggestions based on error type
+            if error_type == "startup_failed":
+                suggestions.extend(
+                    [
+                        "Verifica que todas las dependencias estén instaladas: poetry install",
+                        "Revisa los logs del servicio para errores específicos",
+                        "Verifica la configuración en config.yaml",
+                        "Asegúrate de que no hay conflictos de puertos",
+                    ]
+                )
+
+            elif error_type == "timeout":
+                suggestions.extend(
+                    [
+                        "Verifica la carga del sistema (CPU, memoria)",
+                        "Cierra otras aplicaciones que consuman recursos",
+                        "Reinicia el sistema si es necesario",
+                        "Aumenta el tiempo de espera si es posible",
+                    ]
+                )
+
+            elif error_type == "port_conflict":
+                service_config = self.SERVICES.get(service_name, {})
+                if service_config.get("port"):
+                    suggestions.extend(
+                        [
+                            f"Detén otros procesos usando el puerto {service_config['port']}",
+                            "Cambia el puerto en la configuración",
+                            "Usa 'netstat -tulpn' para ver qué proceso usa el puerto",
+                        ]
+                    )
+
+            # Service-specific suggestions
+            if service_name == "simulation":
+                suggestions.extend(
+                    [
+                        "Verifica que SUMO esté instalado: sumo --version",
+                        "Revisa que los archivos de mapa estén en assets/sumo_maps/",
+                        "Verifica la configuración de SUMO en config.yaml",
+                    ]
+                )
+
+            elif service_name == "decision":
+                suggestions.extend(
+                    [
+                        "Verifica TensorFlow: python -c 'import tensorflow as tf; print(tf.__version__)'",
+                        "Revisa la configuración de GPU/CUDA si usas GPU",
+                        "Verifica que el modelo DQN esté disponible",
+                    ]
+                )
+
+            elif service_name == "detection":
+                suggestions.extend(
+                    [
+                        "Verifica YOLOv8: python -c 'import ultralytics'",
+                        "Revisa que OpenCV esté instalado: python -c 'import cv2'",
+                        "Verifica que el modelo YOLO esté en assets/yolo_models/",
+                    ]
+                )
+
+            elif service_name == "reporting":
+                suggestions.extend(
+                    [
+                        "Verifica la configuración de la base de datos",
+                        "Revisa los permisos de escritura en el directorio de reportes",
+                    ]
+                )
+
+            return suggestions
+
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo sugerencias de recuperación: {e}")
+            return ["Error obteniendo sugerencias de recuperación"]
+
+    def create_service_diagnostic_report(self, service_name: str) -> dict[str, Any]:
+        """
+        Create a comprehensive diagnostic report for a service.
+
+        Args:
+            service_name: Name of the service
+
+        Returns:
+            Diagnostic report dictionary
+        """
+        try:
+            report = {
+                "service_name": service_name,
+                "timestamp": datetime.now().isoformat(),
+                "status": {},
+                "environment": {},
+                "dependencies": {},
+                "resources": {},
+                "errors": {},
+                "suggestions": [],
+            }
+
+            # Service status
+            status = self.get_service_status(service_name)
+            report["status"] = {
+                "is_running": status.is_running,
+                "process_id": status.process_id,
+                "start_time": (
+                    status.start_time.isoformat() if status.start_time else None
+                ),
+                "runtime_seconds": status.runtime_seconds,
+                "cpu_percent": status.cpu_percent,
+                "memory_mb": status.memory_mb,
+                "port": status.port,
+            }
+
+            # Environment validation
+            env_valid, env_issues = self.validate_service_environment(service_name)
+            report["environment"] = {"is_valid": env_valid, "issues": env_issues}
+
+            # Dependencies check
+            deps_running, missing_deps = self.check_dependencies(service_name)
+            report["dependencies"] = {
+                "all_running": deps_running,
+                "missing": missing_deps,
+                "required": self.get_service_dependencies().get(service_name, []),
+            }
+
+            # System resources
+            report["resources"] = self.get_system_resources()
+
+            # Health check
+            health = self.check_service_health(service_name)
+            report["health"] = health
+
+            # Error statistics
+            error_stats = self.get_error_statistics()
+            report["errors"] = {
+                "total_errors": sum(error_stats.values()),
+                "error_breakdown": error_stats,
+            }
+
+            # Recovery suggestions
+            if not status.is_running or not env_valid or not health["healthy"]:
+                report["suggestions"] = self.get_service_recovery_suggestions(
+                    service_name, "general"
+                )
+
+            return report
+
+        except Exception as e:
+            logger.error(f"❌ Error creando reporte diagnóstico: {e}")
+            return {
+                "service_name": service_name,
+                "error": f"Error creando reporte: {e}",
+                "timestamp": datetime.now().isoformat(),
+            }

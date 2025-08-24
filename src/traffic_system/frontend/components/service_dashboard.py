@@ -696,6 +696,169 @@ class ServiceDashboard:
 
         st.session_state.service_operation_log.append(log_entry)
 
+    def render_uptime_statistics(self) -> None:
+        """Render service uptime statistics."""
+        st.subheader("📈 Estadísticas de Tiempo de Actividad")
+
+        try:
+            services_status = self.service_manager.get_all_services_status()
+
+            # Calculate uptime statistics
+            total_services = len(services_status)
+            running_services = sum(
+                1 for status in services_status.values() if status.is_running
+            )
+            uptime_percentage = (
+                (running_services / total_services) * 100 if total_services > 0 else 0
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric(
+                    "Disponibilidad General",
+                    f"{uptime_percentage:.1f}%",
+                    delta=(
+                        f"{uptime_percentage - 100:.1f}%"
+                        if uptime_percentage < 100
+                        else None
+                    ),
+                )
+
+            with col2:
+                total_runtime = sum(
+                    status.runtime_seconds
+                    for status in services_status.values()
+                    if status.is_running
+                )
+                hours = total_runtime // 3600
+                minutes = (total_runtime % 3600) // 60
+                st.metric("Tiempo Total Activo", f"{hours}h {minutes}m")
+
+            with col3:
+                avg_runtime = (
+                    total_runtime / running_services if running_services > 0 else 0
+                )
+                avg_hours = avg_runtime // 3600
+                avg_minutes = (avg_runtime % 3600) // 60
+                st.metric("Tiempo Promedio", f"{avg_hours:.0f}h {avg_minutes:.0f}m")
+
+            # Individual service uptime
+            if services_status:
+                st.write("**Tiempo de Actividad por Servicio:**")
+                for service_name, status in services_status.items():
+                    col1, col2, col3 = st.columns([2, 1, 1])
+
+                    with col1:
+                        status_icon = "🟢" if status.is_running else "🔴"
+                        st.write(f"{status_icon} **{service_name}**")
+
+                    with col2:
+                        if status.is_running and status.runtime_seconds > 0:
+                            hours = status.runtime_seconds // 3600
+                            minutes = (status.runtime_seconds % 3600) // 60
+                            st.write(f"{hours}h {minutes}m")
+                        else:
+                            st.write("No activo")
+
+                    with col3:
+                        if status.is_running:
+                            st.write(f"PID: {status.process_id}")
+                        else:
+                            st.write("---")
+
+        except Exception as e:
+            st.error(f"❌ Error calculando estadísticas: {e}")
+            logger.error(f"Error in uptime statistics: {e}")
+
+    def show_monitoring_dashboard(self) -> None:
+        """Show detailed monitoring dashboard."""
+        st.subheader("📊 Dashboard de Monitoreo")
+
+        try:
+            services_status = self.service_manager.get_all_services_status()
+            system_resources = self.service_manager.get_system_resources()
+
+            # Performance metrics over time (simulated)
+            st.write("**Métricas de Rendimiento:**")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # CPU usage chart (placeholder)
+                import numpy as np
+                import pandas as pd
+
+                # Generate sample data for demonstration
+                times = pd.date_range(start="now", periods=20, freq="1min")
+                cpu_data = np.random.normal(system_resources["cpu_percent"], 10, 20)
+                cpu_data = np.clip(cpu_data, 0, 100)
+
+                chart_data = pd.DataFrame({"time": times, "CPU %": cpu_data})
+
+                st.line_chart(chart_data.set_index("time"))
+
+            with col2:
+                # Memory usage chart (placeholder)
+                memory_data = np.random.normal(
+                    system_resources["memory_percent"], 5, 20
+                )
+                memory_data = np.clip(memory_data, 0, 100)
+
+                chart_data = pd.DataFrame({"time": times, "Memory %": memory_data})
+
+                st.line_chart(chart_data.set_index("time"))
+
+            # Service uptime tracking
+            st.write("**Tiempo de Actividad de Servicios:**")
+
+            uptime_data = []
+            for service_name, status in services_status.items():
+                if status.is_running:
+                    uptime_hours = status.runtime_seconds / 3600
+                    uptime_data.append(
+                        {
+                            "Servicio": service_name,
+                            "Uptime (horas)": uptime_hours,
+                            "Estado": "🟢 Activo",
+                        }
+                    )
+                else:
+                    uptime_data.append(
+                        {
+                            "Servicio": service_name,
+                            "Uptime (horas)": 0,
+                            "Estado": "🔴 Inactivo",
+                        }
+                    )
+
+            if uptime_data:
+                uptime_df = pd.DataFrame(uptime_data)
+                st.dataframe(uptime_df, use_container_width=True)
+
+            # Port usage summary
+            st.write("**Uso de Puertos:**")
+            port_data = []
+            for service_name, status in services_status.items():
+                if status.port:
+                    port_in_use = self.service_manager.is_port_in_use(status.port)
+                    port_data.append(
+                        {
+                            "Puerto": status.port,
+                            "Servicio": service_name,
+                            "En Uso": "✅" if port_in_use else "❌",
+                            "Estado Servicio": "🟢" if status.is_running else "🔴",
+                        }
+                    )
+
+            if port_data:
+                port_df = pd.DataFrame(port_data)
+                st.dataframe(port_df, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"❌ Error en dashboard de monitoreo: {e}")
+            logger.error(f"Error in monitoring dashboard: {e}")
+
 
 def render_advanced_service_dashboard(service_manager: ServiceManager) -> None:
     """
@@ -742,97 +905,11 @@ def render_advanced_service_dashboard(service_manager: ServiceManager) -> None:
     st.markdown("---")
 
     # Show monitoring dashboard
-    dashboard.show_monitoring_dashboard()
-
-    def render_uptime_statistics(self) -> None:
-        """Render service uptime statistics."""
-        st.subheader("📈 Estadísticas de Tiempo de Actividad")
-
-        try:
-            services_status = self.service_manager.get_all_services_status()
-
-            # Calculate uptime statistics
-            total_services = len(services_status)
-            running_services = sum(
-                1 for status in services_status.values() if status.is_running
-            )
-            uptime_percentage = (
-                (running_services / total_services) * 100 if total_services > 0 else 0
-            )
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.metric(
-                    "Disponibilidad General",
-                    f"{uptime_percentage:.1f}%",
-                    delta=(
-                        f"{uptime_percentage - 100:.1f}%"
-                        if uptime_percentage < 100
-                        else None
-                    ),
-                )
-
-            with col2:
-                total_runtime = sum(
-                    status.runtime_seconds
-                    for status in services_status.values()
-                    if status.is_running
-                )
-                avg_runtime = (
-                    total_runtime / running_services if running_services > 0 else 0
-                )
-                st.metric(
-                    "Tiempo Promedio",
-                    self._format_runtime(int(avg_runtime)),
-                    delta="Activo" if avg_runtime > 0 else "Inactivo",
-                )
-
-            with col3:
-                longest_running = max(
-                    (
-                        status.runtime_seconds
-                        for status in services_status.values()
-                        if status.is_running
-                    ),
-                    default=0,
-                )
-                st.metric(
-                    "Mayor Tiempo Activo",
-                    self._format_runtime(int(longest_running)),
-                    delta="Estable" if longest_running > 3600 else "Reciente",
-                )
-
-            # Service uptime table
-            uptime_data = []
-            for service_name, status in services_status.items():
-                uptime_data.append(
-                    {
-                        "Servicio": service_name,
-                        "Estado": "🟢 Activo" if status.is_running else "🔴 Inactivo",
-                        "Tiempo Activo": (
-                            self._format_runtime(status.runtime_seconds)
-                            if status.is_running
-                            else "0s"
-                        ),
-                        "CPU %": (
-                            f"{status.cpu_percent:.1f}%" if status.is_running else "N/A"
-                        ),
-                        "Memoria MB": (
-                            f"{status.memory_mb:.1f}" if status.is_running else "N/A"
-                        ),
-                    }
-                )
-
-            if uptime_data:
-                import pandas as pd
-
-                uptime_df = pd.DataFrame(uptime_data)
-                st.dataframe(uptime_df, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"❌ Error en estadísticas de uptime: {e}")
-            logger.error(f"Error in uptime statistics: {e}")
+    try:
+        dashboard.show_monitoring_dashboard()
+    except Exception as e:
+        st.error(f"❌ Error en dashboard de monitoreo: {e}")
+        logger.error(f"Error in monitoring dashboard: {e}")
 
     def show_monitoring_dashboard(self) -> None:
         """Show detailed monitoring dashboard."""

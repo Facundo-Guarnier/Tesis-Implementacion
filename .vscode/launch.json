@@ -65,6 +65,46 @@
       },
       "stopOnEntry": false,
       "justMyCode": false
+    },
+    {
+      "name": "Poetry: Frontend (Streamlit)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": [
+        "run",
+        "${workspaceFolder}/run_frontend.py",
+        "--server.port",
+        "8501",
+        "--server.headless",
+        "true"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src",
+        "STREAMLIT_LOGGER_LEVEL": "INFO",
+        "STREAMLIT_CLIENT_SHOW_ERROR_DETAILS": "true",
+        "STREAMLIT_GLOBAL_DEVELOPMENT_MODE": "false"
+      },
+      "stopOnEntry": false,
+      "justMyCode": false
+    },
+    {
+      "name": "Poetry: Frontend (Direct)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_frontend.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/src",
+        "STREAMLIT_LOGGER_LEVEL": "INFO",
+        "STREAMLIT_CLIENT_SHOW_ERROR_DETAILS": "true",
+        "STREAMLIT_GLOBAL_DEVELOPMENT_MODE": "false"
+      },
+      "stopOnEntry": false,
+      "justMyCode": false
     }
   ]
 }
