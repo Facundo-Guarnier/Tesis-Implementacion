@@ -199,7 +199,7 @@ class ConfigWidgetFactory:
         path: str,
         full_config: dict[str, Any],
     ) -> list[Any]:
-        """Create a list editing widget with add/remove functionality."""
+        """Create a list editing widget for fixed-length lists."""
         st.write(f"**{key}** (Lista - {len(value)} elementos)")
 
         # Determine list item type
@@ -211,83 +211,44 @@ class ConfigWidgetFactory:
         with list_container:
             new_list: list[Any] = []
 
-            # Edit existing items
+            # Edit existing items only (no add/remove/reorder functionality)
             for i, item in enumerate(value):
-                col1, col2, col3 = st.columns([4, 1, 1])
-
-                with col1:
-                    new_item: Any
-                    if item_type is bool:
-                        new_item = st.checkbox(
-                            f"Elemento {i+1}",
-                            value=bool(item),
-                            key=f"{widget_key}_item_{i}",
-                        )
-                    elif item_type is int or item_type is float:
-                        new_item = st.number_input(
-                            f"Elemento {i+1}", value=item, key=f"{widget_key}_item_{i}"
-                        )
+                # Single column layout - no move up/down or remove buttons
+                new_item: Any
+                if item_type is bool:
+                    new_item = st.checkbox(
+                        f"Elemento {i+1}",
+                        value=bool(item),
+                        key=f"{widget_key}_item_{i}",
+                        help=f"Elemento {i+1} de la lista {key}"
+                    )
+                elif item_type is int or item_type is float:
+                    new_item = st.number_input(
+                        f"Elemento {i+1}",
+                        value=item,
+                        key=f"{widget_key}_item_{i}",
+                        help=f"Elemento {i+1} de la lista {key}"
+                    )
+                else:
+                    text_value = st.text_input(
+                        f"Elemento {i+1}",
+                        value=str(item),
+                        key=f"{widget_key}_item_{i}",
+                        help=f"Elemento {i+1} de la lista {key}"
+                    )
+                    # Convert back to original type if needed
+                    if item_type is not str:
+                        try:
+                            new_item = item_type(text_value)
+                        except (ValueError, TypeError):
+                            new_item = item  # Keep original if conversion fails
                     else:
-                        text_value = st.text_input(
-                            f"Elemento {i+1}",
-                            value=str(item),
-                            key=f"{widget_key}_item_{i}",
-                        )
-                        # Convert back to original type if needed
-                        if item_type is not str:
-                            try:
-                                new_item = item_type(text_value)
-                            except (ValueError, TypeError):
-                                new_item = item  # Keep original if conversion fails
-                        else:
-                            new_item = text_value
-
-                with col2:
-                    # Move up button
-                    if st.button("⬆️", key=f"{widget_key}_up_{i}", disabled=i == 0):
-                        # This would require state management to reorder
-                        pass
-
-                with col3:
-                    # Remove button
-                    if st.button("🗑️", key=f"{widget_key}_remove_{i}"):
-                        # Skip this item (effectively removing it)
-                        continue
+                        new_item = text_value
 
                 new_list.append(new_item)
 
-            # Add new item section
-            st.markdown("---")
-            col1, col2 = st.columns([3, 1])
-
-            with col1:
-                new_item_value: Any
-                if item_type is bool:
-                    new_item_value = st.checkbox(
-                        "Nuevo elemento", key=f"{widget_key}_new_item"
-                    )
-                elif item_type is int:
-                    new_item_value = st.number_input(
-                        "Nuevo elemento",
-                        value=0,
-                        key=f"{widget_key}_new_item",
-                    )
-                elif item_type is float:
-                    new_item_value = st.number_input(
-                        "Nuevo elemento",
-                        value=0.0,
-                        key=f"{widget_key}_new_item",
-                    )
-                else:
-                    new_item_value = st.text_input(
-                        "Nuevo elemento", key=f"{widget_key}_new_item"
-                    )
-
-            with col2:
-                if st.button("➕ Agregar", key=f"{widget_key}_add"):
-                    if new_item_value is bool or item_type is bool:
-                        new_list.append(new_item_value)
-                        st.rerun()
+            # Show info about fixed list length
+            st.info(f"ℹ️ Esta lista tiene una longitud fija de {len(value)} elementos")
 
         return new_list
 
