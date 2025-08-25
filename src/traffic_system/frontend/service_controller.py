@@ -1,0 +1,614 @@
+"""
+Controlador de servicios simplificado para gestión de procesos.
+
+Maneja inicio, parada y estado de los servicios del sistema de tráfico.
+"""
+
+import subprocess
+import time
+from pathlib import Path
+from typing import Any
+
+import psutil
+
+from src.traffic_system.frontend.utils import (
+    log_error,
+    log_info,
+    log_success,
+    log_warning,
+)
+
+
+class ServiceController:
+    """Controlador simplificado para los servicios del sistema."""
+
+    # Mapeo de servicios a archivos ejecutables
+    SERVICES = {
+        "simulation": "run_simulation_provider.py",
+        "decision": "run_decision_agent.py",
+        "detection": "run_detection_provider.py",
+        "reporting": "run_reporting_service.py",
+    }
+
+    # Nombres amigables para mostrar en UI
+    SERVICE_NAMES = {
+        "simulation": "Simulation Provider",
+        "decision": "Decision Agent",
+        "detection": "Detection Provider",
+        "reporting": "Reporting Service",
+    }
+
+    def __init__(self) -> None:
+        """Inicializar el controlador de servicios."""
+        self._process_cache: dict[str, psutil.Process | None] = {}
+        self._last_check_time: float = 0
+        self._cache_duration = 5  # Cache por 5 segundos
+
+    def get_service_status(self, service_name: str) -> bool:
+        """
+        Verificar si un servicio está ejecutándose.
+
+        Args:
+            service_name: Nombre del servicio (simulation, decision, etc.)
+
+        Returns:
+            True si el servicio está activo, False en caso contrario
+        """
+        if service_name not in self.SERVICES:
+            log_error(f"Servicio desconocido: {service_name}")
+            return False
+
+        try:
+            # Usar cache si es reciente
+            current_time = time.time()
+            if current_time - self._last_check_time < self._cache_duration:
+                cached_process = self._process_cache.get(service_name)
+                if cached_process is not None:
+                    return bool(cached_process.is_running())
+
+            # Buscar proceso por nombre de archivo
+            script_name = self.SERVICES[service_name]
+
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                try:
+                    cmdline = proc.info.get("cmdline", [])
+                    if cmdline and any(script_name in arg for arg in cmdline):
+                        # Verificar que sea un proceso Python válido
+                        if any("python" in arg.lower() for arg in cmdline):
+                            self._process_cache[service_name] = proc
+                            self._last_check_time = current_time
+                            return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            # No se encontró el proceso
+            self._process_cache[service_name] = None
+            return False
+
+        except Exception as e:
+            log_error(f"Error verificando estado de {service_name}: {e}")
+            return False
+
+    def start_service(self, service_name: str) -> tuple[bool, str]:
+        """
+        Iniciar un servicio específico.
+
+        Args:
+            service_name: Nombre del servicio a iniciar
+
+        Returns:
+            Tupla (éxito, mensaje)
+        """
+        if service_name not in self.SERVICES:
+            error_msg = f"Servicio desconocido: {service_name}"
+            log_error(error_msg)
+            return False, error_msg
+
+        # Verificar si ya está ejecutándose
+        if self.get_service_status(service_name):
+            warning_msg = f"El servicio {service_name} ya está ejecutándose"
+            log_warning(warning_msg)
+            return False, warning_msg
+
+        try:
+            script_path = self.SERVICES[service_name]
+
+            # Verificar que el archivo existe
+            if not Path(script_path).exists():
+                error_msg = f"Archivo no encontrado: {script_path}"
+                log_error(error_msg)
+                return False, error_msg
+
+            # Ejecutar con poetry run
+            cmd = ["poetry", "run", "python", script_path]
+
+            log_info(f"Iniciando servicio {service_name}: {' '.join(cmd)}")
+
+            # Iniciar proceso en background
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
+            )
+
+            # Esperar un momento para verificar que inició correctamente
+            time.sleep(2)
+
+            if process.poll() is None:
+                # Proceso sigue ejecutándose
+                success_msg = f"Servicio {service_name} iniciado correctamente"
+                log_success(success_msg)
+
+                # Limpiar cache para forzar actualización
+                self._last_check_time = 0
+
+                return True, success_msg
+            else:
+                # Proceso terminó inmediatamente, probablemente error
+                stderr_output = (
+                    process.stderr.read() if process.stderr else "Sin detalles"
+                )
+                error_msg = (
+                    f"El servicio {service_name} falló al iniciar: {stderr_output}"
+                )
+                log_error(error_msg)
+                return False, error_msg
+
+        except FileNotFoundError:
+            error_msg = "Poetry no encontrado. Asegúrate de que Poetry esté instalado y en el PATH"
+            log_error(error_msg)
+            return False, error_msg
+
+        except Exception as e:
+            error_msg = f"Error iniciando servicio {service_name}: {e}"
+            log_error(error_msg)
+            return False, error_msg
+
+    def stop_service(self, service_name: str) -> tuple[bool, str]:
+        """
+        Detener un servicio específico.
+
+        Args:
+            service_name: Nombre del servicio a detener
+
+        Returns:
+            Tupla (éxito, mensaje)
+        """
+        if service_name not in self.SERVICES:
+            error_msg = f"Servicio desconocido: {service_name}"
+            log_error(error_msg)
+            return False, error_msg
+
+        try:
+            # Buscar y terminar el proceso
+            script_name = self.SERVICES[service_name]
+            processes_terminated = 0
+
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                try:
+                    cmdline = proc.info.get("cmdline", [])
+                    if cmdline and any(script_name in arg for arg in cmdline):
+                        if any("python" in arg.lower() for arg in cmdline):
+                            log_info(
+                                f"Terminando proceso {proc.pid} para servicio {service_name}"
+                            )
+                            proc.terminate()
+
+                            # Esperar terminación graceful
+                            try:
+                                proc.wait(timeout=5)
+                            except psutil.TimeoutExpired:
+                                log_warning(
+                                    f"Forzando terminación del proceso {proc.pid}"
+                                )
+                                proc.kill()
+
+                            processes_terminated += 1
+
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            # Limpiar cache
+            self._process_cache[service_name] = None
+            self._last_check_time = 0
+
+            if processes_terminated > 0:
+                success_msg = f"Servicio {service_name} detenido correctamente ({processes_terminated} procesos)"
+                log_success(success_msg)
+                return True, success_msg
+            else:
+                warning_msg = (
+                    f"No se encontraron procesos ejecutándose para {service_name}"
+                )
+                log_warning(warning_msg)
+                return False, warning_msg
+
+        except Exception as e:
+            error_msg = f"Error deteniendo servicio {service_name}: {e}"
+            log_error(error_msg)
+            return False, error_msg
+
+    def get_all_services_status(self) -> dict[str, bool]:
+        """
+        Obtener estado de todos los servicios.
+
+        Returns:
+            Diccionario con estado de cada servicio
+        """
+        status = {}
+
+        for service_name in self.SERVICES:
+            status[service_name] = self.get_service_status(service_name)
+
+        return status
+
+    def get_service_display_name(self, service_name: str) -> str:
+        """
+        Obtener nombre amigable para mostrar en UI.
+
+        Args:
+            service_name: Nombre interno del servicio
+
+        Returns:
+            Nombre amigable para mostrar
+        """
+        return self.SERVICE_NAMES.get(service_name, service_name.title())
+
+    def get_running_services_count(self) -> tuple[int, int]:
+        """
+        Obtener conteo de servicios activos vs total.
+
+        Returns:
+            Tupla (servicios_activos, total_servicios)
+        """
+        status = self.get_all_services_status()
+        running_count = sum(1 for is_running in status.values() if is_running)
+        total_count = len(status)
+
+        return running_count, total_count
+
+    def start_service_with_retry(
+        self, service_name: str, max_retries: int = 2
+    ) -> tuple[bool, str]:
+        """
+        Iniciar servicio con reintentos en caso de fallo.
+
+        Args:
+            service_name: Nombre del servicio
+            max_retries: Número máximo de reintentos
+
+        Returns:
+            Tupla (éxito, mensaje)
+        """
+        for attempt in range(max_retries + 1):
+            success, message = self.start_service(service_name)
+
+            if success:
+                return True, message
+
+            if attempt < max_retries:
+                log_warning(
+                    f"Reintentando inicio de {service_name} (intento {attempt + 2}/{max_retries + 1})"
+                )
+                time.sleep(1)
+            else:
+                log_error(
+                    f"Falló inicio de {service_name} después de {max_retries + 1} intentos"
+                )
+
+        return (
+            False,
+            f"Servicio {service_name} falló después de {max_retries + 1} intentos",
+        )
+
+    def stop_service_graceful(
+        self, service_name: str, timeout: int = 10
+    ) -> tuple[bool, str]:
+        """
+        Detener servicio con terminación graceful y timeout.
+
+        Args:
+            service_name: Nombre del servicio
+            timeout: Tiempo de espera en segundos
+
+        Returns:
+            Tupla (éxito, mensaje)
+        """
+        if service_name not in self.SERVICES:
+            error_msg = f"Servicio desconocido: {service_name}"
+            log_error(error_msg)
+            return False, error_msg
+
+        try:
+            script_name = self.SERVICES[service_name]
+            processes_found = []
+
+            # Encontrar todos los procesos del servicio
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                try:
+                    cmdline = proc.info.get("cmdline", [])
+                    if cmdline and any(script_name in arg for arg in cmdline):
+                        if any("python" in arg.lower() for arg in cmdline):
+                            processes_found.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            if not processes_found:
+                warning_msg = f"No se encontraron procesos para {service_name}"
+                log_warning(warning_msg)
+                return False, warning_msg
+
+            # Terminar procesos gracefully
+            for proc in processes_found:
+                try:
+                    log_info(f"Enviando SIGTERM a proceso {proc.pid}")
+                    proc.terminate()
+                except psutil.NoSuchProcess:
+                    continue
+
+            # Esperar terminación
+            terminated_count = 0
+            for proc in processes_found:
+                try:
+                    proc.wait(timeout=timeout)
+                    terminated_count += 1
+                    log_info(f"Proceso {proc.pid} terminado gracefully")
+                except psutil.TimeoutExpired:
+                    log_warning(
+                        f"Proceso {proc.pid} no respondió, forzando terminación"
+                    )
+                    try:
+                        proc.kill()
+                        proc.wait(timeout=2)
+                        terminated_count += 1
+                    except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                        log_error(f"No se pudo terminar proceso {proc.pid}")
+                except psutil.NoSuchProcess:
+                    terminated_count += 1
+
+            # Limpiar cache
+            self._process_cache[service_name] = None
+            self._last_check_time = 0
+
+            if terminated_count == len(processes_found):
+                success_msg = f"Servicio {service_name} detenido correctamente ({terminated_count} procesos)"
+                log_success(success_msg)
+                return True, success_msg
+            else:
+                warning_msg = f"Servicio {service_name} parcialmente detenido ({terminated_count}/{len(processes_found)} procesos)"
+                log_warning(warning_msg)
+                return False, warning_msg
+
+        except Exception as e:
+            error_msg = f"Error en terminación graceful de {service_name}: {e}"
+            log_error(error_msg)
+            return False, error_msg
+
+    def get_service_info(self, service_name: str) -> dict[str, Any]:
+        """
+        Obtener información detallada de un servicio.
+
+        Args:
+            service_name: Nombre del servicio
+
+        Returns:
+            Diccionario con información del servicio
+        """
+        info = {
+            "name": service_name,
+            "display_name": self.get_service_display_name(service_name),
+            "script_file": self.SERVICES.get(service_name, ""),
+            "is_running": False,
+            "pid": None,
+            "memory_usage": None,
+            "cpu_percent": None,
+        }
+
+        if service_name not in self.SERVICES:
+            return info
+
+        try:
+            script_name = self.SERVICES[service_name]
+
+            for proc in psutil.process_iter(
+                ["pid", "name", "cmdline", "memory_info", "cpu_percent"]
+            ):
+                try:
+                    cmdline = proc.info.get("cmdline", [])
+                    if cmdline and any(script_name in arg for arg in cmdline):
+                        if any("python" in arg.lower() for arg in cmdline):
+                            info["is_running"] = True
+                            info["pid"] = proc.info["pid"]
+
+                            # Información de recursos (opcional)
+                            try:
+                                memory_info = proc.info.get("memory_info")
+                                if memory_info:
+                                    info["memory_usage"] = (
+                                        memory_info.rss / 1024 / 1024
+                                    )  # MB
+
+                                info["cpu_percent"] = proc.info.get("cpu_percent", 0)
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+
+                            break
+
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+        except Exception as e:
+            log_error(f"Error obteniendo información de {service_name}: {e}")
+
+        return info
+
+    def start_all_services(self) -> dict[str, tuple[bool, str]]:
+        """
+        Iniciar todos los servicios secuencialmente.
+
+        Returns:
+            Diccionario con resultados por servicio
+        """
+        results = {}
+
+        log_info("Iniciando todos los servicios...")
+
+        # Orden recomendado de inicio (simulación primero, luego agentes)
+        service_order = ["simulation", "decision", "detection", "reporting"]
+
+        for service_name in service_order:
+            if service_name in self.SERVICES:
+                log_info(f"Iniciando servicio: {service_name}")
+
+                # Verificar si ya está ejecutándose
+                if self.get_service_status(service_name):
+                    results[service_name] = (
+                        True,
+                        f"Servicio {service_name} ya estaba ejecutándose",
+                    )
+                    log_info(f"Servicio {service_name} ya estaba activo")
+                else:
+                    # Intentar iniciar
+                    success, message = self.start_service_with_retry(service_name)
+                    results[service_name] = (success, message)
+
+                    if success:
+                        log_success(f"Servicio {service_name} iniciado exitosamente")
+                        # Esperar un poco antes del siguiente servicio
+                        time.sleep(1)
+                    else:
+                        log_error(f"Falló inicio de servicio {service_name}: {message}")
+
+        # Resumen de resultados
+        successful = sum(1 for success, _ in results.values() if success)
+        total = len(results)
+
+        log_info(
+            f"Operación masiva completada: {successful}/{total} servicios iniciados"
+        )
+
+        return results
+
+    def stop_all_services(self) -> dict[str, tuple[bool, str]]:
+        """
+        Detener todos los servicios activos.
+
+        Returns:
+            Diccionario con resultados por servicio
+        """
+        results = {}
+
+        log_info("Deteniendo todos los servicios...")
+
+        # Orden inverso para detener (agentes primero, simulación al final)
+        service_order = ["reporting", "detection", "decision", "simulation"]
+
+        for service_name in service_order:
+            if service_name in self.SERVICES:
+                log_info(f"Deteniendo servicio: {service_name}")
+
+                # Verificar si está ejecutándose
+                if not self.get_service_status(service_name):
+                    results[service_name] = (
+                        True,
+                        f"Servicio {service_name} ya estaba detenido",
+                    )
+                    log_info(f"Servicio {service_name} ya estaba inactivo")
+                else:
+                    # Intentar detener
+                    success, message = self.stop_service_graceful(service_name)
+                    results[service_name] = (success, message)
+
+                    if success:
+                        log_success(f"Servicio {service_name} detenido exitosamente")
+                        # Esperar un poco antes del siguiente servicio
+                        time.sleep(0.5)
+                    else:
+                        log_error(
+                            f"Falló detención de servicio {service_name}: {message}"
+                        )
+
+        # Resumen de resultados
+        successful = sum(1 for success, _ in results.values() if success)
+        total = len(results)
+
+        log_info(
+            f"Operación masiva completada: {successful}/{total} servicios detenidos"
+        )
+
+        return results
+
+    def restart_all_services(self) -> dict[str, tuple[bool, str]]:
+        """
+        Reiniciar todos los servicios (detener y luego iniciar).
+
+        Returns:
+            Diccionario con resultados por servicio
+        """
+        log_info("Reiniciando todos los servicios...")
+
+        # Primero detener todos
+        stop_results = self.stop_all_services()
+
+        # Esperar un momento para asegurar terminación completa
+        time.sleep(2)
+
+        # Luego iniciar todos
+        start_results = self.start_all_services()
+
+        # Combinar resultados
+        combined_results = {}
+        for service_name in self.SERVICES:
+            stop_success, stop_msg = stop_results.get(
+                service_name, (False, "No procesado")
+            )
+            start_success, start_msg = start_results.get(
+                service_name, (False, "No procesado")
+            )
+
+            if stop_success and start_success:
+                combined_results[service_name] = (True, "Reiniciado exitosamente")
+            else:
+                error_details = []
+                if not stop_success:
+                    error_details.append(f"Detención: {stop_msg}")
+                if not start_success:
+                    error_details.append(f"Inicio: {start_msg}")
+
+                combined_results[service_name] = (False, " | ".join(error_details))
+
+        # Resumen final
+        successful = sum(1 for success, _ in combined_results.values() if success)
+        total = len(combined_results)
+
+        log_info(
+            f"Reinicio masivo completado: {successful}/{total} servicios reiniciados"
+        )
+
+        return combined_results
+
+    def get_services_summary(self) -> dict[str, Any]:
+        """
+        Obtener resumen completo del estado de todos los servicios.
+
+        Returns:
+            Diccionario con resumen de servicios
+        """
+        running_count, total_count = self.get_running_services_count()
+
+        summary = {
+            "total_services": total_count,
+            "running_services": running_count,
+            "stopped_services": total_count - running_count,
+            "status_text": f"{running_count}/{total_count} servicios activos",
+            "all_running": running_count == total_count,
+            "all_stopped": running_count == 0,
+            "services": {},
+        }
+
+        # Información detallada por servicio
+        services_info: dict[str, dict[str, Any]] = {}
+        for service_name in self.SERVICES:
+            services_info[service_name] = self.get_service_info(service_name)
+
+        summary["services"] = services_info
+
+        return summary

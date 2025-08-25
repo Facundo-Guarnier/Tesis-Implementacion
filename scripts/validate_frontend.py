@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class FrontendValidator:
     """Validador para el sistema frontend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Inicializar el validador."""
         self.validation_errors: list[str] = []
         self.validation_warnings: list[str] = []
@@ -175,17 +175,33 @@ class FrontendValidator:
                 # Validar dependencias específicas
                 if service_name == "detection":
                     try:
-                        import cv2
+                        import importlib.util
 
-                        logger.info("✅ OpenCV dependency available")
+                        cv2_spec = importlib.util.find_spec("cv2")
+                        if cv2_spec is not None:
+                            logger.info("✅ OpenCV dependency available")
+                        else:
+                            logger.warning(
+                                "⚠️ OpenCV not available for detection service"
+                            )
+                            self.validation_warnings.append("OpenCV dependency missing")
                     except ImportError:
                         logger.warning("⚠️ OpenCV not available for detection service")
                         self.validation_warnings.append("OpenCV dependency missing")
 
                     try:
-                        import ultralytics
+                        import importlib.util
 
-                        logger.info("✅ Ultralytics dependency available")
+                        ultralytics_spec = importlib.util.find_spec("ultralytics")
+                        if ultralytics_spec is not None:
+                            logger.info("✅ Ultralytics dependency available")
+                        else:
+                            logger.warning(
+                                "⚠️ Ultralytics not available for detection service"
+                            )
+                            self.validation_warnings.append(
+                                "Ultralytics dependency missing"
+                            )
                     except ImportError:
                         logger.warning(
                             "⚠️ Ultralytics not available for detection service"
@@ -278,21 +294,21 @@ class FrontendValidator:
 
             # Verificar que los optimizadores se pueden inicializar
             try:
-                perf_optimizer = get_performance_optimizer()
+                get_performance_optimizer()
                 logger.info("✅ Performance optimizer available")
             except Exception as e:
                 logger.warning(f"⚠️ Performance optimizer failed: {e}")
                 self.validation_warnings.append("Performance optimizer unavailable")
 
             try:
-                session_manager = get_session_manager()
+                get_session_manager()
                 logger.info("✅ Session manager available")
             except Exception as e:
                 logger.warning(f"⚠️ Session manager failed: {e}")
                 self.validation_warnings.append("Session manager unavailable")
 
             try:
-                ui_optimizer = get_ui_optimizer()
+                get_ui_optimizer()
                 logger.info("✅ UI optimizer available")
             except Exception as e:
                 logger.warning(f"⚠️ UI optimizer failed: {e}")
@@ -399,7 +415,7 @@ class FrontendValidator:
         return recommendations
 
 
-def main():
+def main() -> None:
     """Función principal para ejecutar validación."""
     logger.info("🚀 Iniciando validación del sistema frontend...")
 
