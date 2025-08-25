@@ -101,38 +101,66 @@ def get_logger() -> logging.Logger:
         return setup_logging()
 
 
-# Logger global para el frontend - usar función getter para control de sesión
-logger = get_logger()
+# Logger global - inicializar de forma lazy para evitar problemas de importación
+_logger_instance = None
+
+
+def get_cached_logger() -> logging.Logger:
+    """Obtener logger con cache para evitar múltiples inicializaciones."""
+    global _logger_instance
+    if _logger_instance is None:
+        _logger_instance = get_logger()
+    return _logger_instance
 
 
 def log_error(message: str) -> None:
     """Log de errores con emoji ❌."""
-    current_logger = get_logger()
-    current_logger.error(f"❌ {message}")
+    try:
+        current_logger = get_cached_logger()
+        current_logger.error(f"❌ {message}")
+    except Exception:
+        # Fallback silencioso si hay problemas con logging
+        pass
 
 
 def log_warning(message: str) -> None:
     """Log de advertencias con emoji ⚠️."""
-    current_logger = get_logger()
-    current_logger.warning(f"⚠️ {message}")
+    try:
+        current_logger = get_cached_logger()
+        current_logger.warning(f"⚠️ {message}")
+    except Exception:
+        # Fallback silencioso si hay problemas con logging
+        pass
 
 
 def log_success(message: str) -> None:
     """Log de éxito con emoji ✅."""
-    current_logger = get_logger()
-    current_logger.info(f"✅ {message}")
+    try:
+        current_logger = get_cached_logger()
+        current_logger.info(f"✅ {message}")
+    except Exception:
+        # Fallback silencioso si hay problemas con logging
+        pass
 
 
 def log_info(message: str) -> None:
     """Log de información con emoji ℹ️."""
-    current_logger = get_logger()
-    current_logger.info(f"ℹ️ {message}")
+    try:
+        current_logger = get_cached_logger()
+        current_logger.info(f"ℹ️ {message}")
+    except Exception:
+        # Fallback silencioso si hay problemas con logging
+        pass
 
 
 def log_debug(message: str) -> None:
     """Log de debug con emoji 🐛 - solo visible en modo debug."""
-    current_logger = get_logger()
-    current_logger.debug(f"🐛 {message}")
+    try:
+        current_logger = get_cached_logger()
+        current_logger.debug(f"🐛 {message}")
+    except Exception:
+        # Fallback silencioso si hay problemas con logging
+        pass
 
 
 def validate_field(

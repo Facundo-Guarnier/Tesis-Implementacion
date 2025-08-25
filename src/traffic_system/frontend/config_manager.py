@@ -83,13 +83,13 @@ class ConfigManager:
                 log_warning(
                     f"Archivo de configuración no encontrado: {self.config_path}"
                 )
-                log_info("Creando configuración por defecto...")
+                # log_info("Creando configuración por defecto...")
                 default_config = self._create_default_config()
 
                 # Guardar configuración por defecto
                 success, errors = self.save_config(default_config)
                 if success:
-                    log_success("Configuración por defecto creada")
+                    # log_success("Configuración por defecto creada")
                     return default_config
                 else:
                     log_error(f"Error creando configuración por defecto: {errors}")
@@ -105,7 +105,8 @@ class ConfigManager:
                 # Guardar configuración por defecto
                 success, errors = self.save_config(default_config)
                 if success:
-                    log_success("Configuración por defecto guardada")
+                    # log_success("Configuración por defecto guardada")
+                    pass
                 return default_config
 
             if not isinstance(config, dict):
@@ -220,9 +221,9 @@ class ConfigManager:
                             current_path = current_path[:indent_level]
                         current_path.append(key)
 
-            # Solo log si hay comentarios cargados (evitar spam)
-            if len(self._comments_cache) > 0:
-                log_info(f"Cargados {len(self._comments_cache)} comentarios de ayuda")
+            # Comentar para evitar spam de logs
+            # if len(self._comments_cache) > 0:
+            #     log_info(f"Cargados {len(self._comments_cache)} comentarios de ayuda")
 
         except Exception as e:
             log_warning(f"Error cargando comentarios: {e}")

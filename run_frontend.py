@@ -57,11 +57,6 @@ console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
 log_handlers.append(console_handler)
 
-# File handler if logs directory exists
-if Path("logs").exists():
-    file_handler = logging.FileHandler("logs/frontend.log", mode="a", encoding="utf-8")
-    file_handler.setLevel(logging.INFO)
-    log_handlers.append(file_handler)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -257,6 +252,83 @@ Para más opciones de Streamlit:
     )
 
 
+def run_cached_verifications() -> bool:
+    """Run verification checks only once per session using cache."""
+    try:
+        # Try to import streamlit for session state
+        import streamlit as st
+
+        # Check if verifications already completed
+        if "verification_completed" in st.session_state:
+            return st.session_state.verification_completed
+
+        # Run verifications only once per session
+        logger.info("🔍 Ejecutando verificaciones previas...")
+
+        verification_results = []
+
+        if not check_python_version():
+            logger.error("❌ Verificación de Python falló")
+            verification_results.append(False)
+        else:
+            verification_results.append(True)
+
+        if not check_poetry_available():
+            logger.error("❌ Verificación de Poetry falló")
+            verification_results.append(False)
+        else:
+            verification_results.append(True)
+
+        if not check_dependencies():
+            logger.error("❌ Verificación de dependencias falló")
+            verification_results.append(False)
+        else:
+            verification_results.append(True)
+
+        if not check_configuration():
+            logger.error("❌ Verificación de configuración falló")
+            verification_results.append(False)
+        else:
+            verification_results.append(True)
+
+        # Setup directories and show system info only once
+        setup_directories()
+        show_system_info()
+
+        # Cache the result
+        all_passed = all(verification_results)
+        st.session_state.verification_completed = all_passed
+
+        if all_passed:
+            logger.info("✅ Todas las verificaciones completadas exitosamente")
+
+        return all_passed
+
+    except ImportError:
+        # If streamlit is not available, run verifications normally
+        logger.info("🔍 Ejecutando verificaciones previas...")
+
+        if not check_python_version():
+            logger.error("❌ Verificación de Python falló")
+            return False
+
+        if not check_poetry_available():
+            logger.error("❌ Verificación de Poetry falló")
+            return False
+
+        if not check_dependencies():
+            logger.error("❌ Verificación de dependencias falló")
+            return False
+
+        if not check_configuration():
+            logger.error("❌ Verificación de configuración falló")
+            return False
+
+        setup_directories()
+        show_system_info()
+        return True
+
+
 def main_with_error_handling() -> None:
     """Main function with comprehensive error handling."""
     try:
@@ -268,33 +340,14 @@ def main_with_error_handling() -> None:
             show_help()
             return
 
-        # Pre-flight checks
-        logger.info("🔍 Ejecutando verificaciones previas...")
-
-        if not check_python_version():
-            logger.error("❌ Verificación de Python falló")
+        # Run cached pre-flight checks
+        if not run_cached_verifications():
+            logger.error("❌ Verificaciones fallaron")
             sys.exit(1)
-
-        if not check_poetry_available():
-            logger.error("❌ Verificación de Poetry falló")
-            sys.exit(1)
-
-        if not check_dependencies():
-            logger.error("❌ Verificación de dependencias falló")
-            sys.exit(1)
-
-        if not check_configuration():
-            logger.error("❌ Verificación de configuración falló")
-            sys.exit(1)
-
-        # Setup
-        setup_directories()
-        show_system_info()
 
         # Import and run main app
         from src.traffic_system.frontend.app import main
 
-        logger.info("🎯 Iniciando aplicación Streamlit...")
         main()
 
     except KeyboardInterrupt:

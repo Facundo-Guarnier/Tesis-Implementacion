@@ -44,6 +44,13 @@ class ServiceController:
         self._last_check_time: float = 0
         self._cache_duration = 5  # Cache por 5 segundos
 
+        # Crear directorio de logs para servicios
+        self.logs_dir = Path("logs/services")
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Procesos activos para captura de logs
+        self._active_processes: dict[str, dict[str, Any]] = {}
+
     def get_service_status(self, service_name: str) -> bool:
         """
         Verificar si un servicio está ejecutándose.
@@ -119,15 +126,28 @@ class ServiceController:
                 log_error(error_msg)
                 return False, error_msg
 
+            # Crear archivos de log para este servicio
+            log_file_path = self.logs_dir / f"{service_name}.log"
+
             # Ejecutar con poetry run
             cmd = ["poetry", "run", "python", script_path]
 
             log_info(f"Iniciando servicio {service_name}: {' '.join(cmd)}")
+            log_info(f"Logs del servicio {service_name} en: {log_file_path}")
 
-            # Iniciar proceso en background
+            # Abrir archivo de log para escribir
+            log_file = open(log_file_path, "w", encoding="utf-8")
+
+            # Iniciar proceso en background con logs capturados
             process = subprocess.Popen(
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,  # Redirigir stderr a stdout para capturar todo junto
+                text=True
             )
+
+            # Guardar referencia al proceso y archivo para limpieza posterior
+            self._active_processes[service_name] = {"process": process, "log_file": log_file}
 
             # Esperar un momento para verificar que inició correctamente
             time.sleep(2)
@@ -209,6 +229,17 @@ class ServiceController:
             # Limpiar cache
             self._process_cache[service_name] = None
             self._last_check_time = 0
+
+            # Cerrar archivo de log si existe
+            if service_name in self._active_processes:
+                try:
+                    log_file = self._active_processes[service_name]["log_file"]
+                    log_file.close()
+                    log_info(f"Archivo de log cerrado para servicio {service_name}")
+                except Exception as e:
+                    log_warning(f"Error cerrando archivo de log para {service_name}: {e}")
+                finally:
+                    del self._active_processes[service_name]
 
             if processes_terminated > 0:
                 success_msg = f"Servicio {service_name} detenido correctamente ({processes_terminated} procesos)"
@@ -367,6 +398,17 @@ class ServiceController:
             # Limpiar cache
             self._process_cache[service_name] = None
             self._last_check_time = 0
+
+            # Cerrar archivo de log si existe
+            if service_name in self._active_processes:
+                try:
+                    log_file = self._active_processes[service_name]["log_file"]
+                    log_file.close()
+                    log_info(f"Archivo de log cerrado para servicio {service_name}")
+                except Exception as e:
+                    log_warning(f"Error cerrando archivo de log para {service_name}: {e}")
+                finally:
+                    del self._active_processes[service_name]
 
             if terminated_count == len(processes_found):
                 success_msg = f"Servicio {service_name} detenido correctamente ({terminated_count} procesos)"
@@ -612,3 +654,126 @@ class ServiceController:
         summary["services"] = services_info
 
         return summary
+
+    def get_service_logs(self, service_name: str, max_lines: int = 100) -> list[str]:
+        """
+        Obtener las últimas líneas de log de un servicio específico.
+
+        Args:
+            service_name: Nombre del servicio
+            max_lines: Número máximo de líneas a retornar
+
+        Returns:
+            Lista de líneas de log (más recientes primero)
+        """
+        if service_name not in self.SERVICES:
+            return [f"Servicio desconocido: {service_name}"]
+
+        log_file_path = self.logs_dir / f"{service_name}.log"
+
+        if not log_file_path.exists():
+            return [f"No se encontró archivo de log para {service_name}"]
+
+        try:
+            # Intentar leer con diferentes encodings para manejar caracteres especiales
+            encodings_to_try = ["utf-8", "latin-1", "cp1252", "iso-8859-1"]
+            
+            for encoding in encodings_to_try:
+                try:
+                    with open(log_file_path, encoding=encoding, errors="replace") as f:
+                        lines = f.readlines()
+                    
+                    # Si llegamos aquí, la lectura fue exitosa
+                    # Retornar las últimas max_lines líneas
+                    return [line.rstrip() for line in lines[-max_lines:]]
+                    
+                except UnicodeDecodeError:
+                    # Intentar con el siguiente encoding
+                    continue
+                except Exception as e:
+                    # Si hay otro tipo de error, reportarlo y salir
+                    log_error(f"Error leyendo logs de {service_name} con encoding {encoding}: {e}")
+                    break
+            
+            # Si todos los encodings fallaron, intentar leer como binario y convertir
+            try:
+                with open(log_file_path, "rb") as f:
+                    content = f.read()
+                
+                # Decodificar usando utf-8 con reemplazo de caracteres problemáticos
+                text_content = content.decode("utf-8", errors="replace")
+                lines = text_content.splitlines()
+                
+                return lines[-max_lines:]
+                
+            except Exception as e:
+                log_error(f"Error leyendo logs de {service_name} como binario: {e}")
+                return [f"Error leyendo logs: {e}"]
+
+        except Exception as e:
+            log_error(f"Error leyendo logs de {service_name}: {e}")
+            return [f"Error leyendo logs: {e}"]
+
+    def get_service_log_path(self, service_name: str) -> str:
+        """
+        Obtener la ruta del archivo de log de un servicio.
+
+        Args:
+            service_name: Nombre del servicio
+
+        Returns:
+            Ruta del archivo de log
+        """
+        if service_name not in self.SERVICES:
+            return ""
+
+        return str(self.logs_dir / f"{service_name}.log")
+
+    def clear_service_logs(self, service_name: str) -> bool:
+        """
+        Limpiar los logs de un servicio específico.
+
+        Args:
+            service_name: Nombre del servicio
+
+        Returns:
+            True si se limpiaron exitosamente, False en caso contrario
+        """
+        if service_name not in self.SERVICES:
+            return False
+
+        log_file_path = self.logs_dir / f"{service_name}.log"
+
+        try:
+            # Si el servicio está activo, no podemos limpiar el archivo abierto
+            if service_name in self._active_processes:
+                log_warning(f"No se puede limpiar log de {service_name}: servicio activo")
+                return False
+
+            # Crear archivo vacío
+            with open(log_file_path, "w", encoding="utf-8") as f:
+                f.write("")
+
+            log_info(f"Logs de {service_name} limpiados exitosamente")
+            return True
+
+        except Exception as e:
+            log_error(f"Error limpiando logs de {service_name}: {e}")
+            return False
+
+    def get_all_services_logs(self, max_lines: int = 50) -> dict[str, list[str]]:
+        """
+        Obtener logs de todos los servicios.
+
+        Args:
+            max_lines: Número máximo de líneas por servicio
+
+        Returns:
+            Diccionario con logs por servicio
+        """
+        all_logs = {}
+
+        for service_name in self.SERVICES:
+            all_logs[service_name] = self.get_service_logs(service_name, max_lines)
+
+        return all_logs

@@ -1,0 +1,121 @@
+base_url: http://10.10.0.111:5000
+base_ip: 10.10.0.111
+services:
+  simulation_port: 5000
+  detection_port: 5000
+  reporting_port: 5001
+deteccion:
+  detectar: true
+  modelo: yolov8n.pt
+  path_resultados_deteccion: results/detection_results/
+  forced_rotation_degrees: 0
+  window_fixed: true
+  window_size:
+  - 460
+  - 820
+  carpeta_dataset:
+    procesar: false
+    path_origen: assets/dataset-1080x1920-30fps/
+    path_destino: results/deteccion_dataset/
+  un_video:
+    procesar: false
+    guardar: false
+    zona: Zona A
+    path_destino: results/deteccion/
+    path_origen: assets/dataset-1080x1920-30fps/Zona A/20240102_131846.mp4
+  procesar_camara: false
+decision:
+  decision: true
+  path_modelo_entrenado: assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5
+  steps: 10
+  ponderaciones_zonas:
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  entrenamiento:
+    entrenar: false
+    path_resultado: results/training/
+    num_epocas: 35
+    batch_size: 256
+    steps: 10
+    memory: 5000
+    learning_rate: 0.0005
+    learning_rate_decay: 0.99
+    learning_rate_min: 5.0e-05
+    epsilon: 1
+    epsilon_decay: 0.99995
+    epsilon_min: 0.1
+    gamma: 0.85
+    hidden_layers:
+    - 64
+    - 64
+    - 64
+    use_double_dqn: true
+    use_dueling_dqn: true
+    target_update_frequency: 100
+    warmup_steps: 250
+    min_replay_size: 32
+    use_gradient_clipping: true
+    use_huber_loss: true
+    normalize_rewards: true
+    use_prioritized_replay: true
+    per_alpha: 0.6
+    per_beta_start: 0.4
+    per_beta_frames: 100000
+    use_noisy_networks: true
+    noise_std: 0.3
+    use_dropout: true
+    dropout_rate: 0.02
+    adaptive_lr: true
+    lr_schedule_type: plateau
+    use_batch_normalization: true
+    use_he_initialization: true
+    use_residual_connections: true
+    gradient_clip_norm: 1.0
+    use_leaky_relu: true
+    enable_evaluation: true
+    evaluation_episodes: 10
+    evaluation_frequency: 10
+    baseline_comparison: true
+    save_evaluation_data: true
+    metrics_window_size: 100
+    statistical_tests: true
+    generate_plots: true
+    enable_jit_compilation: true
+    dropout_mode: optimized
+    dropout_layers: strategic
+    noisy_implementation: efficient
+    double_dqn_batch_optimization: false
+    target_update_batch_size: 1024
+    per_batch_processing: false
+    per_update_frequency: 4
+    per_importance_annealing: false
+    dueling_stream_simplification: false
+    hidden_layers_optimization: false
+sumo:
+  simular: true
+  gui: true
+  comparar: true
+  path_sumo: /usr/share/sumo
+  simulation_time_limit: 19500
+  fixed_seed: null
+  use_random_seed: true
+  persist_random_seed: false
+reporte:
+  generar: true
+  steps: 60
+  tiempo_total_espera_maximo: 600
+  tiempo_zona_espera_maximo: 300
+  total_vehiculos_maximo: 50
+  zona_vehiculos_maximo: 2000.0
+  path_reporte: results/reportes
+  db_path_base: results/reportes/db

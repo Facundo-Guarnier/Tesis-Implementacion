@@ -3051,6 +3051,22 @@ snowflake = ["snowflake-connector-python (>=3.3.0) ; python_version < \"3.12\"",
 sql = ["SQLAlchemy (>=2.0.0)"]
 
 [[package]]
+name = "streamlit-autorefresh"
+version = "1.0.1"
+description = "Simple way to autorefresh your Streamlit apps"
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+markers = "platform_system == \"Windows\" or platform_system == \"Linux\""
+files = [
+    {file = "streamlit-autorefresh-1.0.1.tar.gz", hash = "sha256:a89abf23f2c4e52d37be442115cd5566b41f382e3c09ff08817e17a25f50b8ed"},
+    {file = "streamlit_autorefresh-1.0.1-py3-none-any.whl", hash = "sha256:8f0a772eff9d56807d19dc422e44ef92d900bbb22b1b85de31d8d82ea7d875f1"},
+]
+
+[package.dependencies]
+streamlit = ">=0.75"
+
+[[package]]
 name = "supervision"
 version = "0.26.1"
 description = "A set of easy-to-use utils that will come in handy in any Computer Vision project"
@@ -3966,4 +3982,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "bd0bab28dea397652678018776ab8b08324804ba777c4c65da3a8a66fb19a546"
+content-hash = "3827c590d349f52fec1b47475ef158c32cea2002ec27192b9e6987973bfd0815"
