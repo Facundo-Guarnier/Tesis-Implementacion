@@ -1,55 +1,67 @@
 """
 Utilidades básicas y logging para el frontend simplificado.
+
+Este módulo implementa un patrón de inyección de dependencias para el manejo
+de loggers, eliminando variables globales y mejorando la mantenibilidad:
+
+- LoggerProvider: Protocolo para definir contratos de proveedores de logger
+- StreamlitLoggerProvider: Implementación específica para entornos Streamlit
+- StandardLoggerProvider: Implementación para entornos sin Streamlit
+- LoggerFactory: Factory para crear el proveedor apropiado según el contexto
+
+Beneficios:
+- Eliminación de variables globales problemáticas
+- Facilita testing mediante inyección de mocks
+- Cumple principios SOLID (Single Responsibility, Dependency Inversion)
+- Mantenibilidad mejorada y bajo acoplamiento
 """
 
 import logging
-from typing import Any
+from typing import Any, Protocol
 
 
-def setup_logging() -> logging.Logger:
-    """Configurar logging básico para el frontend."""
-    logger = logging.getLogger("frontend_simple")
+class LoggerProvider(Protocol):
+    """Protocolo para proveedores de logger (dependency injection)."""
 
-    # Solo configurar si no tiene handlers (evita duplicación)
-    if not logger.handlers:
-        # Configurar handler con encoding UTF-8 explícito
-        import sys
-
-        handler = logging.StreamHandler(sys.stdout)
-
-        # En Windows, forzar UTF-8 para soportar emojis
-        if hasattr(handler.stream, "reconfigure"):
-            try:
-                handler.stream.reconfigure(encoding="utf-8")
-            except Exception:
-                # Si falla, usar handler sin emojis
-                pass
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-
-        # Evitar propagación para prevenir logs duplicados
-        logger.propagate = False
-
-    return logger
+    def get_logger(self) -> logging.Logger:
+        """Obtener instancia del logger."""
+        ...
 
 
-def setup_logging_once() -> logging.Logger:
-    """Configurar logging solo una vez por sesión usando Streamlit session_state."""
-    try:
-        import streamlit as st
+class StreamlitLoggerProvider:
+    """Proveedor de logger optimizado para Streamlit."""
 
-        # Solo configurar si no se ha hecho antes en esta sesión
-        if "logging_configured" not in st.session_state:
-            st.session_state.logging_configured = True
+    def __init__(self) -> None:
+        self._logger: logging.Logger | None = None
 
-            # Configurar logger con control de duplicación mejorado
-            logger = logging.getLogger("frontend_simple")
+    def get_logger(self) -> logging.Logger:
+        """Obtener logger configurado para Streamlit."""
+        if self._logger is None:
+            self._logger = self._setup_streamlit_logger()
+        return self._logger
 
+    def _setup_streamlit_logger(self) -> logging.Logger:
+        """Configurar logger específicamente para Streamlit."""
+        try:
+            import streamlit as st
+
+            # Solo configurar si no se ha hecho antes en esta sesión
+            if "logging_configured" not in st.session_state:
+                st.session_state.logging_configured = True
+                return self._create_configured_logger()
+            else:
+                # Retornar logger existente sin reconfigurar
+                return logging.getLogger("frontend_simple")
+        except ImportError:
+            # Si no hay Streamlit disponible, usar configuración normal
+            return self._create_configured_logger()
+
+    def _create_configured_logger(self) -> logging.Logger:
+        """Crear logger con configuración completa."""
+        logger = logging.getLogger("frontend_simple")
+
+        # Solo configurar si no tiene handlers (evita duplicación)
+        if not logger.handlers:
             # Limpiar handlers existentes para evitar duplicación
             logger.handlers.clear()
 
@@ -76,40 +88,110 @@ def setup_logging_once() -> logging.Logger:
             # Evitar propagación para prevenir logs duplicados
             logger.propagate = False
 
-            return logger
+        return logger
+
+
+class StandardLoggerProvider:
+    """Proveedor de logger estándar (sin Streamlit)."""
+
+    def __init__(self) -> None:
+        self._logger: logging.Logger | None = None
+
+    def get_logger(self) -> logging.Logger:
+        """Obtener logger configurado estándar."""
+        if self._logger is None:
+            self._logger = self._setup_standard_logger()
+        return self._logger
+
+    def _setup_standard_logger(self) -> logging.Logger:
+        """Configurar logging básico para el frontend."""
+        logger = logging.getLogger("frontend_simple")
+
+        # Solo configurar si no tiene handlers (evita duplicación)
+        if not logger.handlers:
+            # Configurar handler con encoding UTF-8 explícito
+            import sys
+
+            handler = logging.StreamHandler(sys.stdout)
+
+            # En Windows, forzar UTF-8 para soportar emojis
+            if hasattr(handler.stream, "reconfigure"):
+                try:
+                    handler.stream.reconfigure(encoding="utf-8")
+                except Exception:
+                    # Si falla, usar handler sin emojis
+                    pass
+
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+
+            # Evitar propagación para prevenir logs duplicados
+            logger.propagate = False
+
+        return logger
+
+
+class LoggerFactory:
+    """Factory para crear proveedores de logger apropiados."""
+
+    @staticmethod
+    def create_provider() -> LoggerProvider:
+        """Crear proveedor de logger apropiado según el contexto."""
+        import importlib.util
+
+        # Verificar si Streamlit está disponible sin importarlo
+        if importlib.util.find_spec("streamlit") is not None:
+            return StreamlitLoggerProvider()
         else:
-            # Retornar logger existente sin reconfigurar
-            return logging.getLogger("frontend_simple")
-    except ImportError:
-        # Si no hay Streamlit disponible, usar configuración normal
-        return setup_logging()
+            return StandardLoggerProvider()
+
+
+# Instancia singleton del proveedor de logger
+_logger_provider_instance: LoggerProvider | None = None
+
+
+def get_logger_provider() -> LoggerProvider:
+    """Obtener proveedor de logger usando inyección de dependencias."""
+    global _logger_provider_instance
+    if _logger_provider_instance is None:
+        _logger_provider_instance = LoggerFactory.create_provider()
+    return _logger_provider_instance
+
+
+def set_logger_provider(provider: LoggerProvider) -> None:
+    """Establecer proveedor de logger customizado (útil para testing)."""
+    global _logger_provider_instance
+    _logger_provider_instance = provider
+
+
+def reset_logger_provider() -> None:
+    """Resetear proveedor de logger (útil para testing)."""
+    global _logger_provider_instance
+    _logger_provider_instance = None
+
+
+def setup_logging() -> logging.Logger:
+    """Configurar logging básico para el frontend."""
+    return StandardLoggerProvider().get_logger()
+
+
+def setup_logging_once() -> logging.Logger:
+    """Configurar logging solo una vez por sesión usando Streamlit session_state."""
+    return StreamlitLoggerProvider().get_logger()
 
 
 def get_logger() -> logging.Logger:
-    """Obtener logger configurado, asegurando configuración única por sesión."""
-    try:
-        import streamlit as st
-
-        # Si ya está configurado en esta sesión, retornar logger existente
-        if "logging_configured" in st.session_state:
-            return logging.getLogger("frontend_simple")
-        else:
-            # Primera vez en esta sesión, configurar
-            return setup_logging_once()
-    except ImportError:
-        # Sin Streamlit, usar configuración estándar
-        return setup_logging()
-
-
-_logger_instance: logging.Logger | None = None
+    """Obtener logger configurado usando inyección de dependencias."""
+    return get_logger_provider().get_logger()
 
 
 def get_cached_logger() -> logging.Logger:
     """Obtener logger con cache para evitar múltiples inicializaciones."""
-    global _logger_instance
-    if _logger_instance is None:
-        _logger_instance = get_logger()
-    return _logger_instance
+    return get_logger_provider().get_logger()
 
 
 def log_error(message: str) -> None:

@@ -135,19 +135,34 @@ class ServiceController:
             log_info(f"Iniciando servicio {service_name}: {' '.join(cmd)}")
             log_info(f"Logs del servicio {service_name} en: {log_file_path}")
 
-            # Abrir archivo de log para escribir
-            log_file = open(log_file_path, "w", encoding="utf-8")
+            # Abrir archivo de log para escribir con manejo seguro de recursos
+            try:
+                log_file = open(log_file_path, "w", encoding="utf-8")
+            except Exception as e:
+                error_msg = f"Error creando archivo de log para {service_name}: {e}"
+                log_error(error_msg)
+                return False, error_msg
 
-            # Iniciar proceso en background con logs capturados
-            process = subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,  # Redirigir stderr a stdout para capturar todo junto
-                text=True
-            )
+            try:
+                # Iniciar proceso en background con logs capturados
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,  # Redirigir stderr a stdout para capturar todo junto
+                    text=True,
+                )
 
-            # Guardar referencia al proceso y archivo para limpieza posterior
-            self._active_processes[service_name] = {"process": process, "log_file": log_file}
+                # Guardar referencia al proceso y archivo para limpieza posterior
+                self._active_processes[service_name] = {
+                    "process": process,
+                    "log_file": log_file,
+                }
+            except Exception as e:
+                # Si falla al crear el proceso, cerrar el archivo inmediatamente
+                log_file.close()
+                error_msg = f"Error iniciando proceso para {service_name}: {e}"
+                log_error(error_msg)
+                return False, error_msg
 
             # Esperar un momento para verificar que inició correctamente
             time.sleep(2)
@@ -237,7 +252,9 @@ class ServiceController:
                     log_file.close()
                     log_info(f"Archivo de log cerrado para servicio {service_name}")
                 except Exception as e:
-                    log_warning(f"Error cerrando archivo de log para {service_name}: {e}")
+                    log_warning(
+                        f"Error cerrando archivo de log para {service_name}: {e}"
+                    )
                 finally:
                     del self._active_processes[service_name]
 
@@ -406,7 +423,9 @@ class ServiceController:
                     log_file.close()
                     log_info(f"Archivo de log cerrado para servicio {service_name}")
                 except Exception as e:
-                    log_warning(f"Error cerrando archivo de log para {service_name}: {e}")
+                    log_warning(
+                        f"Error cerrando archivo de log para {service_name}: {e}"
+                    )
                 finally:
                     del self._active_processes[service_name]
 
@@ -677,35 +696,37 @@ class ServiceController:
         try:
             # Intentar leer con diferentes encodings para manejar caracteres especiales
             encodings_to_try = ["utf-8", "latin-1", "cp1252", "iso-8859-1"]
-            
+
             for encoding in encodings_to_try:
                 try:
                     with open(log_file_path, encoding=encoding, errors="replace") as f:
                         lines = f.readlines()
-                    
+
                     # Si llegamos aquí, la lectura fue exitosa
                     # Retornar las últimas max_lines líneas
                     return [line.rstrip() for line in lines[-max_lines:]]
-                    
+
                 except UnicodeDecodeError:
                     # Intentar con el siguiente encoding
                     continue
                 except Exception as e:
                     # Si hay otro tipo de error, reportarlo y salir
-                    log_error(f"Error leyendo logs de {service_name} con encoding {encoding}: {e}")
+                    log_error(
+                        f"Error leyendo logs de {service_name} con encoding {encoding}: {e}"
+                    )
                     break
-            
+
             # Si todos los encodings fallaron, intentar leer como binario y convertir
             try:
                 with open(log_file_path, "rb") as f:
                     content = f.read()
-                
+
                 # Decodificar usando utf-8 con reemplazo de caracteres problemáticos
                 text_content = content.decode("utf-8", errors="replace")
                 lines = text_content.splitlines()
-                
+
                 return lines[-max_lines:]
-                
+
             except Exception as e:
                 log_error(f"Error leyendo logs de {service_name} como binario: {e}")
                 return [f"Error leyendo logs: {e}"]
@@ -747,7 +768,9 @@ class ServiceController:
         try:
             # Si el servicio está activo, no podemos limpiar el archivo abierto
             if service_name in self._active_processes:
-                log_warning(f"No se puede limpiar log de {service_name}: servicio activo")
+                log_warning(
+                    f"No se puede limpiar log de {service_name}: servicio activo"
+                )
                 return False
 
             # Crear archivo vacío
@@ -777,3 +800,45 @@ class ServiceController:
             all_logs[service_name] = self.get_service_logs(service_name, max_lines)
 
         return all_logs
+
+    def cleanup_resources(self) -> None:
+        """
+        Limpia todos los recursos abiertos (archivos de log y procesos).
+        Debe ser llamado antes de cerrar la aplicación.
+        """
+        log_info("🧹 Iniciando limpieza de recursos...")
+
+        services_to_clean = list(self._active_processes.keys())
+
+        for service_name in services_to_clean:
+            try:
+                process_info = self._active_processes.get(service_name)
+                if process_info:
+                    # Cerrar archivo de log si está abierto
+                    log_file = process_info.get("log_file")
+                    if log_file and not log_file.closed:
+                        log_file.close()
+                        log_info(f"✅ Archivo de log cerrado para {service_name}")
+
+                    # Terminar proceso si sigue activo
+                    process = process_info.get("process")
+                    if process and process.poll() is None:
+                        process.terminate()
+                        log_info(f"✅ Proceso terminado para {service_name}")
+
+            except Exception as e:
+                log_warning(f"⚠️ Error limpiando recursos de {service_name}: {e}")
+            finally:
+                # Remover de la lista de procesos activos
+                if service_name in self._active_processes:
+                    del self._active_processes[service_name]
+
+        log_info("✅ Limpieza de recursos completada")
+
+    def __del__(self) -> None:
+        """Destructor que asegura la limpieza de recursos."""
+        try:
+            self.cleanup_resources()
+        except Exception:
+            # Silenciar errores en el destructor para evitar problemas en el shutdown
+            pass
