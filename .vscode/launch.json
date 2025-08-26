@@ -65,6 +65,13 @@
       },
       "stopOnEntry": false,
       "justMyCode": false
+    },
+    {
+      "name": "Poetry: Streamlit",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "poetry run streamlit run run_frontend.py --server.port 8501",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
