@@ -101,8 +101,7 @@ def get_logger() -> logging.Logger:
         return setup_logging()
 
 
-# Logger global - inicializar de forma lazy para evitar problemas de importación
-_logger_instance = None
+_logger_instance: logging.Logger | None = None
 
 
 def get_cached_logger() -> logging.Logger:
@@ -227,23 +226,23 @@ def set_nested_value(config: dict[str, Any], field_path: str, value: Any) -> Non
     current[keys[-1]] = value
 
 
-def get_nested_value(config: dict[str, Any], field_path: str) -> Any:
-    """
-    Obtener un valor anidado de un diccionario usando notación de puntos.
+# def get_nested_value(config: dict[str, Any], field_path: str) -> Any:
+#     """
+#     Obtener un valor anidado de un diccionario usando notación de puntos.
 
-    Args:
-        config: Diccionario de configuración
-        field_path: Ruta del campo (ej: 'services.simulation_port')
+#     Args:
+#         config: Diccionario de configuración
+#         field_path: Ruta del campo (ej: 'services.simulation_port')
 
-    Returns:
-        Valor del campo o None si no existe
-    """
-    keys = field_path.split(".")
-    current = config
+#     Returns:
+#         Valor del campo o None si no existe
+#     """
+#     keys = field_path.split(".")
+#     current = config
 
-    try:
-        for key in keys:
-            current = current[key]
-        return current
-    except (KeyError, TypeError):
-        return None
+#     try:
+#         for key in keys:
+#             current = current[key]
+#         return current
+#     except (KeyError, TypeError):
+#         return None

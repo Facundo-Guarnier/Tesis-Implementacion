@@ -260,7 +260,7 @@ def run_cached_verifications() -> bool:
 
         # Check if verifications already completed
         if "verification_completed" in st.session_state:
-            return st.session_state.verification_completed
+            return bool(st.session_state.verification_completed)
 
         # Run verifications only once per session
         logger.info("🔍 Ejecutando verificaciones previas...")

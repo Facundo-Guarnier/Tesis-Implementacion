@@ -126,7 +126,8 @@ module = [
     "ultralytics.*",
     "flask.*",
     "pydantic.*",
-    "numpy.*"
+    "numpy.*",
+    "streamlit_autorefresh.*"
 ]
 ignore_missing_imports = true
 

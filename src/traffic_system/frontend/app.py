@@ -342,7 +342,7 @@ def render_services_page() -> None:
 
     controller = st.session_state.service_controller
 
-    def get_services_summary_manual() -> dict[str, Any] | None:
+    def get_services_summary_manual() -> Any:
         """Obtener resumen de servicios solo cuando se solicite manualmente."""
         cache_key = "services_summary_cache"
 
@@ -351,7 +351,7 @@ def render_services_page() -> None:
 
         return None
 
-    def force_services_check() -> dict[str, Any]:
+    def force_services_check() -> Any:
         """Forzar verificación manual de servicios."""
         cache_key = "services_summary_cache"
         cache_time_key = "services_summary_cache_time"
@@ -842,7 +842,6 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    # TODO: Si este se activa, procesar la cámara en tiempo real y Procesamiento Video Individual deben desactivarse
                     render_field_widget(
                         "deteccion.carpeta_dataset.procesar",
                         "Procesar Carpeta",
@@ -882,13 +881,40 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                         deteccion["un_video"].get("guardar", False),
                         config,
                     )
-                    # TODO: Modificar para que se pueda elegir una zona (Zona A, Zona B, ..., Zona J)
-                    render_field_widget(
-                        "deteccion.un_video.zona",
+
+                    zonas_disponibles = [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ]
+
+                    zona_actual = deteccion["un_video"].get("zona", "Zona A")
+                    if zona_actual not in zonas_disponibles:
+                        zona_actual = "Zona A"
+
+                    zona_seleccionada = st.selectbox(
                         "Zona",
-                        deteccion["un_video"].get("zona", "Zona A"),
-                        config,
+                        options=zonas_disponibles,
+                        index=zonas_disponibles.index(zona_actual),
+                        key="config_deteccion_un_video_zona",
+                        help="Selecciona la zona de detección para el video",
                     )
+
+                    # Actualizar configuración si cambió
+                    if zona_seleccionada != deteccion["un_video"].get("zona"):
+                        st.session_state.config_modified = True
+                        set_nested_value(
+                            config, "deteccion.un_video.zona", zona_seleccionada
+                        )
 
                 with col2:
                     render_field_widget(
