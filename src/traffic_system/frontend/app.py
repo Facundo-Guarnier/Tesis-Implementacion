@@ -20,11 +20,9 @@ from src.traffic_system.frontend.utils import (
 
 def initialize_session_state() -> None:
     """Inicializar variables de estado de sesión de Streamlit."""
-    # Flag para controlar inicialización única
     if "app_initialized" not in st.session_state:
         st.session_state.app_initialized = True
 
-        # Inicialización que solo debe ocurrir una vez
         st.session_state.current_page = "services"
         st.session_state.config_modified = False
         st.session_state.current_config = {}
@@ -32,17 +30,10 @@ def initialize_session_state() -> None:
         st.session_state.service_controller = None
         st.session_state.validation_errors = {}
 
-        # Estados para logs en vivo
-        st.session_state.live_logs_enabled = {}  # Por servicio
-        st.session_state.logs_refresh_interval = (
-            1.0  # Segundos (reducido para mejor tiempo real)
-        )
-        st.session_state.last_logs_update = {}  # Timestamp por servicio
+        st.session_state.live_logs_enabled = {}
+        st.session_state.logs_refresh_interval = 1.0
+        st.session_state.last_logs_update = {}
 
-        # Log de inicialización única - solo una vez por sesión (comentado para reducir spam)
-        # log_info("Frontend simplificado iniciado")
-
-    # Asegurar que las variables existen (sin logs adicionales)
     if "current_page" not in st.session_state:
         st.session_state.current_page = "services"
     if "config_modified" not in st.session_state:
@@ -56,7 +47,6 @@ def initialize_session_state() -> None:
     if "validation_errors" not in st.session_state:
         st.session_state.validation_errors = {}
 
-    # Estados para logs en vivo (asegurar que existen)
     if "live_logs_enabled" not in st.session_state:
         st.session_state.live_logs_enabled = {}
     if "logs_refresh_interval" not in st.session_state:
@@ -67,23 +57,14 @@ def initialize_session_state() -> None:
 
 def render_navigation() -> str:
     """Renderizar navegación simple con 2 opciones."""
-    st.sidebar.title("🚦 Sistema de Tráfico")
+    st.sidebar.title("🚦 SemaforIA")
 
-    # Mostrar estado de verificaciones
-    if (
-        "verification_completed" in st.session_state
-        and st.session_state.verification_completed
-    ):
-        st.sidebar.success("✅ Sistema verificado")
-
-    # Mostrar estado de caché de servicios si está en la página de servicios
     if st.session_state.get("current_page") == "services":
         if "services_summary_cache" in st.session_state:
             cache_time = st.session_state.get("services_summary_cache_time", 0)
             age = int(time.time() - cache_time)
             st.sidebar.info(f"📊 Servicios cacheados ({age}s)")
 
-        # Botón para reinicializar ServiceController si hay problemas
         if st.sidebar.button(
             "🔄 Reinicializar Controller",
             help="Reinicia ServiceController si hay errores de métodos",
@@ -118,21 +99,16 @@ def render_navigation() -> str:
 
 
 def update_service_cache_status(service_name: str, is_running: bool) -> None:
-    """
-    Actualizar inteligentemente el estado de un servicio en el caché
-    sin forzar verificación completa de todos los procesos.
-    """
+    """Actualizar estado de un servicio en el caché sin verificación completa."""
     if "services_summary_cache" not in st.session_state:
-        return  # No hay caché que actualizar
+        return
 
     try:
         cache = st.session_state["services_summary_cache"]
 
-        # Actualizar estado del servicio específico
         if service_name in cache["services"]:
             cache["services"][service_name]["is_running"] = is_running
 
-            # Recalcular contadores globales
             running_count = sum(
                 1
                 for service_info in cache["services"].values()
@@ -140,18 +116,15 @@ def update_service_cache_status(service_name: str, is_running: bool) -> None:
             )
             total_count = len(cache["services"])
 
-            # Actualizar contadores en el caché
             cache["running_services"] = running_count
             cache["stopped_services"] = total_count - running_count
             cache["status_text"] = f"{running_count}/{total_count} servicios activos"
             cache["all_running"] = running_count == total_count
             cache["all_stopped"] = running_count == 0
 
-            # Actualizar timestamp del caché para mantenerlo válido
             st.session_state["services_summary_cache_time"] = time.time()
 
     except Exception:
-        # Si hay error actualizando caché, invalidarlo para forzar verificación fresh
         if "services_summary_cache" in st.session_state:
             del st.session_state["services_summary_cache"]
 
@@ -159,47 +132,23 @@ def update_service_cache_status(service_name: str, is_running: bool) -> None:
 def update_multiple_services_cache_status(
     results: dict[str, tuple[bool, str]], target_state: bool
 ) -> None:
-    """
-    Actualizar el estado de múltiples servicios en el caché basándose en resultados de operación masiva.
-
-    Args:
-        results: Resultados de la operación masiva {service_name: (success, message)}
-        target_state: Estado objetivo (True para iniciar, False para detener)
-    """
+    """Actualizar el estado de múltiples servicios en el caché."""
     if "services_summary_cache" not in st.session_state:
-        return  # No hay caché que actualizar
+        return
 
     try:
-        # Actualizar cada servicio individualmente
         for service_name, (success, _) in results.items():
             if success:
                 update_service_cache_status(service_name, target_state)
 
     except Exception:
-        # Si hay error actualizando caché, invalidarlo para forzar verificación fresh
         if "services_summary_cache" in st.session_state:
             del st.session_state["services_summary_cache"]
 
 
 def render_service_logs(service_name: str, controller: Any) -> None:
-    """
-    Renderizar logs de un servicio específico con controles para actualizar y limpiar.
-    Incluye funcionalidad de logs en tiempo real MEJORADA.
-
-    Características del sistema de logs en tiempo real:
-    - Intervalos configurables desde 0.5 segundos
-    - Contador de actualizaciones automáticas
-    - Límite de seguridad (1000 actualizaciones máximo)
-    - Indicadores visuales de actualización
-    - Control de reseteo de contadores
-    - Auto-pausa cuando el servicio se detiene
-
-    Args:
-        service_name: Nombre del servicio
-        controller: Instancia del ServiceController
-    """
+    """Renderizar logs de un servicio específico con controles de actualización."""
     try:
-        # Verificar que el controller tiene los métodos necesarios
         required_methods = [
             "get_service_logs",
             "get_service_log_path",
@@ -214,7 +163,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.info("🔄 Recarga la página para actualizar el ServiceController")
             return
 
-        # Controles de logs - Primera fila
         col1, col2, col3, col4 = st.columns([1.5, 1, 1, 1])
 
         with col1:
@@ -244,7 +192,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 st.rerun()
 
         with col4:
-            # Control de logs en tiempo real
             live_logs_key = f"live_logs_{service_name}"
             current_live_state = st.session_state.live_logs_enabled.get(
                 service_name, False
@@ -257,10 +204,8 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 help="Actualizar logs automáticamente cada pocos segundos",
             )
 
-            # Actualizar estado en session_state
             st.session_state.live_logs_enabled[service_name] = live_logs_enabled
 
-        # Segunda fila: Configuración de live logs
         if live_logs_enabled:
             col1, col2, _ = st.columns([2, 1, 1])
 
@@ -277,7 +222,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 st.session_state.logs_refresh_interval = refresh_interval
 
             with col2:
-                # Verificar si el servicio está corriendo
                 service_running = controller.get_service_status(service_name)
                 if service_running:
                     st.success("🟢 Servicio activo")
@@ -285,7 +229,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                     st.warning("⚠️ Servicio detenido")
                     st.caption("Live logs pausado")
 
-        # Mostrar información del archivo de log
         try:
             log_path = controller.get_service_log_path(service_name)
             st.caption(f"📁 Archivo: {log_path}")
@@ -293,7 +236,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.error(f"❌ Error obteniendo ruta de log: {path_error}")
             return
 
-        # Obtener y mostrar logs
         try:
             logs = controller.get_service_logs(service_name, max_lines)
         except Exception as logs_error:
@@ -309,7 +251,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
         elif logs and logs[0].startswith("Error"):
             st.error(f"❌ {logs[0]}")
         else:
-            # Opción para invertir orden de logs
             show_recent_first = st.checkbox(
                 "📄 Mostrar recientes primero",
                 value=False,
@@ -317,45 +258,33 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 help="Los logs más nuevos aparecen arriba (evita hacer scroll manual)",
             )
 
-            # Procesar logs según configuración
             if show_recent_first:
-                # Invertir orden: más recientes primero (arriba)
                 logs_to_show = list(reversed(logs))
             else:
-                # Orden cronológico normal: más antiguos primero, más nuevos abajo
                 logs_to_show = logs
 
             log_text = "\n".join(logs_to_show)
 
-            # Intentar que el text_area inicie mostrando la parte inferior
-            # Técnica: usar key que cambie cuando hay contenido nuevo para forzar que Streamlit
-            # re-renderice desde cero (y potencialmente muestre desde el final)
             if not show_recent_first:
-                # Solo para orden cronológico, cambiar key cuando hay logs nuevos
                 content_signature = f"{len(logs)}_{hash(logs[-1] if logs else '')}"
                 text_area_key = f"logs_display_{service_name}_{content_signature}"
             else:
-                # Para orden invertido, key estable
                 text_area_key = f"logs_display_inverted_{service_name}"
 
-            # Mostrar logs en text_area
             st.text_area(
                 "🖥️ Logs del servicio",
                 value=log_text,
                 height=300,
                 key=text_area_key,
                 help="Los logs se actualizan automáticamente. El orden cronológico intenta mostrar desde el final por defecto.",
-                disabled=True,  # Solo lectura para mejor rendimiento
+                disabled=True,
             )
 
-            # Opción de descarga de logs completos
             if st.button(
                 "💾 Descargar logs completos", key=f"download_logs_{service_name}"
             ):
                 try:
-                    full_logs = controller.get_service_logs(
-                        service_name, 10000
-                    )  # Obtener más líneas
+                    full_logs = controller.get_service_logs(service_name, 10000)
                     full_log_text = "\n".join(full_logs)
 
                     st.download_button(
@@ -368,26 +297,19 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 except Exception as download_error:
                     st.error(f"❌ Error preparando descarga: {download_error}")
 
-        # Auto-refresh logic para logs en tiempo real usando streamlit-autorefresh
         if live_logs_enabled and controller.get_service_status(service_name):
-            # Usar streamlit-autorefresh - mucho más eficiente que st.rerun()
-            refresh_interval_ms = int(
-                refresh_interval * 1000
-            )  # Convertir a milisegundos
+            refresh_interval_ms = int(refresh_interval * 1000)
 
-            # Auto-refresh solo si el servicio está corriendo
             auto_refresh_count = st_autorefresh(
                 interval=refresh_interval_ms,
-                limit=10000,  # Límite alto pero razonable
+                limit=10000,
                 key=f"autorefresh_{service_name}",
             )
 
-            # Actualizar timestamp cuando hay auto-refresh
             if auto_refresh_count > 0:
                 st.session_state.last_logs_update[service_name] = time.time()
 
-                # Mostrar indicador discreto de auto-refresh
-                if auto_refresh_count % 10 == 0:  # Solo cada 10 actualizaciones
+                if auto_refresh_count % 10 == 0:
                     st.caption(
                         f"🔄 Auto-refresh activo: {auto_refresh_count} actualizaciones"
                     )
@@ -396,7 +318,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
         st.error(f"❌ Error mostrando logs de {service_name}: {e}")
         log_error(f"Error en render_service_logs para {service_name}: {e}")
 
-        # Información de debugging adicional
         st.info("🔍 Información de debugging:")
         st.code(f"ServiceController type: {type(controller)}")
         if hasattr(controller, "__dict__"):
@@ -410,36 +331,27 @@ def render_services_page() -> None:
     """Renderizar página de control de servicios."""
     st.title("🔧 Control de Servicios")
 
-    # Inicializar ServiceController (forzar reinicialización para incluir nuevos métodos)
     if st.session_state.service_controller is None or not hasattr(
         st.session_state.service_controller, "get_service_log_path"
     ):
         from src.traffic_system.frontend.service_controller import ServiceController
 
         st.session_state.service_controller = ServiceController()
-        # Solo log si es la primera inicialización de la sesión (comentado para reducir spam)
         if "service_controller_initialized" not in st.session_state:
             st.session_state.service_controller_initialized = True
-            # log_info("ServiceController inicializado")
 
     controller = st.session_state.service_controller
 
-    # Función para obtener servicios con verificación MANUAL solamente
-    def get_services_summary_manual() -> dict | None:
-        """
-        Obtener resumen de servicios solo cuando se solicite manualmente.
-        Esto mejora drásticamente el rendimiento ya que no verifica automáticamente.
-        """
+    def get_services_summary_manual() -> dict[str, Any] | None:
+        """Obtener resumen de servicios solo cuando se solicite manualmente."""
         cache_key = "services_summary_cache"
 
-        # Si hay caché, usarlo (sin expiración automática)
         if cache_key in st.session_state:
             return st.session_state[cache_key]
 
-        # Si no hay caché, mostrar mensaje para verificar manualmente
         return None
 
-    def force_services_check():
+    def force_services_check() -> dict[str, Any]:
         """Forzar verificación manual de servicios."""
         cache_key = "services_summary_cache"
         cache_time_key = "services_summary_cache_time"
@@ -447,7 +359,6 @@ def render_services_page() -> None:
         with st.spinner("🔍 Verificando estado de servicios..."):
             summary = controller.get_services_summary()
 
-        # Cachear resultado
         st.session_state[cache_key] = summary
         st.session_state[cache_time_key] = time.time()
 
@@ -456,7 +367,6 @@ def render_services_page() -> None:
     try:
         summary = get_services_summary_manual()
 
-        # Si no hay caché, mostrar indicación para verificar manualmente
         if summary is None:
             if st.button(
                 "🔍 Verificar Servicios", use_container_width=True, type="primary"
@@ -465,7 +375,6 @@ def render_services_page() -> None:
                 st.rerun()
 
         if summary:
-            # Resumen general
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(
@@ -489,7 +398,6 @@ def render_services_page() -> None:
 
             st.markdown("---")
 
-            # Controles masivos
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("▶️ Iniciar Todos", use_container_width=True):
@@ -504,7 +412,6 @@ def render_services_page() -> None:
                                 st.error(
                                     f"❌ {controller.get_service_display_name(service)}: {message}"
                                 )
-                    # Actualizar caché inteligentemente para servicios exitosos
                     update_multiple_services_cache_status(results, True)
                     st.rerun()
 
@@ -521,13 +428,11 @@ def render_services_page() -> None:
                                 st.error(
                                     f"❌ {controller.get_service_display_name(service)}: {message}"
                                 )
-                    # Actualizar caché inteligentemente para servicios exitosos
                     update_multiple_services_cache_status(results, False)
                     st.rerun()
 
             st.markdown("---")
 
-            # Servicios individuales
             for service_name, service_info in summary["services"].items():
                 display_name = service_info["display_name"]
                 is_running = service_info["is_running"]
@@ -551,11 +456,9 @@ def render_services_page() -> None:
                                 )
                                 if success:
                                     st.success(f"✅ {message}")
-                                    # Actualizar caché inteligentemente en lugar de invalidarlo
                                     update_service_cache_status(service_name, True)
                                 else:
                                     st.error(f"❌ {message}")
-                                    # Solo invalidar caché si falló (estado incierto)
                                     if "services_summary_cache" in st.session_state:
                                         del st.session_state["services_summary_cache"]
                             time.sleep(1)
@@ -570,17 +473,14 @@ def render_services_page() -> None:
                                 )
                                 if success:
                                     st.success(f"✅ {message}")
-                                    # Actualizar caché inteligentemente en lugar de invalidarlo
                                     update_service_cache_status(service_name, False)
                                 else:
                                     st.error(f"❌ {message}")
-                                    # Solo invalidar caché si falló (estado incierto)
                                     if "services_summary_cache" in st.session_state:
                                         del st.session_state["services_summary_cache"]
                             time.sleep(1)
                             st.rerun()
 
-                # Mostrar logs si el servicio está ejecutándose
                 if is_running:
                     with st.expander(f"📋 Logs de {display_name}", expanded=False):
                         render_service_logs(service_name, controller)
@@ -596,7 +496,6 @@ def render_config_page() -> None:
     """Renderizar página de configuración."""
     st.title("⚙️ Configuración del Sistema")
 
-    # Inicializar ConfigManager (solo una vez)
     if st.session_state.config_manager is None:
         from src.traffic_system.frontend.config_manager import ConfigManager
 
@@ -605,14 +504,11 @@ def render_config_page() -> None:
         if config:
             st.session_state.current_config = config
 
-        # Solo log si es la primera inicialización de la sesión (comentado para reducir spam)
         if "config_manager_initialized" not in st.session_state:
             st.session_state.config_manager_initialized = True
-            # log_info("ConfigManager inicializado")
 
     manager = st.session_state.config_manager
 
-    # Controles principales
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -625,7 +521,6 @@ def render_config_page() -> None:
                 st.rerun()
 
     with col2:
-        # Verificar si hay cambios y si hay errores de validación
         has_changes = st.session_state.config_modified
         has_validation_errors = len(st.session_state.validation_errors) > 0
 
@@ -634,7 +529,6 @@ def render_config_page() -> None:
                 st.session_state.current_config
             )
 
-            # Determinar texto del botón y si está habilitado
             if not has_changes:
                 button_text = "💾 Guardar"
                 can_save = False
@@ -655,7 +549,7 @@ def render_config_page() -> None:
                 )
                 if success:
                     st.session_state.config_modified = False
-                    st.session_state.validation_errors.clear()  # Limpiar errores al guardar
+                    st.session_state.validation_errors.clear()
                     st.success("✅ Guardado")
                     st.balloons()
                     st.rerun()
@@ -676,7 +570,6 @@ def render_config_page() -> None:
                 st.success("✅ Cancelado")
                 st.rerun()
 
-    # Estado con información de validación
     error_count = len(st.session_state.validation_errors)
 
     if error_count > 0:
@@ -686,7 +579,6 @@ def render_config_page() -> None:
     else:
         st.success("✅ Sincronizado")
 
-    # Validación
     if st.session_state.current_config:
         is_valid, errors = manager.validate_with_pydantic(
             st.session_state.current_config
@@ -698,42 +590,33 @@ def render_config_page() -> None:
 
     st.markdown("---")
 
-    # Configuración simplificada
     if st.session_state.current_config:
         render_simple_config(manager, st.session_state.current_config)
 
 
 def on_config_change(field_path: str) -> None:
     """Callback ejecutado cuando cambia un campo de configuración."""
-    # Marcar como modificado sin causar rerun
     st.session_state.config_modified = True
 
-    # Inicializar validation_errors si no existe
     if "validation_errors" not in st.session_state:
         st.session_state.validation_errors = {}
 
-    # Validar el campo específico solo si es necesario
     try:
         widget_key = f"config_{field_path.replace('.', '_')}"
         if widget_key in st.session_state and st.session_state.current_config:
             field_value = st.session_state[widget_key]
 
-            # Validar campo individual (solo si el valor cambió realmente)
             is_valid, message = validate_field(
                 field_path, field_value, st.session_state.current_config
             )
 
-            # Actualizar errores de validación por campo de forma eficiente
             if is_valid:
                 st.session_state.validation_errors.pop(field_path, None)
             else:
                 st.session_state.validation_errors[field_path] = message
 
     except Exception:
-        # Solo almacenar error para este campo específico
         st.session_state.validation_errors[field_path] = "❌ Error de validación"
-
-    # NO hacer st.rerun() aquí - causa reinicio completo del frontend
 
 
 def render_field_widget(
@@ -787,7 +670,6 @@ def render_field_widget(
                 args=(field_path,),
             )
         elif isinstance(value, str) or value is None:
-            # Manejar strings y valores None
             display_value = "" if value is None else value
             st.text_input(
                 field_name,
@@ -799,7 +681,6 @@ def render_field_widget(
             )
         elif isinstance(value, list):
             if value and isinstance(value[0], int | float):
-                # Lista de números - mostrar como text area para edición manual
                 list_str = ", ".join(str(v) for v in value)
                 st.text_area(
                     f"{field_name} (separados por comas)",
@@ -810,7 +691,6 @@ def render_field_widget(
                     help="Valores separados por comas",
                 )
             elif value and isinstance(value[0], str):
-                # Lista de strings
                 list_str = ", ".join(value)
                 st.text_area(
                     f"{field_name} (separados por comas)",
@@ -821,7 +701,6 @@ def render_field_widget(
                     help="Valores separados por comas",
                 )
             else:
-                # Lista vacía o tipo desconocido
                 st.text_input(
                     field_name,
                     value=str(value),
@@ -830,7 +709,6 @@ def render_field_widget(
                     args=(field_path,),
                 )
         else:
-            # Tipo desconocido, mostrar como string
             st.text_input(
                 field_name,
                 value=str(value),
@@ -839,15 +717,12 @@ def render_field_widget(
                 args=(field_path,),
             )
 
-        # Mostrar validación en tiempo real (sin mostrar "Válido" en todos los campos)
         if field_path in st.session_state.validation_errors:
             st.error(st.session_state.validation_errors[field_path])
 
-        # Actualizar valor en config si cambió
         if widget_key in st.session_state:
             new_value = st.session_state[widget_key]
 
-            # Procesar listas
             if isinstance(value, list) and isinstance(new_value, str):
                 try:
                     if value and isinstance(value[0], int):
@@ -863,20 +738,16 @@ def render_field_widget(
                             x.strip() for x in new_value.split(",") if x.strip()
                         ]
                 except (ValueError, IndexError):
-                    # Si hay error de conversión, mantener valor original
                     new_value = value
 
-            # Procesar valores None - si el campo originalmente era None y recibimos string vacío, convertir de vuelta a None
             if value is None and isinstance(new_value, str) and new_value.strip() == "":
                 new_value = None
             elif (
                 value is None and isinstance(new_value, str) and new_value.strip() != ""
             ):
-                # Si valor original era None pero ahora hay contenido, intentar convertir a tipo apropiado
                 if "seed" in field_path and new_value.strip().isdigit():
                     new_value = int(new_value.strip())
 
-            # Actualizar en config usando la función helper
             set_nested_value(config, field_path, new_value)
 
     except Exception as e:
@@ -886,8 +757,7 @@ def render_field_widget(
 def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
     """Renderizar configuración completa de config.yaml."""
 
-    # Campos de nivel superior
-    with st.expander("🌐 Configuración Global", expanded=True):
+    with st.expander("🌐 Configuración Global", expanded=False):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -897,8 +767,7 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
         with col2:
             render_field_widget("base_ip", "IP Base", config.get("base_ip", ""), config)
 
-    # Servicios
-    with st.expander("📡 Servicios", expanded=True):
+    with st.expander("📡 Servicios", expanded=False):
         if "services" in config:
             services = config["services"]
             col1, col2, col3 = st.columns(3)
@@ -925,22 +794,14 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
 
-    # Detección - Configuración completa
     with st.expander("🔍 Detección de Objetos", expanded=False):
         if "deteccion" in config:
             deteccion = config["deteccion"]
 
-            # Configuración principal
             st.subheader("Configuración Principal")
             col1, col2 = st.columns(2)
 
             with col1:
-                render_field_widget(
-                    "deteccion.detectar",
-                    "Activar Detección",
-                    deteccion.get("detectar", True),
-                    config,
-                )
                 render_field_widget(
                     "deteccion.modelo",
                     "Modelo YOLO",
@@ -954,9 +815,9 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
                 render_field_widget(
-                    "deteccion.procesar_camara",
-                    "Procesar Cámara",
-                    deteccion.get("procesar_camara", False),
+                    "deteccion.window_fixed",
+                    "Ventana Fija",
+                    deteccion.get("window_fixed", True),
                     config,
                 )
 
@@ -968,24 +829,20 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
                 render_field_widget(
-                    "deteccion.window_fixed",
-                    "Ventana Fija",
-                    deteccion.get("window_fixed", True),
-                    config,
-                )
-                render_field_widget(
                     "deteccion.window_size",
                     "Tamaño Ventana [ancho, alto]",
                     deteccion.get("window_size", [460, 820]),
                     config,
                 )
 
-            # Carpeta Dataset
+            st.markdown("---")
+
             if "carpeta_dataset" in deteccion:
                 st.subheader("Procesamiento Carpeta Dataset")
                 col1, col2 = st.columns(2)
 
                 with col1:
+                    # TODO: Si este se activa, procesar la cámara en tiempo real y Procesamiento Video Individual deben desactivarse
                     render_field_widget(
                         "deteccion.carpeta_dataset.procesar",
                         "Procesar Carpeta",
@@ -1006,7 +863,8 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                         config,
                     )
 
-            # Un Video
+            st.markdown("---")
+
             if "un_video" in deteccion:
                 st.subheader("Procesamiento Video Individual")
                 col1, col2 = st.columns(2)
@@ -1024,6 +882,7 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                         deteccion["un_video"].get("guardar", False),
                         config,
                     )
+                    # TODO: Modificar para que se pueda elegir una zona (Zona A, Zona B, ..., Zona J)
                     render_field_widget(
                         "deteccion.un_video.zona",
                         "Zona",
@@ -1045,36 +904,37 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                         config,
                     )
 
-    # Decisión - Configuración completa
+            st.markdown("---")
+
+            if "procesar_camara" in deteccion:
+                st.subheader("Procesamiento Cámara")
+                render_field_widget(
+                    "deteccion.procesar_camara",
+                    "Procesar Cámara",
+                    deteccion.get("procesar_camara", False),
+                    config,
+                )
+
     with st.expander("🧠 Decisión y Aprendizaje", expanded=False):
         if "decision" in config:
             decision = config["decision"]
 
-            # Configuración principal
             st.subheader("Configuración Principal")
             col1, col2 = st.columns(2)
-
             with col1:
-                render_field_widget(
-                    "decision.decision",
-                    "Activar Decisión",
-                    decision.get("decision", True),
-                    config,
-                )
                 render_field_widget(
                     "decision.path_modelo_entrenado",
                     "Path Modelo Entrenado",
                     decision.get("path_modelo_entrenado", ""),
                     config,
                 )
-
-            with col2:
                 render_field_widget(
                     "decision.steps",
                     "Steps por Decisión",
                     decision.get("steps", 10),
                     config,
                 )
+            with col2:
                 render_field_widget(
                     "decision.ponderaciones_zonas",
                     "Ponderaciones Zonas (12 valores)",
@@ -1082,12 +942,12 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
 
-            # Entrenamiento
+            st.markdown("---")
+
             if "entrenamiento" in decision:
                 st.subheader("Entrenamiento DQN")
                 entrenamiento = decision["entrenamiento"]
 
-                # Configuración básica
                 st.markdown("**Configuración Básica**")
                 col1, col2, col3 = st.columns(3)
 
@@ -1250,7 +1110,6 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                         config,
                     )
 
-                # Optimizaciones y evaluación en expanders separados para no sobrecargar
                 with st.expander("Optimizaciones de Estabilidad", expanded=False):
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -1465,27 +1324,15 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             config,
                         )
 
-    # SUMO - Configuración completa
     with st.expander("🚦 SUMO Simulación", expanded=False):
         if "sumo" in config:
             sumo = config["sumo"]
-            col1, col2 = st.columns(2)
 
+            st.subheader("Configuración Principal")
+            col1, col2 = st.columns(2)
             with col1:
                 render_field_widget(
-                    "sumo.simular",
-                    "Activar Simulación",
-                    sumo.get("simular", True),
-                    config,
-                )
-                render_field_widget(
                     "sumo.gui", "Mostrar GUI", sumo.get("gui", True), config
-                )
-                render_field_widget(
-                    "sumo.comparar",
-                    "Modo Comparación",
-                    sumo.get("comparar", False),
-                    config,
                 )
                 render_field_widget(
                     "sumo.path_sumo",
@@ -1493,20 +1340,24 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     sumo.get("path_sumo", "/usr/share/sumo"),
                     config,
                 )
-
             with col2:
+                render_field_widget(
+                    "sumo.comparar",
+                    "Modo Comparación",
+                    sumo.get("comparar", False),
+                    config,
+                )
                 render_field_widget(
                     "sumo.simulation_time_limit",
                     "Límite Tiempo Simulación",
                     sumo.get("simulation_time_limit", 19500),
                     config,
                 )
-                render_field_widget(
-                    "sumo.fixed_seed",
-                    "Semilla Fija",
-                    sumo.get("fixed_seed", None),
-                    config,
-                )
+
+            st.markdown("---")
+            st.subheader("Configuración de Semilla")
+            col1, col2 = st.columns(2)
+            with col1:
                 render_field_widget(
                     "sumo.use_random_seed",
                     "Usar Semilla Aleatoria",
@@ -1519,20 +1370,20 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     sumo.get("persist_random_seed", False),
                     config,
                 )
+            with col2:
+                render_field_widget(
+                    "sumo.fixed_seed",
+                    "Semilla Fija",
+                    sumo.get("fixed_seed", None),
+                    config,
+                )
 
-    # Reportes - Configuración completa
     with st.expander("📊 Reportes", expanded=False):
         if "reporte" in config:
             reporte = config["reporte"]
             col1, col2 = st.columns(2)
 
             with col1:
-                render_field_widget(
-                    "reporte.generar",
-                    "Generar Reportes",
-                    reporte.get("generar", True),
-                    config,
-                )
                 render_field_widget(
                     "reporte.steps",
                     "Steps por Reporte",
@@ -1551,18 +1402,17 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     reporte.get("tiempo_zona_espera_maximo", 300),
                     config,
                 )
-
-            with col2:
                 render_field_widget(
                     "reporte.total_vehiculos_maximo",
                     "Vehículos Totales Máx",
                     reporte.get("total_vehiculos_maximo", 50),
                     config,
                 )
+            with col2:
                 render_field_widget(
                     "reporte.zona_vehiculos_maximo",
                     "Vehículos Zona Máx",
-                    reporte.get("zona_vehiculos_maximo", 2000.0),
+                    reporte.get("zona_vehiculos_maximo", 200.0),
                     config,
                 )
                 render_field_widget(
@@ -1577,8 +1427,6 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     reporte.get("db_path_base", "results/reportes/db"),
                     config,
                 )
-
-    st.success("✅ Configuración completa disponible para edición")
 
 
 def main() -> None:
