@@ -31,7 +31,7 @@ def initialize_session_state() -> None:
         st.session_state.validation_errors = {}
 
         st.session_state.live_logs_enabled = {}
-        st.session_state.logs_refresh_interval = 1.0
+        st.session_state.logs_refresh_interval = 4.0
         st.session_state.last_logs_update = {}
 
     if "current_page" not in st.session_state:
@@ -50,7 +50,7 @@ def initialize_session_state() -> None:
     if "live_logs_enabled" not in st.session_state:
         st.session_state.live_logs_enabled = {}
     if "logs_refresh_interval" not in st.session_state:
-        st.session_state.logs_refresh_interval = 1.0
+        st.session_state.logs_refresh_interval = 4.0
     if "last_logs_update" not in st.session_state:
         st.session_state.last_logs_update = {}
 
@@ -59,25 +59,9 @@ def render_navigation() -> str:
     """Renderizar navegación simple con 2 opciones."""
     st.sidebar.title("🚦 SemaforIA")
 
-    if st.session_state.get("current_page") == "services":
-        if "services_summary_cache" in st.session_state:
-            cache_time = st.session_state.get("services_summary_cache_time", 0)
-            age = int(time.time() - cache_time)
-            st.sidebar.info(f"📊 Servicios cacheados ({age}s)")
-
-        if st.sidebar.button(
-            "🔄 Reinicializar Controller",
-            help="Reinicia ServiceController si hay errores de métodos",
-        ):
-            if "service_controller" in st.session_state:
-                del st.session_state["service_controller"]
-            st.sidebar.success("✅ Controller reinicializado")
-            st.rerun()
-
-    st.sidebar.markdown("---")
-
     pages = {"🔧 Servicios": "services", "⚙️ Configuración": "config"}
     current_page: str = st.session_state.current_page
+    st.sidebar.markdown("---")
 
     for page_title, page_key in pages.items():
         if page_key == current_page:
@@ -94,6 +78,28 @@ def render_navigation() -> str:
             ):
                 st.session_state.current_page = page_key
                 st.rerun()
+
+    if st.session_state.get("current_page") == "services":
+        st.sidebar.markdown("---")
+        if st.session_state.get("controller_just_reset", False):
+            st.toast("🔄 ServiceController reinicializado exitosamente", icon="✅")
+            st.session_state.controller_just_reset = False
+
+        if st.sidebar.button(
+            "🔄 Reinicializar Controller",
+            use_container_width=True,
+            help="Reinicia ServiceController si hay errores de métodos",
+        ):
+            if "service_controller" in st.session_state:
+                del st.session_state["service_controller"]
+
+            st.session_state.controller_just_reset = True
+
+            if "services_summary_cache" in st.session_state:
+                del st.session_state["services_summary_cache"]
+            if "service_controller_initialized" in st.session_state:
+                del st.session_state["service_controller_initialized"]
+            st.rerun()
 
     return current_page
 
@@ -163,7 +169,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.info("🔄 Recarga la página para actualizar el ServiceController")
             return
 
-        col1, col2, col3, col4 = st.columns([1.5, 1, 1, 1])
+        col1, col2, col3 = st.columns([1.5, 1, 1])
 
         with col1:
             max_lines = st.slider(
@@ -181,17 +187,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 st.rerun()
 
         with col3:
-            if st.button("🗑️ Limpiar", key=f"clear_logs_{service_name}"):
-                try:
-                    if controller.clear_service_logs(service_name):
-                        st.success("✅ Logs limpiados")
-                    else:
-                        st.error("❌ No se pudieron limpiar los logs")
-                except Exception as clear_error:
-                    st.error(f"❌ Error limpiando logs: {clear_error}")
-                st.rerun()
-
-        with col4:
             live_logs_key = f"live_logs_{service_name}"
             current_live_state = st.session_state.live_logs_enabled.get(
                 service_name, False
@@ -302,7 +297,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
 
             auto_refresh_count = st_autorefresh(
                 interval=refresh_interval_ms,
-                limit=10000,
                 key=f"autorefresh_{service_name}",
             )
 
@@ -364,6 +358,16 @@ def render_services_page() -> None:
 
         return summary
 
+    def auto_refresh_services_status() -> None:
+        """Actualizar estado de servicios en segundo plano después de operaciones."""
+        cache_key = "services_summary_cache"
+        cache_time_key = "services_summary_cache_time"
+
+        # Actualizar cache silenciosamente sin spinner
+        summary = controller.get_services_summary()
+        st.session_state[cache_key] = summary
+        st.session_state[cache_time_key] = time.time()
+
     try:
         summary = get_services_summary_manual()
 
@@ -413,6 +417,8 @@ def render_services_page() -> None:
                                     f"❌ {controller.get_service_display_name(service)}: {message}"
                                 )
                     update_multiple_services_cache_status(results, True)
+                    # Verificar estado automáticamente después de la operación
+                    auto_refresh_services_status()
                     st.rerun()
 
             with col2:
@@ -429,6 +435,8 @@ def render_services_page() -> None:
                                     f"❌ {controller.get_service_display_name(service)}: {message}"
                                 )
                     update_multiple_services_cache_status(results, False)
+                    # Verificar estado automáticamente después de la operación
+                    auto_refresh_services_status()
                     st.rerun()
 
             st.markdown("---")
@@ -461,7 +469,9 @@ def render_services_page() -> None:
                                     st.error(f"❌ {message}")
                                     if "services_summary_cache" in st.session_state:
                                         del st.session_state["services_summary_cache"]
+                            # Verificar estado automáticamente después de la operación
                             time.sleep(1)
+                            auto_refresh_services_status()
                             st.rerun()
 
                 with col3:
@@ -478,7 +488,9 @@ def render_services_page() -> None:
                                     st.error(f"❌ {message}")
                                     if "services_summary_cache" in st.session_state:
                                         del st.session_state["services_summary_cache"]
+                            # Verificar estado automáticamente después de la operación
                             time.sleep(1)
+                            auto_refresh_services_status()
                             st.rerun()
 
                 if is_running:
@@ -619,6 +631,114 @@ def on_config_change(field_path: str) -> None:
         st.session_state.validation_errors[field_path] = "❌ Error de validación"
 
 
+# Diccionario de tooltips basado en comentarios del config.yaml
+CONFIG_TOOLTIPS = {
+    # Configuración global
+    "base_url": "URL base del servidor Flask",
+    "base_ip": "Dirección IP base del servidor",
+    # Servicios
+    "services.simulation_port": "Puerto para el servicio de simulación",
+    "services.detection_port": "Puerto para el servicio de detección",
+    "services.reporting_port": "Puerto para el servicio de reportes",
+    # Detección
+    "deteccion.detectar": "Iniciar la detección de objetos",
+    "deteccion.modelo": "Modelo de detección de objetos YOLO (yolov8n.pt, yolov8s.pt, etc.)",
+    "deteccion.path_resultados_deteccion": "Carpeta donde se guardan los resultados de detección automática",
+    "deteccion.forced_rotation_degrees": "Forzar rotación de frames (0, 90, 180, 270 grados)",
+    "deteccion.window_fixed": "Ventana fija (no se redimensiona automáticamente)",
+    "deteccion.window_size": "Tamaño de ventana fija [ancho, alto] en píxeles",
+    # Detección - Carpeta dataset
+    "deteccion.carpeta_dataset.procesar": "Procesar todos los videos de la carpeta del dataset",
+    "deteccion.carpeta_dataset.path_origen": "Carpeta con los videos a procesar",
+    "deteccion.carpeta_dataset.path_destino": "Carpeta donde se guardarán los resultados",
+    # Detección - Un video
+    "deteccion.un_video.procesar": "Procesar un video en específico",
+    "deteccion.un_video.guardar": "Guardar el video con los resultados de detección",
+    "deteccion.un_video.zona": "Zona de detección para el video",
+    "deteccion.un_video.path_origen": "Ruta del video a procesar",
+    "deteccion.un_video.path_destino": "Carpeta donde se guardará el resultado",
+    # Detección - Cámara
+    "deteccion.procesar_camara": "Procesar la cámara en tiempo real",
+    # Decisión
+    "decision.decision": "Iniciar la toma de decisiones con agente RL",
+    "decision.path_modelo_entrenado": "Ruta del modelo DQN entrenado (.h5 o .keras)",
+    "decision.steps": "Pasos de simulación por acción del agente (reduce frecuencia de decisiones)",
+    "decision.ponderaciones_zonas": "Ponderaciones de las 12 zonas de detección (valores de importancia)",
+    # Entrenamiento
+    "decision.entrenamiento.entrenar": "Iniciar proceso de entrenamiento del agente DQN",
+    "decision.entrenamiento.path_resultado": "Directorio donde se guardan modelos, logs y métricas de entrenamiento",
+    # Hiperparámetros básicos
+    "decision.entrenamiento.num_epocas": "Número total de épocas de entrenamiento",
+    "decision.entrenamiento.batch_size": "Tamaño de lote para entrenamiento (potencia de 2, balance memoria/convergencia)",
+    "decision.entrenamiento.steps": "Pasos de simulación por acción del agente",
+    "decision.entrenamiento.memory": "Capacidad máxima del buffer de experiencias (5000 = ~20 épocas de memoria)",
+    # Optimización y learning rate
+    "decision.entrenamiento.learning_rate": "Tasa de aprendizaje inicial - valor conservador para evitar gradient vanishing",
+    "decision.entrenamiento.learning_rate_decay": "Factor de decay por época (0.95 = moderado, 0.99 = conservador)",
+    "decision.entrenamiento.learning_rate_min": "Tasa mínima para mantener aprendizaje gradual",
+    # Exploración epsilon-greedy
+    "decision.entrenamiento.epsilon": "Probabilidad inicial de exploración (1.0 = 100% exploración al inicio)",
+    "decision.entrenamiento.epsilon_decay": "Factor de decay por step - decay gradual a lo largo del entrenamiento",
+    "decision.entrenamiento.epsilon_min": "Probabilidad mínima de exploración (10% exploración residual)",
+    # Descuento y arquitectura
+    "decision.entrenamiento.gamma": "Factor de descuento - gamma más alto para valorar recompensas futuras",
+    "decision.entrenamiento.hidden_layers": "Arquitectura de capas ocultas - menos profunda para evitar gradient vanishing",
+    # Mejoras algorítmicas DQN
+    "decision.entrenamiento.use_double_dqn": "Double DQN: Reduce sobreestimación de Q-values usando red target",
+    "decision.entrenamiento.use_dueling_dqn": "Dueling DQN: Separa valor del estado V(s) y ventaja de acciones A(s,a)",
+    "decision.entrenamiento.target_update_frequency": "Frecuencia de actualización red target (cada N pasos de entrenamiento)",
+    # Estabilidad del entrenamiento
+    "decision.entrenamiento.warmup_steps": "Pasos iniciales sin entrenamiento (esperar llegada de vehículos desde spawn)",
+    "decision.entrenamiento.min_replay_size": "Mínimo de experiencias para entrenar (batch dinámico 32→256)",
+    "decision.entrenamiento.use_gradient_clipping": "Gradient clipping con clipnorm=1.0 (previene explosión de gradientes)",
+    "decision.entrenamiento.use_huber_loss": "Huber Loss en lugar de MSE (más robusto a outliers)",
+    "decision.entrenamiento.normalize_rewards": "Normalización de recompensas para estabilidad numérica",
+    # Prioritized Experience Replay (PER)
+    "decision.entrenamiento.use_prioritized_replay": "PER: Entrenar más frecuentemente con experiencias 'sorprendentes'",
+    "decision.entrenamiento.per_alpha": "Exponente de priorización (0=uniforme, 1=totalmente priorizado, 0.6=balance)",
+    "decision.entrenamiento.per_beta_start": "Importance sampling inicial para corregir sesgo de PER",
+    "decision.entrenamiento.per_beta_frames": "Steps para que beta alcance 1.0 (corrección completa)",
+    # Noisy Networks
+    "decision.entrenamiento.use_noisy_networks": "Noisy Networks: Exploración mediante ruido en pesos (sin epsilon)",
+    "decision.entrenamiento.noise_std": "Desviación estándar del ruido paramétrico",
+    # Regularización
+    "decision.entrenamiento.use_dropout": "Dropout: Previene overfitting desactivando neuronas aleatoriamente",
+    "decision.entrenamiento.dropout_rate": "Tasa de dropout más suave para redes menos profundas",
+    # Learning Rate Adaptativo
+    "decision.entrenamiento.adaptive_lr": "Learning Rate Scheduling: Ajusta LR según progreso del entrenamiento",
+    # Configuraciones anti-gradient vanishing
+    "decision.entrenamiento.use_batch_normalization": "Batch Normalization: Normaliza entradas de cada capa",
+    "decision.entrenamiento.use_he_initialization": "He Initialization: Inicialización óptima para ReLU",
+    "decision.entrenamiento.use_residual_connections": "Residual Connections: Skip connections para redes profundas",
+    "decision.entrenamiento.gradient_clip_norm": "Gradient Clipping: Previene gradient explosion",
+    "decision.entrenamiento.use_leaky_relu": "LeakyReLU: Evita 'dying ReLU' problem",
+    # Evaluación y métricas
+    "decision.entrenamiento.enable_evaluation": "Sistema de evaluación para medir progreso del modelo",
+    "decision.entrenamiento.evaluation_episodes": "Episodios de prueba sin exploración para medir rendimiento real",
+    "decision.entrenamiento.evaluation_frequency": "Evaluar cada N épocas para optimizar velocidad",
+    "decision.entrenamiento.baseline_comparison": "Comparar rendimiento vs modelo baseline/aleatorio",
+    "decision.entrenamiento.save_evaluation_data": "Guardar métricas históricas para análisis posterior",
+    # SUMO
+    "sumo.simular": "Iniciar simulación de tráfico con SUMO",
+    "sumo.gui": "Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)",
+    "sumo.comparar": "Modo comparación: Contrastar control RL vs detección YOLO",
+    "sumo.path_sumo": "Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\\sumo)",
+    "sumo.simulation_time_limit": "Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)",
+    "sumo.fixed_seed": "Semilla específica para reproducibilidad (null = default SUMO: 23423)",
+    "sumo.use_random_seed": "Usar semilla aleatoria basada en tiempo actual",
+    "sumo.persist_random_seed": "Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)",
+    # Reportes
+    "reporte.generar": "Generar reportes automáticos post-simulación",
+    "reporte.steps": "Número de pasos a considerar entre cada reporte",
+    "reporte.tiempo_total_espera_maximo": "Tiempo de espera máximo en segundos en total",
+    "reporte.tiempo_zona_espera_maximo": "Tiempo de espera máximo en segundos por zona",
+    "reporte.total_vehiculos_maximo": "Número mínimo de vehículos para considerar congestión",
+    "reporte.zona_vehiculos_maximo": "Número máximo de vehículos por zona",
+    "reporte.path_reporte": "Carpeta donde se guardará el reporte",
+    "reporte.db_path_base": "Ruta base para la base de datos de reportes",
+}
+
+
 def render_field_widget(
     field_path: str, field_name: str, value: Any, config: dict[str, Any]
 ) -> None:
@@ -633,6 +753,9 @@ def render_field_widget(
     """
     widget_key = f"config_{field_path.replace('.', '_')}"
 
+    # Obtener tooltip del diccionario
+    tooltip = CONFIG_TOOLTIPS.get(field_path, None)
+
     try:
         if isinstance(value, bool):
             st.checkbox(
@@ -641,6 +764,7 @@ def render_field_widget(
                 key=widget_key,
                 on_change=on_config_change,
                 args=(field_path,),
+                help=tooltip,
             )
         elif isinstance(value, int):
             if "port" in field_path.lower():
@@ -658,6 +782,7 @@ def render_field_widget(
                 key=widget_key,
                 on_change=on_config_change,
                 args=(field_path,),
+                help=tooltip,
             )
         elif isinstance(value, float):
             step = 0.01 if value < 10 else 1.0
@@ -668,37 +793,46 @@ def render_field_widget(
                 key=widget_key,
                 on_change=on_config_change,
                 args=(field_path,),
+                help=tooltip,
             )
         elif isinstance(value, str) or value is None:
             display_value = "" if value is None else value
+            # Usar tooltip personalizado o el genérico para None
+            help_text = (
+                tooltip
+                if tooltip
+                else ("Dejar vacío para None/null" if value is None else None)
+            )
             st.text_input(
                 field_name,
                 value=display_value,
                 key=widget_key,
                 on_change=on_config_change,
                 args=(field_path,),
-                help="Dejar vacío para None/null" if value is None else None,
+                help=help_text,
             )
         elif isinstance(value, list):
             if value and isinstance(value[0], int | float):
                 list_str = ", ".join(str(v) for v in value)
+                help_text = tooltip if tooltip else "Valores separados por comas"
                 st.text_area(
                     f"{field_name} (separados por comas)",
                     value=list_str,
                     key=widget_key,
                     on_change=on_config_change,
                     args=(field_path,),
-                    help="Valores separados por comas",
+                    help=help_text,
                 )
             elif value and isinstance(value[0], str):
                 list_str = ", ".join(value)
+                help_text = tooltip if tooltip else "Valores separados por comas"
                 st.text_area(
                     f"{field_name} (separados por comas)",
                     value=list_str,
                     key=widget_key,
                     on_change=on_config_change,
                     args=(field_path,),
-                    help="Valores separados por comas",
+                    help=help_text,
                 )
             else:
                 st.text_input(
@@ -707,6 +841,7 @@ def render_field_widget(
                     key=widget_key,
                     on_change=on_config_change,
                     args=(field_path,),
+                    help=tooltip,
                 )
         else:
             st.text_input(
@@ -715,6 +850,7 @@ def render_field_widget(
                 key=widget_key,
                 on_change=on_config_change,
                 args=(field_path,),
+                help=tooltip,
             )
 
         if field_path in st.session_state.validation_errors:
