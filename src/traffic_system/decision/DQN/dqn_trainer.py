@@ -144,31 +144,26 @@ class DQNTrainer:
         # CONFIGURACIÓN DE EVALUACIÓN
         self._setup_evaluation_system()
 
-        # if self.auto_train:
-        #     self.smart_logger.log_if_needed(
-        #         LogLevel.INFO,
-        #         "init_complete",
-        #         "🚀 DQNTrainer inicializado, comenzando entrenamiento...",
-        #     )
-
     def _setup_replay_buffer(self) -> None:
         """Configura el buffer de memoria de experiencias (estándar o priorizado)."""
         if (
-            hasattr(self.decision_settings.entrenamiento, "use_prioritized_replay")
-            and self.decision_settings.entrenamiento.use_prioritized_replay
+            hasattr(
+                self.decision_settings.entrenamiento_completo, "use_prioritized_replay"
+            )
+            and self.decision_settings.entrenamiento_completo.use_prioritized_replay
         ):
             self.memory_buffer: PrioritizedReplayBuffer | deque = (
                 PrioritizedReplayBuffer(
-                    capacity=self.decision_settings.entrenamiento.memory,
+                    capacity=self.decision_settings.entrenamiento_completo.memory,
                     alpha=getattr(
-                        self.decision_settings.entrenamiento, "per_alpha", 0.6
+                        self.decision_settings.entrenamiento_completo, "per_alpha", 0.6
                     ),
                 )
             )
             self.use_prioritized_replay = True
         else:
             self.memory_buffer = deque(
-                maxlen=self.decision_settings.entrenamiento.memory
+                maxlen=self.decision_settings.entrenamiento_completo.memory
             )  #! Memoria de reproducción estándar
             self.use_prioritized_replay = False
 
@@ -206,137 +201,163 @@ class DQNTrainer:
     def _setup_hyperparameters(self) -> None:
         """Configura todos los hiperparámetros del entrenamiento."""
         # Parámetros básicos de entrenamiento
-        self.num_epocas = self.decision_settings.entrenamiento.num_epocas
-        self.batch_size = self.decision_settings.entrenamiento.batch_size
+        self.num_epocas = self.decision_settings.entrenamiento_completo.num_epocas
+        self.batch_size = self.decision_settings.entrenamiento_completo.batch_size
         self.min_replay_size = getattr(
-            self.decision_settings.entrenamiento, "min_replay_size", 32
+            self.decision_settings.entrenamiento_completo, "min_replay_size", 32
         )  # Mínimo para batch dinámico
-        self.steps = self.decision_settings.entrenamiento.steps
+        self.steps = self.decision_settings.entrenamiento_completo.steps
 
         # Parámetros de learning rate
-        self.learning_rate = self.decision_settings.entrenamiento.learning_rate
+        self.learning_rate = self.decision_settings.entrenamiento_completo.learning_rate
         self.learning_rate_decay = (
-            self.decision_settings.entrenamiento.learning_rate_decay
+            self.decision_settings.entrenamiento_completo.learning_rate_decay
         )
-        self.learning_rate_min = self.decision_settings.entrenamiento.learning_rate_min
+        self.learning_rate_min = (
+            self.decision_settings.entrenamiento_completo.learning_rate_min
+        )
 
         # Parámetros de exploración
-        self.epsilon = self.decision_settings.entrenamiento.epsilon
-        self.epsilon_decay = self.decision_settings.entrenamiento.epsilon_decay
-        self.epsilon_min = self.decision_settings.entrenamiento.epsilon_min
+        self.epsilon = self.decision_settings.entrenamiento_completo.epsilon
+        self.epsilon_decay = self.decision_settings.entrenamiento_completo.epsilon_decay
+        self.epsilon_min = self.decision_settings.entrenamiento_completo.epsilon_min
 
         # Parámetros de arquitectura
-        self.gamma = self.decision_settings.entrenamiento.gamma
-        self.hidden_layers = self.decision_settings.entrenamiento.hidden_layers
+        self.gamma = self.decision_settings.entrenamiento_completo.gamma
+        self.hidden_layers = self.decision_settings.entrenamiento_completo.hidden_layers
 
     def _setup_models(self) -> None:
         """Configura las redes neuronales (online y target)."""
         # Configuración para Double DQN
         self.use_double_dqn = getattr(
-            self.decision_settings.entrenamiento, "use_double_dqn", True
+            self.decision_settings.entrenamiento_completo, "use_double_dqn", True
         )
         self.target_update_frequency = getattr(
-            self.decision_settings.entrenamiento, "target_update_frequency", 100
+            self.decision_settings.entrenamiento_completo,
+            "target_update_frequency",
+            100,
         )
 
         # Configuración para Dueling DQN
         self.use_dueling_dqn = getattr(
-            self.decision_settings.entrenamiento, "use_dueling_dqn", True
+            self.decision_settings.entrenamiento_completo, "use_dueling_dqn", True
         )
 
     def _setup_advanced_optimizations(self) -> None:
         """Configura optimizaciones avanzadas (PER, Noisy Networks, etc.)."""
         # Configuración para Prioritized Experience Replay
-        self.per_alpha = getattr(self.decision_settings.entrenamiento, "per_alpha", 0.6)
+        self.per_alpha = getattr(
+            self.decision_settings.entrenamiento_completo, "per_alpha", 0.6
+        )
         self.per_beta_start = getattr(
-            self.decision_settings.entrenamiento, "per_beta_start", 0.4
+            self.decision_settings.entrenamiento_completo, "per_beta_start", 0.4
         )
         self.per_beta_frames = getattr(
-            self.decision_settings.entrenamiento, "per_beta_frames", 100000
+            self.decision_settings.entrenamiento_completo, "per_beta_frames", 100000
         )
 
         # Configuración para Noisy Networks
         self.use_noisy_networks = getattr(
-            self.decision_settings.entrenamiento, "use_noisy_networks", True
+            self.decision_settings.entrenamiento_completo, "use_noisy_networks", True
         )
-        self.noise_std = getattr(self.decision_settings.entrenamiento, "noise_std", 0.5)
+        self.noise_std = getattr(
+            self.decision_settings.entrenamiento_completo, "noise_std", 0.5
+        )
 
         # Configuración para Dropout
         self.use_dropout = getattr(
-            self.decision_settings.entrenamiento, "use_dropout", True
+            self.decision_settings.entrenamiento_completo, "use_dropout", True
         )
         self.dropout_rate = getattr(
-            self.decision_settings.entrenamiento, "dropout_rate", 0.1
+            self.decision_settings.entrenamiento_completo, "dropout_rate", 0.1
         )
 
         # Configuración para Learning Rate Adaptativo
         self.adaptive_lr = getattr(
-            self.decision_settings.entrenamiento, "adaptive_lr", True
+            self.decision_settings.entrenamiento_completo, "adaptive_lr", True
         )
 
         # Configuración para testing y debugging
         self.test_large_model = getattr(
-            self.decision_settings.entrenamiento, "test_large_model", False
+            self.decision_settings.entrenamiento_completo, "test_large_model", False
         )
 
         # 🛡️ CONFIGURACIÓN ANTI-GRADIENT VANISHING
         # Estas configuraciones previenen el colapso de gradientes y Q-values
         self.use_batch_normalization = getattr(
-            self.decision_settings.entrenamiento, "use_batch_normalization", False
+            self.decision_settings.entrenamiento_completo,
+            "use_batch_normalization",
+            False,
         )
         self.use_he_initialization = getattr(
-            self.decision_settings.entrenamiento, "use_he_initialization", False
+            self.decision_settings.entrenamiento_completo,
+            "use_he_initialization",
+            False,
         )
         self.use_leaky_relu = getattr(
-            self.decision_settings.entrenamiento, "use_leaky_relu", False
+            self.decision_settings.entrenamiento_completo, "use_leaky_relu", False
         )
         self.use_gradient_clipping = getattr(
-            self.decision_settings.entrenamiento, "use_gradient_clipping", True
+            self.decision_settings.entrenamiento_completo, "use_gradient_clipping", True
         )
         self.gradient_clip_norm = getattr(
-            self.decision_settings.entrenamiento, "gradient_clip_norm", 1.0
+            self.decision_settings.entrenamiento_completo, "gradient_clip_norm", 1.0
         )
         self.use_huber_loss = getattr(
-            self.decision_settings.entrenamiento, "use_huber_loss", False
+            self.decision_settings.entrenamiento_completo, "use_huber_loss", False
         )
         self.huber_delta = getattr(
-            self.decision_settings.entrenamiento, "huber_delta", 1.0
+            self.decision_settings.entrenamiento_completo, "huber_delta", 1.0
         )
 
         # Configuración para optimizaciones avanzadas
         self.enable_jit_compilation = getattr(
-            self.decision_settings.entrenamiento, "enable_jit_compilation", True
+            self.decision_settings.entrenamiento_completo,
+            "enable_jit_compilation",
+            True,
         )
         self.dropout_mode = getattr(
-            self.decision_settings.entrenamiento, "dropout_mode", "optimized"
+            self.decision_settings.entrenamiento_completo, "dropout_mode", "optimized"
         )
         self.noisy_implementation = getattr(
-            self.decision_settings.entrenamiento, "noisy_implementation", "efficient"
+            self.decision_settings.entrenamiento_completo,
+            "noisy_implementation",
+            "efficient",
         )
         self.hidden_layers_optimization = getattr(
-            self.decision_settings.entrenamiento, "hidden_layers_optimization", False
+            self.decision_settings.entrenamiento_completo,
+            "hidden_layers_optimization",
+            False,
         )
         self.dueling_stream_simplification = getattr(
-            self.decision_settings.entrenamiento, "dueling_stream_simplification", False
+            self.decision_settings.entrenamiento_completo,
+            "dueling_stream_simplification",
+            False,
         )
 
         # Configuración para PER avanzado
         self.per_batch_processing = getattr(
-            self.decision_settings.entrenamiento, "per_batch_processing", False
+            self.decision_settings.entrenamiento_completo, "per_batch_processing", False
         )
         self.per_update_frequency = getattr(
-            self.decision_settings.entrenamiento, "per_update_frequency", 4
+            self.decision_settings.entrenamiento_completo, "per_update_frequency", 4
         )
         self.per_importance_annealing = getattr(
-            self.decision_settings.entrenamiento, "per_importance_annealing", False
+            self.decision_settings.entrenamiento_completo,
+            "per_importance_annealing",
+            False,
         )
 
         # Configuración para Double DQN avanzado
         self.double_dqn_batch_optimization = getattr(
-            self.decision_settings.entrenamiento, "double_dqn_batch_optimization", False
+            self.decision_settings.entrenamiento_completo,
+            "double_dqn_batch_optimization",
+            False,
         )
         self.target_update_batch_size = getattr(
-            self.decision_settings.entrenamiento, "target_update_batch_size", 512
+            self.decision_settings.entrenamiento_completo,
+            "target_update_batch_size",
+            512,
         )
 
         # Variables de estado para optimizaciones
@@ -779,7 +800,7 @@ class DQNTrainer:
         Establece la ruta donde se guardarán los archivos.
         """
         self._save_path = os.path.join(
-            self.decision_settings.entrenamiento.path_resultado,
+            self.decision_settings.entrenamiento_completo.path_resultado,
             f'DQN_{time.strftime("%Y-%m-%d_%H-%M")}',
         )
         if not os.path.exists(self._save_path):
@@ -1509,7 +1530,8 @@ class DQNTrainer:
         if self.per_importance_annealing:
             # Annealing adaptativo basado en progreso del entrenamiento
             training_progress = (
-                len(self.memory_buffer) / self.decision_settings.entrenamiento.memory
+                len(self.memory_buffer)
+                / self.decision_settings.entrenamiento_completo.memory
             )
             # Annealing más rápido al inicio, más lento después
             adaptive_increment = self.per_beta_increment_per_frame * (
@@ -2174,7 +2196,7 @@ class DQNTrainer:
 
             # FASE DE WARM-UP: Avanzar pasos iniciales sin entrenamiento
             warmup_steps = getattr(
-                self.decision_settings.entrenamiento, "warmup_steps", 250
+                self.decision_settings.entrenamiento_completo, "warmup_steps", 250
             )
             actual_warmup = self._skip_warmup_steps(warmup_steps)
 
@@ -2328,19 +2350,6 @@ class DQNTrainer:
             logger.info(
                 f" Epoca: {e+1}/{self.num_epocas}: {total_reward:.2f} recompensa acumulada - Duración: {epoch_duration:.2f}s - Replays: {replay_count}"
             )
-
-            # Verificar si se debe detener el entrenamiento
-            # should_stop, stop_reason = self.dashboard.should_stop_training()
-            # if should_stop:
-            #     self.smart_logger.log_if_needed(
-            #         LogLevel.CRITICAL,
-            #         "training_stop",
-            #         f"🛑 DETENIENDO ENTRENAMIENTO: {stop_reason}",
-            #     )
-            #     # Generar reporte final antes de detener
-            #     final_report = self.dashboard.generate_summary_report()
-            #     self.smart_logger.logger.error(final_report)
-            #     break
 
             # FASE 4: Registro de métricas de entrenamiento en evaluador
             if self.evaluator is not None:
@@ -2902,20 +2911,6 @@ class DQNTrainer:
             #         f"Final={final_reward:.2f}"
             #     )
 
-            # # 🚨 SMART LOGGING - Solo casos relevantes
-            # # Usar smart logger para evitar spam pero mantener información importante
-            # self.smart_logger.log_if_needed(
-            #     LogLevel.INFO,
-            #     "reward_calculation",
-            #     f"📊 Recompensa: {final_reward:.2f} | Espera avg: {avg_wait_time:.1f}s | Vehículos: {total_vehicles}",
-            #     value=final_reward,
-            # )
-
-            # # Agregar métricas al dashboard para análisis
-            # self.smart_logger.add_metric("avg_wait_time", avg_wait_time)
-            # self.smart_logger.add_metric("total_vehicles", total_vehicles)
-            # self.smart_logger.add_metric("reward_value", final_reward)
-
             return float(final_reward)
 
         except Exception as e:
@@ -3136,7 +3131,7 @@ class DQNTrainer:
 
         # WARM-UP: Aplicar el mismo skip de pasos iniciales para mantener coherencia
         warmup_steps = getattr(
-            self.decision_settings.entrenamiento, "warmup_steps", 250
+            self.decision_settings.entrenamiento_completo, "warmup_steps", 250
         )
         logger.info(f" 🔄 Aplicando warm-up de {warmup_steps} pasos para tiempo fijo")
         self._skip_warmup_steps(warmup_steps)

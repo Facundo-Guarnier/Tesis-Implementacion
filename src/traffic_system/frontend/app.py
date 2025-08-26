@@ -634,19 +634,19 @@ def on_config_change(field_path: str) -> None:
 # Diccionario de tooltips basado en comentarios del config.yaml
 CONFIG_TOOLTIPS = {
     # Configuración global
-    "base_url": "URL base del servidor Flask",
-    "base_ip": "Dirección IP base del servidor",
+    "base_url": "URL base del servidor Flask: dirección completa donde se expondrán las APIs REST (ej: http://localhost:5000)",
+    "base_ip": "Dirección IP base: IP donde escucharán los servicios. 127.0.0.1 = solo local, 0.0.0.0 = todas las interfaces de red",
     # Servicios
-    "services.simulation_port": "Puerto para el servicio de simulación",
-    "services.detection_port": "Puerto para el servicio de detección",
-    "services.reporting_port": "Puerto para el servicio de reportes",
+    "services.simulation_port": "Puerto para API de simulación SUMO: donde se expone el control de la simulación de tráfico (típicamente 5000)",
+    "services.detection_port": "Puerto para API de detección YOLO: donde se expone el servicio de detección de vehículos (típicamente 5001)",
+    "services.reporting_port": "Puerto para API de reportes: donde se exponen métricas y estadísticas post-simulación (típicamente 5002)",
     # Detección
-    "deteccion.detectar": "Iniciar la detección de objetos",
-    "deteccion.modelo": "Modelo de detección de objetos YOLO (yolov8n.pt, yolov8s.pt, etc.)",
-    "deteccion.path_resultados_deteccion": "Carpeta donde se guardan los resultados de detección automática",
-    "deteccion.forced_rotation_degrees": "Forzar rotación de frames (0, 90, 180, 270 grados)",
-    "deteccion.window_fixed": "Ventana fija (no se redimensiona automáticamente)",
-    "deteccion.window_size": "Tamaño de ventana fija [ancho, alto] en píxeles",
+    "deteccion.detectar": "Activar detección de objetos: iniciar el procesamiento de video con YOLO para detectar vehículos en tiempo real",
+    "deteccion.modelo": "Modelo YOLO: versión del modelo de detección. yolov8n.pt = nano (rápido), yolov8s.pt = small, yolov8m.pt = medium (más preciso)",
+    "deteccion.path_resultados_deteccion": "Directorio de resultados: carpeta donde se guardan videos procesados, imágenes con detecciones y archivos CSV con estadísticas",
+    "deteccion.forced_rotation_degrees": "Rotación forzada: rotar frames del video. 0° = sin rotación, 90° = sentido horario, 180° = voltear, 270° = anti-horario",
+    "deteccion.window_fixed": "Ventana fija: True = tamaño constante de ventana, False = ventana se redimensiona automáticamente según contenido",
+    "deteccion.window_size": "Tamaño de ventana: [ancho, alto] en píxeles para mostrar el video procesado. [460, 820] = formato vertical típico",
     # Detección - Carpeta dataset
     "deteccion.carpeta_dataset.procesar": "Procesar todos los videos de la carpeta del dataset",
     "deteccion.carpeta_dataset.path_origen": "Carpeta con los videos a procesar",
@@ -660,82 +660,109 @@ CONFIG_TOOLTIPS = {
     # Detección - Cámara
     "deteccion.procesar_camara": "Procesar la cámara en tiempo real",
     # Decisión
-    "decision.decision": "Iniciar la toma de decisiones con agente RL",
-    "decision.path_modelo_entrenado": "Ruta del modelo DQN entrenado (.h5 o .keras)",
-    "decision.steps": "Pasos de simulación por acción del agente (reduce frecuencia de decisiones)",
-    "decision.ponderaciones_zonas": "Ponderaciones de las 12 zonas de detección (valores de importancia)",
-    # Entrenamiento
-    "decision.entrenamiento.entrenar": "Iniciar proceso de entrenamiento del agente DQN",
-    "decision.entrenamiento.path_resultado": "Directorio donde se guardan modelos, logs y métricas de entrenamiento",
+    "decision.decision": "Activar agente de decisión: iniciar el algoritmo de aprendizaje por refuerzo (DQN) para controlar semáforos inteligentemente",
+    "decision.path_modelo_entrenado": "Modelo DQN entrenado: ruta del archivo .h5 o .keras con los pesos de la red neuronal ya entrenada para inferencia",
+    "decision.steps": "Intervalo de decisión: cada cuántos steps de simulación el agente toma una nueva decisión. 10 = decisiones frecuentes, 20 = menos frecuentes",
+    "decision.ponderaciones_zonas": "Pesos por zona: valores de importancia para las 12 zonas de detección. [1.0]*12 = todas iguales, valores mayores = más importantes",
+    # Entrenamiento Simplificado
+    "decision.entrenamiento_simplificado.entrenar": "Activar entrenamiento DQN simplificado: configuración básica y rápida para pruebas iniciales y aprendizaje del algoritmo.",
+    "decision.entrenamiento_simplificado.path_resultado": "Directorio donde se guardan modelos entrenados (.h5/.keras), logs de entrenamiento (.csv) y métricas de evaluación.",
+    "decision.entrenamiento_simplificado.num_epocas": "Épocas de entrenamiento: cada época = un episodio completo de simulación. 100 épocas permiten ver tendencias claras de aprendizaje.",
+    "decision.entrenamiento_simplificado.batch_size": "Tamaño del lote para entrenamiento: número de experiencias que se procesan juntas. 256 = balance entre estabilidad y velocidad.",
+    "decision.entrenamiento_simplificado.steps": "Steps por acción: cuántos pasos de simulación transcurren antes de que el agente tome una nueva decisión. Mayor valor = decisiones menos frecuentes.",
+    "decision.entrenamiento_simplificado.memory": "Capacidad del buffer de experiencias: memoria que almacena experiencias (estado, acción, recompensa) para entrenar. 50000 = ~200 épocas de historia.",
+    "decision.entrenamiento_simplificado.min_replay_size": "Experiencias mínimas para iniciar entrenamiento: evita entrenar con muy pocos datos. 2000 = suficiente diversidad inicial.",
+    "decision.entrenamiento_simplificado.learning_rate": "Tasa de aprendizaje: qué tan rápido cambian los pesos de la red neuronal. 0.001 = conservador y estable, 0.1 = agresivo, 0.00001 = muy lento.",
+    "decision.entrenamiento_simplificado.epsilon": "Probabilidad de exploración inicial: 1.0 = 100% acciones aleatorias (exploración total), 0.0 = solo acciones óptimas conocidas.",
+    "decision.entrenamiento_simplificado.epsilon_decay": "Factor de reducción de exploración: 0.995 = reduce epsilon gradualmente, 0.9 = reduce rápido, 0.999 = reduce muy lento.",
+    "decision.entrenamiento_simplificado.epsilon_min": "Exploración mínima: límite inferior para epsilon. 0.1 = siempre 10% de acciones aleatorias, 0.01 = solo 1% exploración.",
+    "decision.entrenamiento_simplificado.gamma": "Factor de descuento: importancia de recompensas futuras. 0.85 = valora futuro cercano, 0.99 = valora futuro lejano, 0.1 = solo presente.",
+    "decision.entrenamiento_simplificado.hidden_layers": "Arquitectura de red neuronal: capas ocultas y neuronas por capa. [128, 128] = 2 capas de 128 neuronas cada una.",
+    "decision.entrenamiento_simplificado.use_double_dqn": "Double DQN: usa dos redes para evitar sobreestimación de valores Q. True = más estable, False = DQN clásico.",
+    "decision.entrenamiento_simplificado.use_dueling_dqn": "Dueling DQN: separa valor del estado y ventaja de acciones. True = mejor para muchas acciones, False = arquitectura estándar.",
+    "decision.entrenamiento_simplificado.target_update_frequency": "Frecuencia de actualización de red objetivo: cada cuántos steps se actualiza. 200 = estable, 100 = más dinámico, 500 = muy estable.",
+    "decision.entrenamiento_simplificado.warmup_steps": "Steps de calentamiento: pasos iniciales sin entrenamiento para llenar el buffer. 250 = permite que aparezcan vehículos antes de decidir.",
+    "decision.entrenamiento_simplificado.use_gradient_clipping": "Recorte de gradientes: previene gradientes explosivos que desestabilizan el entrenamiento. True = más estable.",
+    "decision.entrenamiento_simplificado.gradient_clip_norm": "Norma máxima de gradientes: valor límite para recortar gradientes. 0.8 = conservador, 1.0 = estándar, 0.5 = muy restrictivo.",
+    "decision.entrenamiento_simplificado.use_huber_loss": "Función de pérdida Huber: más robusta a valores atípicos que MSE. True = menos sensible a errores grandes.",
+    "decision.entrenamiento_simplificado.use_he_initialization": "Inicialización He: método óptimo para activaciones ReLU. True = mejores gradientes iniciales.",
+    "decision.entrenamiento_simplificado.enable_evaluation": "Activar evaluación periódica: mide rendimiento real sin exploración durante el entrenamiento.",
+    "decision.entrenamiento_simplificado.evaluation_episodes": "Episodios de evaluación: cuántas simulaciones completas sin exploración para medir rendimiento real. 10 = estadísticamente suficiente.",
+    "decision.entrenamiento_simplificado.evaluation_frequency": "Frecuencia de evaluación: cada cuántas épocas evaluar. 5 = balance entre monitoreo y velocidad de entrenamiento.",
+    "decision.entrenamiento_simplificado.patience": "Paciencia para early stopping: épocas sin mejora antes de detener entrenamiento. 10 = evita sobreentrenamiento.",
+    "decision.entrenamiento_simplificado.min_improvement": "Mejora mínima requerida: cambio mínimo en métrica para considerar que hay progreso. 0.01 = 1% de mejora mínima.",
+    # Entrenamiento Completo
+    "decision.entrenamiento_completo.entrenar": "Activar entrenamiento DQN avanzado: configuración completa con técnicas state-of-the-art para máximo rendimiento.",
+    "decision.entrenamiento_completo.path_resultado": "Directorio donde se guardan modelos entrenados (.h5/.keras), logs detallados (.csv) y métricas completas de evaluación.",
     # Hiperparámetros básicos
-    "decision.entrenamiento.num_epocas": "Número total de épocas de entrenamiento",
-    "decision.entrenamiento.batch_size": "Tamaño de lote para entrenamiento (potencia de 2, balance memoria/convergencia)",
-    "decision.entrenamiento.steps": "Pasos de simulación por acción del agente",
-    "decision.entrenamiento.memory": "Capacidad máxima del buffer de experiencias (5000 = ~20 épocas de memoria)",
+    "decision.entrenamiento_completo.num_epocas": "Épocas de entrenamiento: cada época = episodio completo de simulación. 35 épocas optimizadas para convergencia rápida.",
+    "decision.entrenamiento_completo.batch_size": "Tamaño del lote: número de experiencias procesadas juntas. 256 = potencia de 2 óptima para GPU, balance memoria/convergencia.",
+    "decision.entrenamiento_completo.steps": "Steps por acción del agente: intervalo entre decisiones. 10 = decisiones frecuentes, 20 = menos frecuentes pero más estables.",
+    "decision.entrenamiento_completo.memory": "Buffer de experiencias: 5000 = ~20 épocas de memoria, balance entre diversidad y eficiencia computacional.",
     # Optimización y learning rate
-    "decision.entrenamiento.learning_rate": "Tasa de aprendizaje inicial - valor conservador para evitar gradient vanishing",
-    "decision.entrenamiento.learning_rate_decay": "Factor de decay por época (0.95 = moderado, 0.99 = conservador)",
-    "decision.entrenamiento.learning_rate_min": "Tasa mínima para mantener aprendizaje gradual",
+    "decision.entrenamiento_completo.learning_rate": "Tasa de aprendizaje inicial: velocidad de cambio de pesos. 0.0005 = conservador para evitar inestabilidad, 0.001 = estándar, 0.0001 = muy lento.",
+    "decision.entrenamiento_completo.learning_rate_decay": "Factor de decay del LR por época: 0.99 = reducción gradual conservadora, 0.95 = más agresiva, 0.999 = muy gradual.",
+    "decision.entrenamiento_completo.learning_rate_min": "LR mínimo: límite inferior para mantener aprendizaje. 0.00005 = 10% del LR inicial, evita estancamiento completo.",
     # Exploración epsilon-greedy
-    "decision.entrenamiento.epsilon": "Probabilidad inicial de exploración (1.0 = 100% exploración al inicio)",
-    "decision.entrenamiento.epsilon_decay": "Factor de decay por step - decay gradual a lo largo del entrenamiento",
-    "decision.entrenamiento.epsilon_min": "Probabilidad mínima de exploración (10% exploración residual)",
+    "decision.entrenamiento_completo.epsilon": "Probabilidad inicial de exploración: 1.0 = 100% acciones aleatorias al inicio para explorar todas las posibilidades.",
+    "decision.entrenamiento_completo.epsilon_decay": "Factor de decay de epsilon por step: 0.99995 = reducción muy gradual durante todo el entrenamiento para mantener exploración.",
+    "decision.entrenamiento_completo.epsilon_min": "Exploración mínima residual: 0.1 = siempre 10% de acciones aleatorias para evitar convergencia prematura.",
     # Descuento y arquitectura
-    "decision.entrenamiento.gamma": "Factor de descuento - gamma más alto para valorar recompensas futuras",
-    "decision.entrenamiento.hidden_layers": "Arquitectura de capas ocultas - menos profunda para evitar gradient vanishing",
+    "decision.entrenamiento_completo.gamma": "Factor de descuento: importancia de recompensas futuras. 0.85 = valora futuro cercano, evita inestabilidad de 0.99.",
+    "decision.entrenamiento_completo.hidden_layers": "Arquitectura de red neuronal: [64, 64, 64] = 3 capas de 64 neuronas, menos profunda para evitar gradient vanishing.",
     # Mejoras algorítmicas DQN
-    "decision.entrenamiento.use_double_dqn": "Double DQN: Reduce sobreestimación de Q-values usando red target",
-    "decision.entrenamiento.use_dueling_dqn": "Dueling DQN: Separa valor del estado V(s) y ventaja de acciones A(s,a)",
-    "decision.entrenamiento.target_update_frequency": "Frecuencia de actualización red target (cada N pasos de entrenamiento)",
+    "decision.entrenamiento_completo.use_double_dqn": "Double DQN: reduce sobreestimación de Q-values usando red target separada. True = más estable que DQN clásico.",
+    "decision.entrenamiento_completo.use_dueling_dqn": "Dueling DQN: separa valor del estado V(s) y ventaja de acciones A(s,a). True = mejor para problemas con muchas acciones.",
+    "decision.entrenamiento_completo.target_update_frequency": "Actualización de red target: cada 100 pasos. Menor = más dinámico, mayor = más estable pero menos responsive.",
     # Estabilidad del entrenamiento
-    "decision.entrenamiento.warmup_steps": "Pasos iniciales sin entrenamiento (esperar llegada de vehículos desde spawn)",
-    "decision.entrenamiento.min_replay_size": "Mínimo de experiencias para entrenar (batch dinámico 32→256)",
-    "decision.entrenamiento.use_gradient_clipping": "Gradient clipping con clipnorm=1.0 (previene explosión de gradientes)",
-    "decision.entrenamiento.use_huber_loss": "Huber Loss en lugar de MSE (más robusto a outliers)",
-    "decision.entrenamiento.normalize_rewards": "Normalización de recompensas para estabilidad numérica",
+    "decision.entrenamiento_completo.warmup_steps": "Steps de calentamiento: pasos iniciales sin entrenamiento. 250 = espera a que lleguen vehículos desde spawn points.",
+    "decision.entrenamiento_completo.min_replay_size": "Experiencias mínimas para entrenar: 32 = batch dinámico que crece hasta 256, evita entrenar con muy pocos datos.",
+    "decision.entrenamiento_completo.use_gradient_clipping": "Recorte de gradientes: previene gradientes explosivos. True = clipnorm=1.0, entrenamiento más estable.",
+    "decision.entrenamiento_completo.use_huber_loss": "Función de pérdida Huber: más robusta a outliers que MSE. True = menos sensible a errores grandes.",
+    "decision.entrenamiento_completo.normalize_rewards": "Normalización de recompensas: escala recompensas para estabilidad numérica. True = mejores gradientes.",
     # Prioritized Experience Replay (PER)
-    "decision.entrenamiento.use_prioritized_replay": "PER: Entrenar más frecuentemente con experiencias 'sorprendentes'",
-    "decision.entrenamiento.per_alpha": "Exponente de priorización (0=uniforme, 1=totalmente priorizado, 0.6=balance)",
-    "decision.entrenamiento.per_beta_start": "Importance sampling inicial para corregir sesgo de PER",
-    "decision.entrenamiento.per_beta_frames": "Steps para que beta alcance 1.0 (corrección completa)",
+    "decision.entrenamiento_completo.use_prioritized_replay": "Prioritized Experience Replay: entrena más con experiencias 'sorprendentes' (alto TD-error). True = aprendizaje más eficiente.",
+    "decision.entrenamiento_completo.per_alpha": "Exponente de priorización PER: 0.0 = uniforme (sin prioridad), 1.0 = totalmente priorizado, 0.6 = balance óptimo.",
+    "decision.entrenamiento_completo.per_beta_start": "Importance sampling inicial: corrige sesgo de PER. 0.4 = inicio conservador, crece hasta 1.0 para corrección completa.",
+    "decision.entrenamiento_completo.per_beta_frames": "Steps para beta=1.0: tiempo para corrección completa de sesgo PER. 100000 = crecimiento gradual durante entrenamiento.",
     # Noisy Networks
-    "decision.entrenamiento.use_noisy_networks": "Noisy Networks: Exploración mediante ruido en pesos (sin epsilon)",
-    "decision.entrenamiento.noise_std": "Desviación estándar del ruido paramétrico",
+    "decision.entrenamiento_completo.use_noisy_networks": "Noisy Networks: exploración mediante ruido en pesos de la red. True = reemplaza epsilon-greedy, exploración más inteligente.",
+    "decision.entrenamiento_completo.noise_std": "Desviación estándar del ruido: intensidad del ruido paramétrico. 0.3 = balance entre exploración y estabilidad.",
     # Regularización
-    "decision.entrenamiento.use_dropout": "Dropout: Previene overfitting desactivando neuronas aleatoriamente",
-    "decision.entrenamiento.dropout_rate": "Tasa de dropout más suave para redes menos profundas",
+    "decision.entrenamiento_completo.use_dropout": "Dropout: previene overfitting desactivando neuronas aleatoriamente durante entrenamiento. True = mejor generalización.",
+    "decision.entrenamiento_completo.dropout_rate": "Tasa de dropout: fracción de neuronas desactivadas. 0.02 = 2% muy suave para redes menos profundas.",
     # Learning Rate Adaptativo
-    "decision.entrenamiento.adaptive_lr": "Learning Rate Scheduling: Ajusta LR según progreso del entrenamiento",
+    "decision.entrenamiento_completo.adaptive_lr": "Learning Rate Scheduling: ajusta LR según progreso. True = plateau detection, reduce LR cuando se estanca.",
     # Configuraciones anti-gradient vanishing
-    "decision.entrenamiento.use_batch_normalization": "Batch Normalization: Normaliza entradas de cada capa",
-    "decision.entrenamiento.use_he_initialization": "He Initialization: Inicialización óptima para ReLU",
-    "decision.entrenamiento.use_residual_connections": "Residual Connections: Skip connections para redes profundas",
-    "decision.entrenamiento.gradient_clip_norm": "Gradient Clipping: Previene gradient explosion",
-    "decision.entrenamiento.use_leaky_relu": "LeakyReLU: Evita 'dying ReLU' problem",
+    "decision.entrenamiento_completo.use_batch_normalization": "Batch Normalization: normaliza entradas de cada capa. True = gradientes más estables, entrena más rápido.",
+    "decision.entrenamiento_completo.use_he_initialization": "He Initialization: inicialización óptima para ReLU. True = mejores gradientes iniciales, convergencia más rápida.",
+    "decision.entrenamiento_completo.use_residual_connections": "Residual Connections: skip connections para redes profundas. True = evita gradient vanishing en redes complejas.",
+    "decision.entrenamiento_completo.gradient_clip_norm": "Norma de recorte de gradientes: límite máximo para gradientes. 1.0 = estándar, 0.5 = más restrictivo.",
+    "decision.entrenamiento_completo.use_leaky_relu": "LeakyReLU: evita 'dying ReLU' problem. True = α=0.01, permite pequeños gradientes en valores negativos.",
     # Evaluación y métricas
-    "decision.entrenamiento.enable_evaluation": "Sistema de evaluación para medir progreso del modelo",
-    "decision.entrenamiento.evaluation_episodes": "Episodios de prueba sin exploración para medir rendimiento real",
-    "decision.entrenamiento.evaluation_frequency": "Evaluar cada N épocas para optimizar velocidad",
-    "decision.entrenamiento.baseline_comparison": "Comparar rendimiento vs modelo baseline/aleatorio",
-    "decision.entrenamiento.save_evaluation_data": "Guardar métricas históricas para análisis posterior",
+    "decision.entrenamiento_completo.enable_evaluation": "Sistema de evaluación: mide progreso real del modelo sin exploración durante entrenamiento.",
+    "decision.entrenamiento_completo.evaluation_episodes": "Episodios de evaluación: simulaciones completas sin exploración para medir rendimiento real. 10 = estadísticamente suficiente.",
+    "decision.entrenamiento_completo.evaluation_frequency": "Frecuencia de evaluación: cada 10 épocas para balance entre monitoreo y velocidad de entrenamiento.",
+    "decision.entrenamiento_completo.baseline_comparison": "Comparación con baseline: mide rendimiento vs modelo aleatorio o rule-based. True = contexto de mejora.",
+    "decision.entrenamiento_completo.save_evaluation_data": "Guardar datos de evaluación: métricas históricas para análisis posterior. True = CSV con progreso temporal.",
     # SUMO
-    "sumo.simular": "Iniciar simulación de tráfico con SUMO",
-    "sumo.gui": "Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)",
-    "sumo.comparar": "Modo comparación: Contrastar control RL vs detección YOLO",
-    "sumo.path_sumo": "Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\\sumo)",
-    "sumo.simulation_time_limit": "Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)",
-    "sumo.fixed_seed": "Semilla específica para reproducibilidad (null = default SUMO: 23423)",
-    "sumo.use_random_seed": "Usar semilla aleatoria basada en tiempo actual",
-    "sumo.persist_random_seed": "Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)",
+    "sumo.simular": "Activar simulación SUMO: iniciar la simulación de tráfico con el simulador microscópico para entrenar o evaluar el agente",
+    "sumo.gui": "Interfaz gráfica SUMO: True = mostrar ventana visual de simulación, False = modo headless (más rápido, para servidores)",
+    "sumo.comparar": "Modo comparación: contrastar rendimiento del control RL vs detección YOLO vs semáforos fijos para evaluar mejoras",
+    "sumo.path_sumo": "Directorio de instalación SUMO: ruta donde está instalado SUMO. Linux: /usr/share/sumo, Windows: C:\\sumo o similar",
+    "sumo.simulation_time_limit": "Límite temporal: duración máxima de simulación en segundos. 19500s ≈ 5.4 horas de simulación virtual",
+    "sumo.fixed_seed": "Semilla específica: valor fijo para reproducibilidad exacta. null = usar default SUMO (23423), número = semilla custom",
+    "sumo.use_random_seed": "Semilla aleatoria: True = generar semilla basada en tiempo actual, False = usar fixed_seed o default SUMO",
+    "sumo.persist_random_seed": "Persistir semilla: si use_random_seed=True, reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)",
     # Reportes
-    "reporte.generar": "Generar reportes automáticos post-simulación",
-    "reporte.steps": "Número de pasos a considerar entre cada reporte",
-    "reporte.tiempo_total_espera_maximo": "Tiempo de espera máximo en segundos en total",
-    "reporte.tiempo_zona_espera_maximo": "Tiempo de espera máximo en segundos por zona",
-    "reporte.total_vehiculos_maximo": "Número mínimo de vehículos para considerar congestión",
-    "reporte.zona_vehiculos_maximo": "Número máximo de vehículos por zona",
-    "reporte.path_reporte": "Carpeta donde se guardará el reporte",
-    "reporte.db_path_base": "Ruta base para la base de datos de reportes",
+    "reporte.generar": "Generar reportes: activar la creación automática de estadísticas, gráficos y análisis post-simulación",
+    "reporte.steps": "Intervalo de reporte: cada cuántos steps de simulación recopilar métricas. 60 = cada minuto de simulación virtual",
+    "reporte.tiempo_total_espera_maximo": "Tiempo máximo total: límite de espera acumulada en segundos para considerar congestión crítica (600s = 10 min)",
+    "reporte.tiempo_zona_espera_maximo": "Tiempo máximo por zona: límite de espera por zona individual para detectar cuellos de botella (300s = 5 min)",
+    "reporte.total_vehiculos_maximo": "Umbral de vehículos totales: número mínimo de vehículos en el sistema para considerar que hay tráfico significativo",
+    "reporte.zona_vehiculos_maximo": "Umbral por zona: número máximo de vehículos por zona antes de considerar saturación crítica",
+    "reporte.path_reporte": "Directorio de reportes: carpeta donde se guardan archivos CSV, gráficos PNG y análisis estadísticos post-simulación",
+    "reporte.db_path_base": "Base de datos: directorio donde se almacena la BD SQLite con métricas históricas para análisis temporal",
 }
 
 
@@ -785,11 +812,33 @@ def render_field_widget(
                 help=tooltip,
             )
         elif isinstance(value, float):
-            step = 0.01 if value < 10 else 1.0
+            # Determinar precisión basada en el tipo de campo
+            if "learning_rate" in field_path.lower() or "lr" in field_path.lower():
+                # Learning rates necesitan más precisión
+                step = 0.00001 if value < 0.01 else 0.0001
+                format_str = "%.6f"
+            elif "epsilon" in field_path.lower() or "gamma" in field_path.lower():
+                # Parámetros de RL típicos
+                step = 0.001
+                format_str = "%.4f"
+            elif "rate" in field_path.lower() or "decay" in field_path.lower():
+                # Otros rates y decays
+                step = 0.001
+                format_str = "%.4f"
+            elif "alpha" in field_path.lower() or "beta" in field_path.lower():
+                # Parámetros alpha/beta
+                step = 0.01
+                format_str = "%.3f"
+            else:
+                # Valores generales
+                step = 0.01 if value < 10 else 1.0
+                format_str = "%.3f" if value < 10 else "%.1f"
+
             st.number_input(
                 field_name,
                 value=value,
                 step=step,
+                format=format_str,
                 key=widget_key,
                 on_change=on_config_change,
                 args=(field_path,),
@@ -1106,385 +1155,591 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
 
             st.markdown("---")
 
-            if "entrenamiento" in decision:
-                st.subheader("Entrenamiento DQN")
-                entrenamiento = decision["entrenamiento"]
+            # === ENTRENAMIENTO SIMPLIFICADO ===
+            if "entrenamiento_simplificado" in decision:
+                with st.expander("🔬 Entrenamiento Simplificado DQN", expanded=False):
+                    entrenamiento_simplificado = decision["entrenamiento_simplificado"]
 
-                st.markdown("**Configuración Básica**")
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    render_field_widget(
-                        "decision.entrenamiento.entrenar",
-                        "Activar Entrenamiento",
-                        entrenamiento.get("entrenar", False),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.path_resultado",
-                        "Path Resultados",
-                        entrenamiento.get("path_resultado", ""),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.num_epocas",
-                        "Número Épocas",
-                        entrenamiento.get("num_epocas", 35),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.batch_size",
-                        "Batch Size",
-                        entrenamiento.get("batch_size", 256),
-                        config,
-                    )
-
-                with col2:
-                    render_field_widget(
-                        "decision.entrenamiento.steps",
-                        "Steps",
-                        entrenamiento.get("steps", 10),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.memory",
-                        "Memory",
-                        entrenamiento.get("memory", 5000),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.learning_rate",
-                        "Learning Rate",
-                        entrenamiento.get("learning_rate", 0.0005),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.learning_rate_decay",
-                        "LR Decay",
-                        entrenamiento.get("learning_rate_decay", 0.99),
-                        config,
-                    )
-
-                with col3:
-                    render_field_widget(
-                        "decision.entrenamiento.learning_rate_min",
-                        "LR Mínimo",
-                        entrenamiento.get("learning_rate_min", 0.00005),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.epsilon",
-                        "Epsilon",
-                        entrenamiento.get("epsilon", 1.0),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.epsilon_decay",
-                        "Epsilon Decay",
-                        entrenamiento.get("epsilon_decay", 0.99995),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.epsilon_min",
-                        "Epsilon Mín",
-                        entrenamiento.get("epsilon_min", 0.1),
-                        config,
-                    )
-
-                st.markdown("**Parámetros Avanzados**")
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    render_field_widget(
-                        "decision.entrenamiento.gamma",
-                        "Gamma",
-                        entrenamiento.get("gamma", 0.85),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.hidden_layers",
-                        "Capas Ocultas",
-                        entrenamiento.get("hidden_layers", [64, 64, 64]),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.use_double_dqn",
-                        "Double DQN",
-                        entrenamiento.get("use_double_dqn", True),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.use_dueling_dqn",
-                        "Dueling DQN",
-                        entrenamiento.get("use_dueling_dqn", True),
-                        config,
-                    )
-
-                with col2:
-                    render_field_widget(
-                        "decision.entrenamiento.target_update_frequency",
-                        "Target Update Freq",
-                        entrenamiento.get("target_update_frequency", 100),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.use_prioritized_replay",
-                        "Prioritized Replay",
-                        entrenamiento.get("use_prioritized_replay", True),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.per_alpha",
-                        "PER Alpha",
-                        entrenamiento.get("per_alpha", 0.6),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.per_beta_start",
-                        "PER Beta Start",
-                        entrenamiento.get("per_beta_start", 0.4),
-                        config,
-                    )
-
-                with col3:
-                    render_field_widget(
-                        "decision.entrenamiento.use_noisy_networks",
-                        "Noisy Networks",
-                        entrenamiento.get("use_noisy_networks", True),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.noise_std",
-                        "Noise STD",
-                        entrenamiento.get("noise_std", 0.3),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.use_dropout",
-                        "Dropout",
-                        entrenamiento.get("use_dropout", True),
-                        config,
-                    )
-                    render_field_widget(
-                        "decision.entrenamiento.dropout_rate",
-                        "Dropout Rate",
-                        entrenamiento.get("dropout_rate", 0.02),
-                        config,
-                    )
-
-                with st.expander("Optimizaciones de Estabilidad", expanded=False):
+                    st.markdown("**Configuración Básica Simplificada**")
                     col1, col2, col3 = st.columns(3)
+
                     with col1:
                         render_field_widget(
-                            "decision.entrenamiento.warmup_steps",
-                            "Warmup Steps",
-                            entrenamiento.get("warmup_steps", 250),
+                            "decision.entrenamiento_simplificado.entrenar",
+                            "Activar Entrenamiento Simplificado",
+                            entrenamiento_simplificado.get("entrenar", False),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.min_replay_size",
+                            "decision.entrenamiento_simplificado.path_resultado",
+                            "Path Resultados",
+                            entrenamiento_simplificado.get("path_resultado", ""),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.num_epocas",
+                            "Número Épocas",
+                            entrenamiento_simplificado.get("num_epocas", 100),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.batch_size",
+                            "Batch Size",
+                            entrenamiento_simplificado.get("batch_size", 256),
+                            config,
+                        )
+
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.steps",
+                            "Steps",
+                            entrenamiento_simplificado.get("steps", 10),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.memory",
+                            "Memory",
+                            entrenamiento_simplificado.get("memory", 50000),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.min_replay_size",
                             "Min Replay Size",
-                            entrenamiento.get("min_replay_size", 32),
+                            entrenamiento_simplificado.get("min_replay_size", 2000),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.use_batch_normalization",
-                            "Batch Normalization",
-                            entrenamiento.get("use_batch_normalization", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.use_he_initialization",
-                            "He Initialization",
-                            entrenamiento.get("use_he_initialization", True),
-                            config,
-                        )
-
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento.use_residual_connections",
-                            "Residual Connections",
-                            entrenamiento.get("use_residual_connections", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.gradient_clip_norm",
-                            "Gradient Clip Norm",
-                            entrenamiento.get("gradient_clip_norm", 1.0),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.use_leaky_relu",
-                            "Leaky ReLU",
-                            entrenamiento.get("use_leaky_relu", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.use_gradient_clipping",
-                            "Gradient Clipping",
-                            entrenamiento.get("use_gradient_clipping", True),
+                            "decision.entrenamiento_simplificado.learning_rate",
+                            "Learning Rate",
+                            entrenamiento_simplificado.get("learning_rate", 0.001),
                             config,
                         )
 
                     with col3:
                         render_field_widget(
-                            "decision.entrenamiento.use_huber_loss",
-                            "Huber Loss",
-                            entrenamiento.get("use_huber_loss", True),
+                            "decision.entrenamiento_simplificado.epsilon",
+                            "Epsilon",
+                            entrenamiento_simplificado.get("epsilon", 1.0),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.normalize_rewards",
-                            "Normalize Rewards",
-                            entrenamiento.get("normalize_rewards", True),
+                            "decision.entrenamiento_simplificado.epsilon_decay",
+                            "Epsilon Decay",
+                            entrenamiento_simplificado.get("epsilon_decay", 0.995),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.per_beta_frames",
-                            "PER Beta Frames",
-                            entrenamiento.get("per_beta_frames", 100000),
+                            "decision.entrenamiento_simplificado.epsilon_min",
+                            "Epsilon Mín",
+                            entrenamiento_simplificado.get("epsilon_min", 0.1),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.adaptive_lr",
-                            "Adaptive LR",
-                            entrenamiento.get("adaptive_lr", True),
+                            "decision.entrenamiento_simplificado.gamma",
+                            "Gamma",
+                            entrenamiento_simplificado.get("gamma", 0.85),
                             config,
                         )
 
-                with st.expander("Evaluación y Métricas", expanded=False):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        render_field_widget(
-                            "decision.entrenamiento.enable_evaluation",
-                            "Activar Evaluación",
-                            entrenamiento.get("enable_evaluation", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.evaluation_episodes",
-                            "Episodios Evaluación",
-                            entrenamiento.get("evaluation_episodes", 10),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.evaluation_frequency",
-                            "Frecuencia Evaluación",
-                            entrenamiento.get("evaluation_frequency", 10),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.baseline_comparison",
-                            "Comparación Baseline",
-                            entrenamiento.get("baseline_comparison", True),
-                            config,
-                        )
-
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento.save_evaluation_data",
-                            "Guardar Datos Evaluación",
-                            entrenamiento.get("save_evaluation_data", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.metrics_window_size",
-                            "Ventana Métricas",
-                            entrenamiento.get("metrics_window_size", 100),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.statistical_tests",
-                            "Tests Estadísticos",
-                            entrenamiento.get("statistical_tests", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.generate_plots",
-                            "Generar Gráficos",
-                            entrenamiento.get("generate_plots", True),
-                            config,
-                        )
-
-                with st.expander("Optimizaciones de Rendimiento", expanded=False):
+                    st.markdown("**Arquitectura y Algoritmos Simplificados**")
                     col1, col2, col3 = st.columns(3)
+
                     with col1:
                         render_field_widget(
-                            "decision.entrenamiento.lr_schedule_type",
-                            "Tipo Schedule LR",
-                            entrenamiento.get("lr_schedule_type", "plateau"),
+                            "decision.entrenamiento_simplificado.hidden_layers",
+                            "Capas Ocultas",
+                            entrenamiento_simplificado.get("hidden_layers", [128, 128]),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.enable_jit_compilation",
-                            "JIT Compilation",
-                            entrenamiento.get("enable_jit_compilation", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.dropout_mode",
-                            "Modo Dropout",
-                            entrenamiento.get("dropout_mode", "optimized"),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.dropout_layers",
-                            "Layers Dropout",
-                            entrenamiento.get("dropout_layers", "strategic"),
+                            "decision.entrenamiento_simplificado.use_double_dqn",
+                            "Double DQN",
+                            entrenamiento_simplificado.get("use_double_dqn", True),
                             config,
                         )
 
                     with col2:
                         render_field_widget(
-                            "decision.entrenamiento.noisy_implementation",
-                            "Implementación Noisy",
-                            entrenamiento.get("noisy_implementation", "efficient"),
+                            "decision.entrenamiento_simplificado.use_dueling_dqn",
+                            "Dueling DQN",
+                            entrenamiento_simplificado.get("use_dueling_dqn", True),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.double_dqn_batch_optimization",
-                            "Double DQN Batch Opt",
-                            entrenamiento.get("double_dqn_batch_optimization", False),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.target_update_batch_size",
-                            "Target Update Batch Size",
-                            entrenamiento.get("target_update_batch_size", 1024),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento.per_batch_processing",
-                            "PER Batch Processing",
-                            entrenamiento.get("per_batch_processing", False),
+                            "decision.entrenamiento_simplificado.target_update_frequency",
+                            "Target Update Freq",
+                            entrenamiento_simplificado.get(
+                                "target_update_frequency", 200
+                            ),
                             config,
                         )
 
                     with col3:
                         render_field_widget(
-                            "decision.entrenamiento.per_update_frequency",
-                            "PER Update Frequency",
-                            entrenamiento.get("per_update_frequency", 4),
+                            "decision.entrenamiento_simplificado.warmup_steps",
+                            "Warmup Steps",
+                            entrenamiento_simplificado.get("warmup_steps", 250),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.per_importance_annealing",
-                            "PER Importance Annealing",
-                            entrenamiento.get("per_importance_annealing", False),
+                            "decision.entrenamiento_simplificado.use_gradient_clipping",
+                            "Gradient Clipping",
+                            entrenamiento_simplificado.get(
+                                "use_gradient_clipping", True
+                            ),
+                            config,
+                        )
+
+                    st.markdown("**Estabilidad y Evaluación**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.gradient_clip_norm",
+                            "Gradient Clip Norm",
+                            entrenamiento_simplificado.get("gradient_clip_norm", 0.8),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.dueling_stream_simplification",
-                            "Dueling Stream Simplification",
-                            entrenamiento.get("dueling_stream_simplification", False),
+                            "decision.entrenamiento_simplificado.use_huber_loss",
+                            "Huber Loss",
+                            entrenamiento_simplificado.get("use_huber_loss", True),
+                            config,
+                        )
+
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.use_he_initialization",
+                            "He Initialization",
+                            entrenamiento_simplificado.get(
+                                "use_he_initialization", True
+                            ),
                             config,
                         )
                         render_field_widget(
-                            "decision.entrenamiento.hidden_layers_optimization",
-                            "Hidden Layers Optimization",
-                            entrenamiento.get("hidden_layers_optimization", False),
+                            "decision.entrenamiento_simplificado.enable_evaluation",
+                            "Activar Evaluación",
+                            entrenamiento_simplificado.get("enable_evaluation", True),
                             config,
                         )
+
+                    with col3:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.evaluation_episodes",
+                            "Episodios Evaluación",
+                            entrenamiento_simplificado.get("evaluation_episodes", 10),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.evaluation_frequency",
+                            "Frecuencia Evaluación",
+                            entrenamiento_simplificado.get("evaluation_frequency", 5),
+                            config,
+                        )
+
+                    st.markdown("**Early Stopping**")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.patience",
+                            "Patience",
+                            entrenamiento_simplificado.get("patience", 10),
+                            config,
+                        )
+
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.min_improvement",
+                            "Mejora Mínima",
+                            entrenamiento_simplificado.get("min_improvement", 0.01),
+                            config,
+                        )
+
+            # === ENTRENAMIENTO COMPLETO ===
+            if "entrenamiento_completo" in decision:
+                with st.expander("⚗️ Entrenamiento Completo DQN", expanded=False):
+                    entrenamiento = decision["entrenamiento_completo"]
+
+                    st.markdown("**Configuración Básica**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        render_field_widget(
+                            "decision.entrenamiento_completo.entrenar",
+                            "Activar Entrenamiento",
+                            entrenamiento.get("entrenar", False),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.path_resultado",
+                            "Path Resultados",
+                            entrenamiento.get("path_resultado", ""),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.num_epocas",
+                            "Número Épocas",
+                            entrenamiento.get("num_epocas", 35),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.batch_size",
+                            "Batch Size",
+                            entrenamiento.get("batch_size", 256),
+                            config,
+                        )
+
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_completo.steps",
+                            "Steps",
+                            entrenamiento.get("steps", 10),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.memory",
+                            "Memory",
+                            entrenamiento.get("memory", 5000),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.learning_rate",
+                            "Learning Rate",
+                            entrenamiento.get("learning_rate", 0.0005),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.learning_rate_decay",
+                            "LR Decay",
+                            entrenamiento.get("learning_rate_decay", 0.99),
+                            config,
+                        )
+
+                    with col3:
+                        render_field_widget(
+                            "decision.entrenamiento_completo.learning_rate_min",
+                            "LR Mínimo",
+                            entrenamiento.get("learning_rate_min", 0.00005),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.epsilon",
+                            "Epsilon",
+                            entrenamiento.get("epsilon", 1.0),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.epsilon_decay",
+                            "Epsilon Decay",
+                            entrenamiento.get("epsilon_decay", 0.99995),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.epsilon_min",
+                            "Epsilon Mín",
+                            entrenamiento.get("epsilon_min", 0.1),
+                            config,
+                        )
+
+                    st.markdown("**Parámetros Avanzados**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        render_field_widget(
+                            "decision.entrenamiento_completo.gamma",
+                            "Gamma",
+                            entrenamiento.get("gamma", 0.85),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.hidden_layers",
+                            "Capas Ocultas",
+                            entrenamiento.get("hidden_layers", [64, 64, 64]),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.use_double_dqn",
+                            "Double DQN",
+                            entrenamiento.get("use_double_dqn", True),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.use_dueling_dqn",
+                            "Dueling DQN",
+                            entrenamiento.get("use_dueling_dqn", True),
+                            config,
+                        )
+
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_completo.target_update_frequency",
+                            "Target Update Freq",
+                            entrenamiento.get("target_update_frequency", 100),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.use_prioritized_replay",
+                            "Prioritized Replay",
+                            entrenamiento.get("use_prioritized_replay", True),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.per_alpha",
+                            "PER Alpha",
+                            entrenamiento.get("per_alpha", 0.6),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.per_beta_start",
+                            "PER Beta Start",
+                            entrenamiento.get("per_beta_start", 0.4),
+                            config,
+                        )
+
+                    with col3:
+                        render_field_widget(
+                            "decision.entrenamiento_completo.use_noisy_networks",
+                            "Noisy Networks",
+                            entrenamiento.get("use_noisy_networks", True),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.noise_std",
+                            "Noise STD",
+                            entrenamiento.get("noise_std", 0.3),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.use_dropout",
+                            "Dropout",
+                            entrenamiento.get("use_dropout", True),
+                            config,
+                        )
+                        render_field_widget(
+                            "decision.entrenamiento_completo.dropout_rate",
+                            "Dropout Rate",
+                            entrenamiento.get("dropout_rate", 0.02),
+                            config,
+                        )
+
+                    with st.expander("Optimizaciones de Estabilidad", expanded=False):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.warmup_steps",
+                                "Warmup Steps",
+                                entrenamiento.get("warmup_steps", 250),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.min_replay_size",
+                                "Min Replay Size",
+                                entrenamiento.get("min_replay_size", 32),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.use_batch_normalization",
+                                "Batch Normalization",
+                                entrenamiento.get("use_batch_normalization", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.use_he_initialization",
+                                "He Initialization",
+                                entrenamiento.get("use_he_initialization", True),
+                                config,
+                            )
+
+                        with col2:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.use_residual_connections",
+                                "Residual Connections",
+                                entrenamiento.get("use_residual_connections", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.gradient_clip_norm",
+                                "Gradient Clip Norm",
+                                entrenamiento.get("gradient_clip_norm", 1.0),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.use_leaky_relu",
+                                "Leaky ReLU",
+                                entrenamiento.get("use_leaky_relu", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.use_gradient_clipping",
+                                "Gradient Clipping",
+                                entrenamiento.get("use_gradient_clipping", True),
+                                config,
+                            )
+
+                        with col3:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.use_huber_loss",
+                                "Huber Loss",
+                                entrenamiento.get("use_huber_loss", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.normalize_rewards",
+                                "Normalize Rewards",
+                                entrenamiento.get("normalize_rewards", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.per_beta_frames",
+                                "PER Beta Frames",
+                                entrenamiento.get("per_beta_frames", 100000),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.adaptive_lr",
+                                "Adaptive LR",
+                                entrenamiento.get("adaptive_lr", True),
+                                config,
+                            )
+
+                    with st.expander("Evaluación y Métricas", expanded=False):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.enable_evaluation",
+                                "Activar Evaluación",
+                                entrenamiento.get("enable_evaluation", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.evaluation_episodes",
+                                "Episodios Evaluación",
+                                entrenamiento.get("evaluation_episodes", 10),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.evaluation_frequency",
+                                "Frecuencia Evaluación",
+                                entrenamiento.get("evaluation_frequency", 10),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.baseline_comparison",
+                                "Comparación Baseline",
+                                entrenamiento.get("baseline_comparison", True),
+                                config,
+                            )
+
+                        with col2:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.save_evaluation_data",
+                                "Guardar Datos Evaluación",
+                                entrenamiento.get("save_evaluation_data", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.metrics_window_size",
+                                "Ventana Métricas",
+                                entrenamiento.get("metrics_window_size", 100),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.statistical_tests",
+                                "Tests Estadísticos",
+                                entrenamiento.get("statistical_tests", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.generate_plots",
+                                "Generar Gráficos",
+                                entrenamiento.get("generate_plots", True),
+                                config,
+                            )
+
+                    with st.expander("Optimizaciones de Rendimiento", expanded=False):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.lr_schedule_type",
+                                "Tipo Schedule LR",
+                                entrenamiento.get("lr_schedule_type", "plateau"),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.enable_jit_compilation",
+                                "JIT Compilation",
+                                entrenamiento.get("enable_jit_compilation", True),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.dropout_mode",
+                                "Modo Dropout",
+                                entrenamiento.get("dropout_mode", "optimized"),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.dropout_layers",
+                                "Layers Dropout",
+                                entrenamiento.get("dropout_layers", "strategic"),
+                                config,
+                            )
+
+                        with col2:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.noisy_implementation",
+                                "Implementación Noisy",
+                                entrenamiento.get("noisy_implementation", "efficient"),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.double_dqn_batch_optimization",
+                                "Double DQN Batch Opt",
+                                entrenamiento.get(
+                                    "double_dqn_batch_optimization", False
+                                ),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.target_update_batch_size",
+                                "Target Update Batch Size",
+                                entrenamiento.get("target_update_batch_size", 1024),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.per_batch_processing",
+                                "PER Batch Processing",
+                                entrenamiento.get("per_batch_processing", False),
+                                config,
+                            )
+
+                        with col3:
+                            render_field_widget(
+                                "decision.entrenamiento_completo.per_update_frequency",
+                                "PER Update Frequency",
+                                entrenamiento.get("per_update_frequency", 4),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.per_importance_annealing",
+                                "PER Importance Annealing",
+                                entrenamiento.get("per_importance_annealing", False),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.dueling_stream_simplification",
+                                "Dueling Stream Simplification",
+                                entrenamiento.get(
+                                    "dueling_stream_simplification", False
+                                ),
+                                config,
+                            )
+                            render_field_widget(
+                                "decision.entrenamiento_completo.hidden_layers_optimization",
+                                "Hidden Layers Optimization",
+                                entrenamiento.get("hidden_layers_optimization", False),
+                                config,
+                            )
 
     with st.expander("🚦 SUMO Simulación", expanded=False):
         if "sumo" in config:

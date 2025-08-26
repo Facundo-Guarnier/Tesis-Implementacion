@@ -50,8 +50,54 @@ decision:
       1.0,
     ] #! Ponderaciones de las zonas
 
-  entrenamiento:
-    entrenar: False #* Iniciar proceso de entrenamiento del agente DQN
+  entrenamiento_simplificado:
+    entrenar: False #* Iniciar proceso de entrenamiento simplificado del agente DQN (configuración básica y rápida)
+
+    # === CONFIGURACIÓN DE ARCHIVOS Y RESULTADOS ===
+    path_resultado: "results/training/" #! Directorio donde se guardan modelos, logs y métricas de entrenamiento
+
+    # === HIPERPARÁMETROS BÁSICOS ===
+    num_epocas: 100 #! Suficientes épocas para ver tendencias claras
+    batch_size: 256 #! Tamaño de lote estándar
+    steps: 10 #! Pasos de simulación por acción
+    memory: 50000 #! Buffer de experiencias más grande para diversidad
+    min_replay_size: 2000 #! Mínimo para empezar entrenamiento (batch dinámico)
+
+    # === OPTIMIZACIÓN Y LEARNING RATE ===
+    learning_rate: 0.0001 #! Punto de partida conservador y seguro
+
+    # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
+    epsilon: 1.0 #! 100% exploración inicial
+    epsilon_decay: 0.95 #! Decay lento para explorar durante más tiempo
+    epsilon_min: 0.1 #! 10% exploración mínima
+
+    # === DESCUENTO Y ARQUITECTURA ===
+    gamma: 0.90 #! Valor estándar que mira al futuro
+    hidden_layers: [128, 64] #! Red simple pero más potente
+
+    # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
+    use_double_dqn: True #! Técnica probada y estable
+    use_dueling_dqn: True #! Técnica probada y estable
+    target_update_frequency: 200 #! Valor estándar y estable
+
+    # === ESTABILIDAD DEL ENTRENAMIENTO ===
+    warmup_steps: 1000 #! Pasos de calentamiento para estabilizar la simulación
+    use_gradient_clipping: True #! Previene gradient explosion
+    gradient_clip_norm: 0.8 #! Valor estándar
+    use_huber_loss: True #! Más robusto que MSE
+    use_he_initialization: True #! Segura y estándar
+
+    # === EVALUACIÓN ===
+    enable_evaluation: True #! Importante para monitoreo
+    evaluation_episodes: 10 #! Episodios de evaluación
+    evaluation_frequency: 5 #! Evaluar cada 5 épocas
+
+    # === EARLY STOPPING ===
+    patience: 10 #! Épocas sin mejora antes de parar
+    min_improvement: 0.01 #! Mejora mínima requerida
+
+  entrenamiento_completo:
+    entrenar: False #* Iniciar proceso de entrenamiento completo del agente DQN (configuración avanzada)
 
     # === CONFIGURACIÓN DE ARCHIVOS Y RESULTADOS ===
     path_resultado: "results/training/" #! Directorio donde se guardan modelos, logs y métricas de entrenamiento

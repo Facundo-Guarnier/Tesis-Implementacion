@@ -92,6 +92,53 @@ class DeteccionSettings(BaseModel):
 
 
 # --- Modelos para la sección 'decision' ---
+class EntrenamientoSimplificadoSettings(BaseModel):
+    """Configuración simplificada para entrenamiento DQN - configuración básica y estable."""
+
+    entrenar: bool  # * Entrenar el modelo con configuración simplificada
+    path_resultado: str  #! Carpeta donde se guardarán los resultados del entrenamiento
+
+    # === HIPERPARÁMETROS BÁSICOS ===
+    num_epocas: int  #! Suficientes épocas para ver tendencias claras
+    batch_size: int  #! Tamaño de lote estándar
+    steps: int  #! Pasos de simulación por acción
+    memory: int  #! Buffer de experiencias más grande para diversidad
+    min_replay_size: int  #! Mínimo para empezar entrenamiento (batch dinámico)
+
+    # === OPTIMIZACIÓN Y LEARNING RATE ===
+    learning_rate: float  #! Punto de partida conservador y seguro
+
+    # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
+    epsilon: float  #! 100% exploración inicial
+    epsilon_decay: float  #! Decay lento para explorar durante más tiempo
+    epsilon_min: float  #! 10% exploración mínima
+
+    # === DESCUENTO Y ARQUITECTURA ===
+    gamma: float  #! Valor estándar que mira al futuro
+    hidden_layers: list[int]  #! Red simple pero más potente
+
+    # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
+    use_double_dqn: bool = True  #! Técnica probada y estable
+    use_dueling_dqn: bool = True  #! Técnica probada y estable
+    target_update_frequency: int = 200  #! Valor estándar y estable
+
+    # === ESTABILIDAD DEL ENTRENAMIENTO ===
+    warmup_steps: int  #! Pasos de calentamiento para estabilizar la simulación
+    use_gradient_clipping: bool = True  #! Previene gradient explosion
+    gradient_clip_norm: float = 0.8  #! Valor estándar
+    use_huber_loss: bool = True  #! Más robusto que MSE
+    use_he_initialization: bool = True  #! Segura y estándar
+
+    # === EVALUACIÓN ===
+    enable_evaluation: bool = True  #! Importante para monitoreo
+    evaluation_episodes: int = 10  #! Episodios de evaluación
+    evaluation_frequency: int = 5  #! Evaluar cada 5 épocas
+
+    # === EARLY STOPPING ===
+    patience: int = 10  #! Épocas sin mejora antes de parar
+    min_improvement: float = 0.01  #! Mejora mínima requerida
+
+
 class EntrenamientoSettings(BaseModel):
     entrenar: bool  # * Entrenar el modelo
     path_resultado: str  #! Carpeta donde se guardarán los resultados del entrenamiento
@@ -189,7 +236,8 @@ class DecisionSettings(BaseModel):
     ponderaciones_zonas: list[float]  #! Ponderaciones de las zonas
     path_modelo_entrenado: str
     steps: int = 15  #! Pasos de simulación por acción del agente
-    entrenamiento: EntrenamientoSettings
+    entrenamiento_simplificado: EntrenamientoSimplificadoSettings
+    entrenamiento_completo: EntrenamientoSettings
 
 
 # --- Modelos para 'sumo' y 'reporte' ---

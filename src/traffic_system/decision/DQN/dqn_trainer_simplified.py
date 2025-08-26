@@ -4,9 +4,10 @@ Simplified DQN Trainer para Control de Semáforos - Configuración Base Segura
 Este módulo implementa un entrenador DQN SIMPLIFICADO que elimina todas las
 contradicciones y complejidad excesiva del entrenador original.
 
-CONFIGURACIONES HARDCODED - BASE SEGURA
+CONFIGURACIONES DESDE CONFIG.YAML - BASE SEGURA
 
 Objetivo: Tener un modelo base ESTABLE antes de añadir complejidad.
+Ahora usa la configuración 'entrenamiento_simplificado' del config.yaml.
 """
 
 import csv
@@ -35,77 +36,24 @@ MIXED_PRECISION_AVAILABLE = (
 )
 
 
-class SimplifiedDQNConfig:
-    """Configuraciones simplificadas hardcoded para entrenamiento estable."""
-
-    # === HIPERPARÁMETROS BÁSICOS ===
-    NUM_EPOCHS = 100  # Suficientes épocas para ver tendencias claras
-    BATCH_SIZE = 256  # Tamaño de lote estándar
-    STEPS = 10  # Pasos de simulación por acción
-    MEMORY_SIZE = 50000  # Buffer de experiencias más grande para diversidad
-    MIN_REPLAY_SIZE = 2000  # Mínimo para empezar entrenamiento (batch dinámico)
-
-    # === OPTIMIZACIÓN Y LEARNING RATE ===
-    LEARNING_RATE = 0.0001  # Punto de partida conservador y seguro
-    # SIN learning_rate_decay - mantener LR fijo inicialmente
-    # SIN adaptive_lr - una cosa a la vez
-
-    # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
-    # USE_NOISY_NETWORKS = False  # ❌ DESACTIVADO: Evitar conflicto con epsilon
-    EPSILON = 1.0  # 100% exploración inicial
-    EPSILON_DECAY = 0.95  # Decay lento para explorar durante más tiempo
-    EPSILON_MIN = 0.1  # exploración mínima, 0.1 = 10%
-
-    # === DESCUENTO Y ARQUITECTURA ===
-    GAMMA = 0.90  # Valor estándar que mira al futuro
-    HIDDEN_LAYERS = [128, 64]  # Red simple pero más potente
-
-    # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
-    USE_DOUBLE_DQN = True  # ✅ Técnica probada y estable
-    USE_DUELING_DQN = True  # ✅ Técnica probada y estable
-    TARGET_UPDATE_FREQUENCY = 200  # Valor estándar y estable
-
-    # === ESTABILIDAD DEL ENTRENAMIENTO ===
-    WARMUP_STEPS = 1000  # Pasos de calentamiento para estabilizar la simulacion
-    USE_GRADIENT_CLIPPING = True  # ✅ Previene gradient explosion
-    GRADIENT_CLIP_NORM = 0.8  # Valor estándar
-    USE_HUBER_LOSS = True  # ✅ Más robusto que MSE
-
-    # === TÉCNICAS DESACTIVADAS TEMPORALMENTE ===
-    # USE_PRIORITIZED_REPLAY = False  # ❌ Fuente de complejidad - activar después
-    # USE_DROPOUT = False  # ❌ Red simple no necesita regularización
-    # USE_BATCH_NORMALIZATION = False  # ❌ Innecesario para red pequeña
-    USE_HE_INITIALIZATION = True  # ✅ Segura y estándar
-    # USE_RESIDUAL_CONNECTIONS = False  # ❌ Innecesario para 2 capas
-    # USE_LEAKY_RELU = False  # ❌ ReLU estándar es suficiente
-
-    # === EVALUACIÓN ===
-    ENABLE_EVALUATION = True  # ✅ Importante para monitoreo
-    EVALUATION_EPISODES = 10  # Episodios de evaluación
-    EVALUATION_FREQUENCY = 5  # Evaluar cada 5 épocas
-
-    # === EARLY STOPPING ===
-    PATIENCE = 10  # Épocas sin mejora antes de parar
-    MIN_IMPROVEMENT = 0.01  # Mejora mínima requerida
-
-
 class SimplifiedDQNTrainer:
     """
     Entrenador DQN Simplificado - Configuración Base Segura.
 
     Elimina todas las contradicciones y complejidad excesiva del entrenador original.
     Objetivo: modelo base ESTABLE antes de añadir optimizaciones.
+    Ahora usa configuración desde config.yaml (entrenamiento_simplificado).
     """
 
     def __init__(self) -> None:
-        """Inicializa el entrenador con configuración simplificada."""
+        """Inicializa el entrenador con configuración simplificada desde config.yaml."""
         # Configurar logging PRIMERO
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
-        # Configuración base
-        self.config = SimplifiedDQNConfig()
+        # Cargar configuración desde config.yaml
         self.settings = load_app_settings()
+        self.config = self.settings.decision.entrenamiento_simplificado
 
         # API y estado
         self._api = DecisionAPI(
@@ -118,12 +66,12 @@ class SimplifiedDQNTrainer:
 
         # Memoria de experiencias (solo deque estándar)
         self.memory: deque[tuple[NDArray, int, float, NDArray, bool]] = deque(
-            maxlen=self.config.MEMORY_SIZE
+            maxlen=self.config.memory
         )
 
         # Variables de entrenamiento
-        self.epsilon = self.config.EPSILON
-        self.learning_rate = self.config.LEARNING_RATE
+        self.epsilon = self.config.epsilon
+        self.learning_rate = self.config.learning_rate
         self.target_update_counter = 0
 
         # Early stopping
@@ -171,7 +119,7 @@ class SimplifiedDQNTrainer:
             self.model: tf.keras.Model = self._build_model()
             self.logger.info("✅ Modelo principal creado exitosamente")
 
-            if self.config.USE_DOUBLE_DQN:
+            if self.config.use_double_dqn:
                 self.target_model = self._build_model()
                 self.target_model.set_weights(self.model.get_weights())
                 self.logger.info("🎯 Target model inicializado para Double DQN")
@@ -287,7 +235,7 @@ class SimplifiedDQNTrainer:
         + Optimizaciones GPU: Mixed Precision, XLA compilation
         """
         with tf.device(self.device):
-            if self.config.USE_DUELING_DQN:
+            if self.config.use_dueling_dqn:
                 model = self._build_dueling_model()
                 self.logger.info("🔀 Usando arquitectura Dueling DQN")
             else:
@@ -296,15 +244,15 @@ class SimplifiedDQNTrainer:
 
             # Optimizador configurado para GPU estándar (sin Mixed Precision por defecto)
             optimizer_kwargs = {
-                "learning_rate": self.config.LEARNING_RATE,
+                "learning_rate": self.config.learning_rate,
                 "beta_1": 0.9,
                 "beta_2": 0.999,
                 "epsilon": 1e-7,
             }
 
             # Gradient clipping
-            if self.config.USE_GRADIENT_CLIPPING:
-                optimizer_kwargs["clipnorm"] = self.config.GRADIENT_CLIP_NORM
+            if self.config.use_gradient_clipping:
+                optimizer_kwargs["clipnorm"] = self.config.gradient_clip_norm
 
             optimizer = tf.keras.optimizers.Adam(**optimizer_kwargs)
 
@@ -314,7 +262,7 @@ class SimplifiedDQNTrainer:
                 self.logger.info("🎯 Optimizador configurado para Mixed Precision")
 
             # Loss function con compatibilidad Mixed Precision
-            if self.config.USE_HUBER_LOSS:
+            if self.config.use_huber_loss:
                 loss_function = tf.keras.losses.Huber(delta=1.0)
             else:
                 loss_function = "mse"
@@ -335,13 +283,13 @@ class SimplifiedDQNTrainer:
 
         # Inicialización He para ReLU
         initializer = (
-            "he_normal" if self.config.USE_HE_INITIALIZATION else "random_normal"
+            "he_normal" if self.config.use_he_initialization else "random_normal"
         )
 
         # Primera capa
         model.add(
             tf.keras.layers.Dense(
-                self.config.HIDDEN_LAYERS[0],
+                self.config.hidden_layers[0],
                 input_dim=self.state_size,
                 activation="relu",
                 kernel_initializer=initializer,
@@ -349,7 +297,7 @@ class SimplifiedDQNTrainer:
         )
 
         # Capas ocultas
-        for units in self.config.HIDDEN_LAYERS[1:]:
+        for units in self.config.hidden_layers[1:]:
             model.add(
                 tf.keras.layers.Dense(
                     units, activation="relu", kernel_initializer=initializer
@@ -383,19 +331,19 @@ class SimplifiedDQNTrainer:
 
         # Inicialización He
         initializer = (
-            "he_normal" if self.config.USE_HE_INITIALIZATION else "random_normal"
+            "he_normal" if self.config.use_he_initialization else "random_normal"
         )
 
         # Capas compartidas
         shared = inputs
-        for units in self.config.HIDDEN_LAYERS[:-1]:  # Todas menos la última
+        for units in self.config.hidden_layers[:-1]:  # Todas menos la última
             shared = tf.keras.layers.Dense(
                 units, activation="relu", kernel_initializer=initializer
             )(shared)
 
         # Value stream V(s)
         value_stream = tf.keras.layers.Dense(
-            self.config.HIDDEN_LAYERS[-1],
+            self.config.hidden_layers[-1],
             activation="relu",
             kernel_initializer=initializer,
             name="value_hidden",
@@ -404,7 +352,7 @@ class SimplifiedDQNTrainer:
 
         # Advantage stream A(s,a)
         advantage_stream = tf.keras.layers.Dense(
-            self.config.HIDDEN_LAYERS[-1],
+            self.config.hidden_layers[-1],
             activation="relu",
             kernel_initializer=initializer,
             name="advantage_hidden",
@@ -503,145 +451,12 @@ class SimplifiedDQNTrainer:
         """Almacena experiencia en memoria estándar (sin PER)."""
         self.memory.append((state, action, reward, next_state, done))
 
-    # def _replay(self):
-    #     """
-    #     Entrenamiento con memoria estándar (sin PER).
-
-    #     Usa batch dinámico: empieza entrenando temprano con lotes pequeños.
-    #     Captura métricas adicionales: loss y gradient norm.
-    #     """
-    #     if len(self.memory) < self.config.MIN_REPLAY_SIZE:
-    #         return
-
-    #     # Batch size dinámico
-    #     batch_size = min(self.config.BATCH_SIZE, len(self.memory))
-    #     minibatch = random.sample(self.memory, batch_size)
-
-    #     # Preparar datos
-    #     states = np.array([experience[0] for experience in minibatch])
-    #     actions = np.array([experience[1] for experience in minibatch])
-    #     rewards = np.array([experience[2] for experience in minibatch])
-    #     next_states = np.array([experience[3] for experience in minibatch])
-    #     dones = np.array([experience[4] for experience in minibatch])
-
-    #     # Predicciones actuales
-    #     current_q_values = self.model.predict(states, verbose=0)
-
-    #     if self.config.USE_DOUBLE_DQN and self.target_model is not None:
-    #         # Double DQN: usar online network para seleccionar, target para evaluar
-    #         next_q_values_online = self.model.predict(next_states, verbose=0)
-    #         next_q_values_target = self.target_model.predict(next_states, verbose=0)
-
-    #         # Seleccionar mejores acciones con online network
-    #         best_actions = np.argmax(next_q_values_online, axis=1)
-
-    #         # Evaluar con target network
-    #         max_next_q = next_q_values_target[np.arange(batch_size), best_actions]
-    #     else:
-    #         # DQN estándar
-    #         next_q_values = self.model.predict(next_states, verbose=0)
-    #         max_next_q = np.max(next_q_values, axis=1)
-
-    #     # Calcular targets
-    #     targets = current_q_values.copy()
-    #     for i in range(batch_size):
-    #         if dones[i]:
-    #             targets[i][actions[i]] = rewards[i]
-    #         else:
-    #             targets[i][actions[i]] = rewards[i] + self.config.GAMMA * max_next_q[i]
-
-    #     # Entrenar y capturar métricas
-    #     with tf.GradientTape() as tape:
-    #         # Forward pass
-    #         predicted_q_values = self.model(states, training=True)
-
-    #         # Calcular loss
-    #         if self.config.USE_HUBER_LOSS:
-    #             loss_fn = tf.keras.losses.Huber(delta=1.0)
-    #         else:
-    #             loss_fn = tf.keras.losses.MeanSquaredError()
-
-    #         loss = loss_fn(targets, predicted_q_values)
-
-    #     # Calcular gradientes
-    #     gradients = tape.gradient(loss, self.model.trainable_variables)
-
-    #     # Calcular norma del gradiente
-    #     gradient_norm = self._calculate_gradient_norm(gradients)
-
-    #     # Aplicar gradientes
-    #     self.model.optimizer.apply_gradients(
-    #         zip(gradients, self.model.trainable_variables, strict=True)
-    #     )
-
-    #     # Almacenar métricas
-    #     self.epoch_losses.append(float(loss))
-    #     self.epoch_gradient_norms.append(gradient_norm)
-
-    #     # Almacenar Q-values promedio del batch
-    #     avg_q_value = float(np.mean(predicted_q_values))
-    #     self.epoch_q_values.append(avg_q_value)
-
-    #     # Actualizar target model si es necesario
-    #     if self.config.USE_DOUBLE_DQN and self.target_model is not None:
-    #         self.target_update_counter += 1
-    #         if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
-    #             self._update_target_model()
-    #             self.target_update_counter = 0
-
-    # def _replay(self):
-    #     if len(self.memory) < self.config.MIN_REPLAY_SIZE:
-    #         return
-
-    #     batch_size = min(self.config.BATCH_SIZE, len(self.memory))
-    #     minibatch = random.sample(self.memory, batch_size)
-
-    #     states = np.array([experience[0] for experience in minibatch])
-    #     actions = np.array([experience[1] for experience in minibatch])
-    #     rewards = np.array([experience[2] for experience in minibatch])
-    #     next_states = np.array([experience[3] for experience in minibatch])
-    #     dones = np.array([experience[4] for experience in minibatch])
-
-    #     # Predicción de Q-values futuros (usando Double DQN)
-    #     next_q_values_online = self.model.predict(next_states, verbose=0)
-    #     next_q_values_target = self.target_model.predict(next_states, verbose=0)
-    #     best_actions = np.argmax(next_q_values_online, axis=1)
-    #     max_next_q = next_q_values_target[np.arange(batch_size), best_actions]
-
-    #     # Calcular los targets
-    #     targets = self.model.predict(
-    #         states, verbose=0
-    #     )  # Usamos las predicciones actuales como base
-    #     for i in range(batch_size):
-    #         if dones[i]:
-    #             targets[i][actions[i]] = rewards[i]
-    #         else:
-    #             targets[i][actions[i]] = rewards[i] + self.config.GAMMA * max_next_q[i]
-
-    #     # *** LA LÍNEA CLAVE ***
-    #     # Keras se encarga de todo: forward, loss, backward, apply gradients
-    #     history = self.model.train_on_batch(states, targets, return_dict=True)
-
-    #     # Almacenar métricas desde el historial devuelto
-    #     self.epoch_losses.append(history["loss"])
-    #     # Nota: para obtener Gradient Norm, tendrías que quedarte con GradientTape,
-    #     # pero primero asegúrate de que el aprendizaje funciona. La loss es más importante.
-    #     # Puedes añadir un cálculo de gradientes opcional si lo necesitas.
-    #     avg_q_value = float(np.mean(targets))  # O de las predicciones
-    #     self.epoch_q_values.append(avg_q_value)
-
-    #     # Actualizar target model
-    #     self.target_update_counter += 1
-    #     if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
-    #         self._update_target_model()
-    #         self.target_update_counter = 0
-
     def _replay(self) -> None:
         """Entrenamiento simplificado con optimizaciones básicas GPU/CPU."""
-        if len(self.memory) < self.config.MIN_REPLAY_SIZE:
+        if len(self.memory) < self.config.min_replay_size:
             return
 
-        batch_size = min(self.config.BATCH_SIZE, len(self.memory))
+        batch_size = min(self.config.batch_size, len(self.memory))
         minibatch = random.sample(self.memory, batch_size)
 
         # Convertir a tensores TensorFlow para eficiencia
@@ -667,7 +482,7 @@ class SimplifiedDQNTrainer:
         # Calcular targets con Double DQN
         batch_indices = tf.range(batch_size, dtype=tf.int32)
 
-        if self.config.USE_DOUBLE_DQN and self.target_model is not None:
+        if self.config.use_double_dqn and self.target_model is not None:
             next_q_values_online = self.model(next_states, training=False)
             next_q_values_target = self.target_model(next_states, training=False)
             best_actions = tf.argmax(next_q_values_online, axis=1, output_type=tf.int32)
@@ -679,7 +494,7 @@ class SimplifiedDQNTrainer:
             next_q_values = self.model(next_states, training=False)
             max_next_q = tf.reduce_max(next_q_values, axis=1)
 
-        targets_q = rewards + tf.cast(self.config.GAMMA, dtype) * max_next_q * (
+        targets_q = rewards + tf.cast(self.config.gamma, dtype) * max_next_q * (
             tf.cast(1.0, dtype) - dones
         )
 
@@ -722,9 +537,9 @@ class SimplifiedDQNTrainer:
             gradients = tape.gradient(scaled_loss, self.model.trainable_variables)
 
         # Gradient clipping
-        if self.config.USE_GRADIENT_CLIPPING:
+        if self.config.use_gradient_clipping:
             gradients, _ = tf.clip_by_global_norm(
-                gradients, self.config.GRADIENT_CLIP_NORM
+                gradients, self.config.gradient_clip_norm
             )
 
         # Aplicar gradientes
@@ -743,7 +558,7 @@ class SimplifiedDQNTrainer:
 
         # Actualizar target model
         self.target_update_counter += 1
-        if self.target_update_counter >= self.config.TARGET_UPDATE_FREQUENCY:
+        if self.target_update_counter >= self.config.target_update_frequency:
             self._update_target_model()
             self.target_update_counter = 0
 
@@ -774,8 +589,8 @@ class SimplifiedDQNTrainer:
 
     def _update_epsilon(self) -> None:
         """Actualiza epsilon para exploración decreciente."""
-        if self.epsilon > self.config.EPSILON_MIN:
-            self.epsilon *= self.config.EPSILON_DECAY
+        if self.epsilon > self.config.epsilon_min:
+            self.epsilon *= self.config.epsilon_decay
 
     def _get_current_state(self) -> NDArray:
         """
@@ -886,7 +701,7 @@ class SimplifiedDQNTrainer:
         self._api.set_traffic_light_states(states=action_phases_list)
 
         # Avanzar simulación
-        response = self._api.advance_simulation(steps=self.config.STEPS)
+        response = self._api.advance_simulation(steps=self.config.steps)
         if response is None:
             raise RuntimeError("No se pudo avanzar la simulación")
 
@@ -1003,7 +818,7 @@ class SimplifiedDQNTrainer:
     def _check_early_stopping(self, current_avg_reward: float, epoch: int) -> bool:
         """Verifica early stopping."""
         improved = current_avg_reward > (
-            self.best_avg_reward + self.config.MIN_IMPROVEMENT
+            self.best_avg_reward + self.config.min_improvement
         )
 
         if improved:
@@ -1013,7 +828,7 @@ class SimplifiedDQNTrainer:
         else:
             self.epochs_without_improvement += 1
 
-        if self.epochs_without_improvement >= self.config.PATIENCE:
+        if self.epochs_without_improvement >= self.config.patience:
             self.logger.info(f"🛑 Early stopping activado en época {epoch}")
             return True
 
@@ -1045,15 +860,15 @@ class SimplifiedDQNTrainer:
         """Loop principal de entrenamiento."""
         self.logger.info("🚀 Iniciando entrenamiento del agente")
 
-        for epoch in range(self.config.NUM_EPOCHS):
-            self.logger.info(f"🏁 Época {epoch + 1}/{self.config.NUM_EPOCHS}")
+        for epoch in range(self.config.num_epocas):
+            self.logger.info(f"🏁 Época {epoch + 1}/{self.config.num_epocas}")
 
             # Resetear métricas de época
             self._reset_epoch_metrics()
 
             # Warm-up inicial
             if epoch == 0:
-                self._skip_warmup_steps(self.config.WARMUP_STEPS)
+                self._skip_warmup_steps(self.config.warmup_steps)
 
             # Variables de época
             epoch_rewards = []
@@ -1106,7 +921,7 @@ class SimplifiedDQNTrainer:
                 self.step_count += 1
 
                 # Entrenar si hay suficiente memoria
-                if len(self.memory) >= self.config.MIN_REPLAY_SIZE:
+                if len(self.memory) >= self.config.min_replay_size:
                     self._replay()
                     replay_count += 1
 
@@ -1306,7 +1121,7 @@ class SimplifiedDQNTrainer:
         self._save_hyperparameters()
 
     def _save_hyperparameters(self) -> None:
-        """Guarda TODOS los hiperparámetros de SimplifiedDQNConfig."""
+        """Guarda TODOS los hiperparámetros de la configuración simplificada."""
         config_path = os.path.join(self._save_path, "hyperparameters.csv")
 
         with open(config_path, "w", newline="") as f:
@@ -1318,8 +1133,8 @@ class SimplifiedDQNTrainer:
             # === HIPERPARÁMETROS BÁSICOS ===
             writer.writerow(
                 [
-                    "NUM_EPOCHS",
-                    self.config.NUM_EPOCHS,
+                    "num_epocas",
+                    self.config.num_epocas,
                     "int",
                     "Basic",
                     "Suficientes épocas para ver tendencias claras",
@@ -1328,8 +1143,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "BATCH_SIZE",
-                    self.config.BATCH_SIZE,
+                    "batch_size",
+                    self.config.batch_size,
                     "int",
                     "Basic",
                     "Tamaño de lote estándar",
@@ -1338,8 +1153,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "STEPS",
-                    self.config.STEPS,
+                    "steps",
+                    self.config.steps,
                     "int",
                     "Basic",
                     "Pasos de simulación por acción",
@@ -1348,8 +1163,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "MEMORY_SIZE",
-                    self.config.MEMORY_SIZE,
+                    "memory",
+                    self.config.memory,
                     "int",
                     "Basic",
                     "Buffer de experiencias más grande para diversidad",
@@ -1358,8 +1173,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "MIN_REPLAY_SIZE",
-                    self.config.MIN_REPLAY_SIZE,
+                    "min_replay_size",
+                    self.config.min_replay_size,
                     "int",
                     "Basic",
                     "Mínimo para empezar entrenamiento (batch dinámico)",
@@ -1370,8 +1185,8 @@ class SimplifiedDQNTrainer:
             # === OPTIMIZACIÓN Y LEARNING RATE ===
             writer.writerow(
                 [
-                    "LEARNING_RATE",
-                    self.config.LEARNING_RATE,
+                    "learning_rate",
+                    self.config.learning_rate,
                     "float",
                     "Optimization",
                     "Punto de partida conservador y seguro",
@@ -1382,8 +1197,8 @@ class SimplifiedDQNTrainer:
             # === EXPLORACIÓN - SOLO EPSILON GREEDY ===
             writer.writerow(
                 [
-                    "EPSILON",
-                    self.config.EPSILON,
+                    "epsilon",
+                    self.config.epsilon,
                     "float",
                     "Exploration",
                     "100% exploración inicial",
@@ -1392,8 +1207,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "EPSILON_DECAY",
-                    self.config.EPSILON_DECAY,
+                    "epsilon_decay",
+                    self.config.epsilon_decay,
                     "float",
                     "Exploration",
                     "Decay lento para explorar durante más tiempo",
@@ -1402,8 +1217,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "EPSILON_MIN",
-                    self.config.EPSILON_MIN,
+                    "epsilon_min",
+                    self.config.epsilon_min,
                     "float",
                     "Exploration",
                     "20% exploración mínima",
@@ -1414,8 +1229,8 @@ class SimplifiedDQNTrainer:
             # === DESCUENTO Y ARQUITECTURA ===
             writer.writerow(
                 [
-                    "GAMMA",
-                    self.config.GAMMA,
+                    "gamma",
+                    self.config.gamma,
                     "float",
                     "Architecture",
                     "Valor estándar que mira al futuro",
@@ -1424,8 +1239,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "HIDDEN_LAYERS",
-                    str(self.config.HIDDEN_LAYERS),
+                    "hidden_layers",
+                    str(self.config.hidden_layers),
                     "list",
                     "Architecture",
                     "Red simple pero más potente",
@@ -1436,8 +1251,8 @@ class SimplifiedDQNTrainer:
             # === MEJORAS ALGORÍTMICAS DQN - SOLO LAS PROBADAS ===
             writer.writerow(
                 [
-                    "USE_DOUBLE_DQN",
-                    self.config.USE_DOUBLE_DQN,
+                    "use_double_dqn",
+                    self.config.use_double_dqn,
                     "bool",
                     "Algorithmic",
                     "Técnica probada y estable",
@@ -1446,8 +1261,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "USE_DUELING_DQN",
-                    self.config.USE_DUELING_DQN,
+                    "use_dueling_dqn",
+                    self.config.use_dueling_dqn,
                     "bool",
                     "Algorithmic",
                     "Técnica probada y estable",
@@ -1456,8 +1271,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "TARGET_UPDATE_FREQUENCY",
-                    self.config.TARGET_UPDATE_FREQUENCY,
+                    "target_update_frequency",
+                    self.config.target_update_frequency,
                     "int",
                     "Algorithmic",
                     "Valor estándar y estable",
@@ -1468,8 +1283,8 @@ class SimplifiedDQNTrainer:
             # === ESTABILIDAD DEL ENTRENAMIENTO ===
             writer.writerow(
                 [
-                    "WARMUP_STEPS",
-                    self.config.WARMUP_STEPS,
+                    "warmup_steps",
+                    self.config.warmup_steps,
                     "int",
                     "Stability",
                     "Pasos de calentamiento para estabilizar la simulacion",
@@ -1478,8 +1293,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "USE_GRADIENT_CLIPPING",
-                    self.config.USE_GRADIENT_CLIPPING,
+                    "use_gradient_clipping",
+                    self.config.use_gradient_clipping,
                     "bool",
                     "Stability",
                     "Previene gradient explosion",
@@ -1488,8 +1303,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "GRADIENT_CLIP_NORM",
-                    self.config.GRADIENT_CLIP_NORM,
+                    "gradient_clip_norm",
+                    self.config.gradient_clip_norm,
                     "float",
                     "Stability",
                     "Valor estándar",
@@ -1498,8 +1313,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "USE_HUBER_LOSS",
-                    self.config.USE_HUBER_LOSS,
+                    "use_huber_loss",
+                    self.config.use_huber_loss,
                     "bool",
                     "Stability",
                     "Más robusto que MSE",
@@ -1510,8 +1325,8 @@ class SimplifiedDQNTrainer:
             # === TÉCNICAS ACTIVADAS ===
             writer.writerow(
                 [
-                    "USE_HE_INITIALIZATION",
-                    self.config.USE_HE_INITIALIZATION,
+                    "use_he_initialization",
+                    self.config.use_he_initialization,
                     "bool",
                     "Techniques",
                     "Segura y estándar",
@@ -1522,8 +1337,8 @@ class SimplifiedDQNTrainer:
             # === EVALUACIÓN ===
             writer.writerow(
                 [
-                    "ENABLE_EVALUATION",
-                    self.config.ENABLE_EVALUATION,
+                    "enable_evaluation",
+                    self.config.enable_evaluation,
                     "bool",
                     "Evaluation",
                     "Importante para monitoreo",
@@ -1532,8 +1347,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "EVALUATION_EPISODES",
-                    self.config.EVALUATION_EPISODES,
+                    "evaluation_episodes",
+                    self.config.evaluation_episodes,
                     "int",
                     "Evaluation",
                     "Episodios de evaluación",
@@ -1542,8 +1357,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "EVALUATION_FREQUENCY",
-                    self.config.EVALUATION_FREQUENCY,
+                    "evaluation_frequency",
+                    self.config.evaluation_frequency,
                     "int",
                     "Evaluation",
                     "Evaluar cada 5 épocas",
@@ -1554,8 +1369,8 @@ class SimplifiedDQNTrainer:
             # === EARLY STOPPING ===
             writer.writerow(
                 [
-                    "PATIENCE",
-                    self.config.PATIENCE,
+                    "patience",
+                    self.config.patience,
                     "int",
                     "Early_Stopping",
                     "Épocas sin mejora antes de parar",
@@ -1564,8 +1379,8 @@ class SimplifiedDQNTrainer:
             )
             writer.writerow(
                 [
-                    "MIN_IMPROVEMENT",
-                    self.config.MIN_IMPROVEMENT,
+                    "min_improvement",
+                    self.config.min_improvement,
                     "float",
                     "Early_Stopping",
                     "Mejora mínima requerida",
@@ -1740,7 +1555,7 @@ class SimplifiedDQNTrainer:
         self.logger.info("📏 Calculando baseline con tiempo fijo...")
 
         # Warm-up para tiempo fijo
-        self._skip_warmup_steps(self.config.WARMUP_STEPS)
+        self._skip_warmup_steps(self.config.warmup_steps)
 
         total_reward = 0.0
         done = False
@@ -1752,7 +1567,7 @@ class SimplifiedDQNTrainer:
             reward = self._calculate_reward()
             total_reward += reward
 
-            response = self._api.advance_simulation(steps=self.config.STEPS)
+            response = self._api.advance_simulation(steps=self.config.steps)
             if response is None:
                 break
             done = response.done

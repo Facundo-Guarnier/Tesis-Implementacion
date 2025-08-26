@@ -72,7 +72,9 @@ class DQNEvaluator:
         }
 
         # Ventanas deslizantes para suavizado
-        self.window_size = getattr(config.entrenamiento, "metrics_window_size", 100)
+        self.window_size = getattr(
+            config.entrenamiento_completo, "metrics_window_size", 100
+        )
         self.reward_window: deque[float] = deque(maxlen=self.window_size)
         self.loss_window: deque[float] = deque(maxlen=self.window_size)
 
@@ -124,7 +126,9 @@ class DQNEvaluator:
             Diccionario con métricas de evaluación
         """
         if num_episodes is None:
-            num_episodes = getattr(self.config.entrenamiento, "evaluation_episodes", 10)
+            num_episodes = getattr(
+                self.config.entrenamiento_completo, "evaluation_episodes", 10
+            )
 
         logger.info(f"🧪 Iniciando evaluación con {num_episodes} episodios")
 
@@ -293,7 +297,7 @@ class DQNEvaluator:
         Returns:
             Resultados del test estadístico
         """
-        if not getattr(self.config.entrenamiento, "statistical_tests", True):
+        if not getattr(self.config.entrenamiento_completo, "statistical_tests", True):
             return {"tests_enabled": False}
 
         # Test t de Student para muestras independientes
@@ -354,7 +358,7 @@ class DQNEvaluator:
 
     def generate_plots(self) -> None:
         """Generar gráficos de progreso y evaluación."""
-        if not getattr(self.config.entrenamiento, "generate_plots", True):
+        if not getattr(self.config.entrenamiento_completo, "generate_plots", True):
             return
 
         logger.info("📊 Generando gráficos de evaluación...")
@@ -495,7 +499,9 @@ class DQNEvaluator:
         Returns:
             Ruta del archivo principal de métricas
         """
-        if not getattr(self.config.entrenamiento, "save_evaluation_data", True):
+        if not getattr(
+            self.config.entrenamiento_completo, "save_evaluation_data", True
+        ):
             return ""
 
         # Crear resumen completo
@@ -505,10 +511,10 @@ class DQNEvaluator:
             "config": {
                 "window_size": self.window_size,
                 "evaluation_episodes": getattr(
-                    self.config.entrenamiento, "evaluation_episodes", 10
+                    self.config.entrenamiento_completo, "evaluation_episodes", 10
                 ),
                 "evaluation_frequency": getattr(
-                    self.config.entrenamiento, "evaluation_frequency", 5
+                    self.config.entrenamiento_completo, "evaluation_frequency", 5
                 ),
             },
             "training_metrics": self._convert_to_serializable(self.training_metrics),

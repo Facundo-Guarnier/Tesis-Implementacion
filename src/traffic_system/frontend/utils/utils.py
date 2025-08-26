@@ -224,25 +224,3 @@ def set_nested_value(config: dict[str, Any], field_path: str, value: Any) -> Non
 
     # Establecer el valor final
     current[keys[-1]] = value
-
-
-# def get_nested_value(config: dict[str, Any], field_path: str) -> Any:
-#     """
-#     Obtener un valor anidado de un diccionario usando notación de puntos.
-
-#     Args:
-#         config: Diccionario de configuración
-#         field_path: Ruta del campo (ej: 'services.simulation_port')
-
-#     Returns:
-#         Valor del campo o None si no existe
-#     """
-#     keys = field_path.split(".")
-#     current = config
-
-#     try:
-#         for key in keys:
-#             current = current[key]
-#         return current
-#     except (KeyError, TypeError):
-#         return None
