@@ -25,7 +25,7 @@ class DQNModel:
         self.decision_settings = load_app_settings().decision
 
         # Determinar si estamos en modo entrenamiento para configurar reintentos infinitos
-        is_training_mode = self.decision_settings.entrenamiento.entrenar
+        is_training_mode = self.decision_settings.entrenamiento_completo.entrenar
         infinite_retry = (
             not is_training_mode
         )  # Reintentos infinitos solo cuando NO estamos entrenando

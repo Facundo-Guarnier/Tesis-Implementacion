@@ -54,7 +54,7 @@ def main() -> None:
     """
     settings = load_app_settings()
     app = DecisionApp()
-    if settings.decision.entrenamiento.entrenar:
+    if settings.decision.entrenamiento_completo.entrenar:
         app.train_model()
         shutdown_handler(0, 0)
 
