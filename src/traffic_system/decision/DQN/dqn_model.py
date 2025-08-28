@@ -146,12 +146,14 @@ class DQNModel:
 
             # Acumular recompensa después de ejecutar la acción
             if not done:  # No calcular recompensa en el último paso
-                reward = self._calculate_reward()
-                self._total_dqn_reward += reward
+                reward_total, wait_penalty, congestion_penalty, efficiency_bonus = (
+                    self._calculate_reward_components()
+                )
+                self._total_dqn_reward += reward_total
                 self._step_count += 1
 
-        # Mostrar resumen final de recompensa acumulada
-        self._log_final_reward_summary()
+        # Log final simple de recompensa acumulada
+        logger.info(f"🏆 Recompensa DQN Total: {self._total_dqn_reward:.2f}")
 
     def _calculate_reward(self) -> float:
         """
@@ -160,30 +162,54 @@ class DQNModel:
         Returns:
             Recompensa calculada para el estado actual
         """
+        reward_total, wait_penalty, congestion_penalty, efficiency_bonus = (
+            self._calculate_reward_components()
+        )
+        return reward_total
+
+    def _calculate_reward_components(self) -> tuple[float, float, float, float]:
+        """
+        Calcula recompensa y sus componentes separados.
+        COPIA EXACTA de SimplifiedDQNTrainer._calculate_reward_components().
+
+        Returns:
+            Tupla con (reward_total, wait_penalty, congestion_penalty, efficiency_bonus)
+        """
+        logger = logging.getLogger(
+            f"{self.__class__.__name__}._calculate_reward_components"
+        )
+
         try:
             wait_times_response = self._service.get_wait_times()
             quantities_response = self._service.get_quantities()
 
             if wait_times_response is None or quantities_response is None:
-                return -10.0
+                logger.error("⚠️ No se pudieron obtener datos de espera o cantidades")
+                return -10.0, -10.0, 0.0, 0.0
 
-            # Obtener datos (MISMA LÓGICA que trainer)
+            # Obtener datos
             wait_times = wait_times_response.tiempos_espera
             quantities = list(quantities_response.cantidades.values())
 
             if not wait_times or not quantities:
-                return -10.0
+                logger.error("⚠️ Datos de espera o cantidades vacíos")
+                return -10.0, -10.0, 0.0, 0.0
 
-            # Validación de datos anómalos (IGUAL que trainer)
+            # Validación de datos anómalos
             max_wait_time = max(wait_times)
             total_vehicles = sum(quantities)
 
             if max_wait_time > 5000 or total_vehicles > 150:
-                return -100.0  # Penalización por datos anómalos
+                logger.warning(
+                    f"⚠️ Datos anómalos detectados: max_wait_time={max_wait_time}, total_vehicles={total_vehicles}"
+                )
+                logger.warning(f"⚠️ Tiempos de espera: {wait_times}")
+                logger.warning(f"⚠️ Cantidad de vehículos: {quantities}")
+                return -100.0, -100.0, 0.0, 0.0  # Penalización por datos anómalos
 
             # Calcular componentes separados (EXACTAMENTE IGUAL que trainer)
             avg_wait_time = sum(wait_times) / len(wait_times)
-            wait_penalty = -(avg_wait_time * 0.2)
+            wait_penalty = -(avg_wait_time * 0.5)
 
             # Penalización por congestión total
             congestion_penalty = (
@@ -191,51 +217,21 @@ class DQNModel:
             )
 
             # Bonificación por eficiencia
-            efficiency_bonus = (
-                min(5.0, total_vehicles * 0.1)
-                if total_vehicles > 0 and avg_wait_time < 50
-                else 0.0
-            )
+            efficiency_bonus = 0
 
             # Recompensa total
             reward_total = wait_penalty + congestion_penalty + efficiency_bonus
 
-            # Clipping para estabilidad (IGUAL que trainer)
+            # Clipping para estabilidad
             import numpy as np
 
             reward_total = float(np.clip(reward_total, -120.0, 10.0))
 
-            return reward_total
+            return reward_total, wait_penalty, congestion_penalty, efficiency_bonus
 
         except Exception as e:
-            logger = logging.getLogger(f"{self.__class__.__name__}._calculate_reward")
-            logger.warning(f"⚠️ Error calculando recompensa: {e}")
-            return -10.0
-
-    def _log_final_reward_summary(self) -> None:
-        """
-        Muestra un resumen final de la recompensa acumulada DQN.
-        Para obtener la comparación completa, también necesitas ejecutar el baseline de tiempos fijos.
-        """
-        logger = logging.getLogger(
-            f"{self.__class__.__name__}._log_final_reward_summary"
-        )
-
-        logger.info("=" * 80)
-        logger.info("🏆 === RESUMEN FINAL - RECOMPENSA ACUMULADA DQN ===")
-        logger.info("=" * 80)
-        logger.info(f"📊 Recompensa Total DQN: {self._total_dqn_reward:.2f}")
-        logger.info(f"📊 Pasos de Decisión: {self._step_count}")
-        if self._step_count > 0:
-            avg_reward = self._total_dqn_reward / self._step_count
-            logger.info(f"📊 Recompensa Promedio por Paso: {avg_reward:.2f}")
-
-        logger.info("")
-        logger.info("ℹ️  Para comparación completa:")
-        logger.info(f"   1. Anota esta recompensa DQN: {self._total_dqn_reward:.2f}")
-        logger.info("   2. Ejecuta una simulación con tiempos fijos")
-        logger.info("   3. Compara las recompensas para obtener mejora porcentual")
-        logger.info("=" * 80)
+            logger.error(f"Error calculando recompensa: {e}")
+            return -1.0, -1.0, 0.0, 0.0
 
     def _get_current_state(self) -> NDArray:
         """

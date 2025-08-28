@@ -22,12 +22,12 @@ deteccion:
   un_video:
     procesar: False #! Procesar un video en específico
     guardar: False #! Guardar el video con los resultados
-    zona: "Zona A"
+    zona: "Zona C"
     path_destino: "results/deteccion/"
     # path_origen: "assets/dataset-576x1024-5fps/Zona A/20240102_131846.mp4"
-    path_origen: "assets/dataset-1080x1920-30fps/Zona A/20240102_131846.mp4"
+    # path_origen: "assets/dataset-1080x1920-30fps/Zona A/20240102_131846.mp4"
     # path_origen: "assets/dataset-576x1024-5fps/Zona C/20240102_132223.mp4"
-    # path_origen: "assets/dataset-1080x1920-30fps/Zona C/20240102_132223.mp4"
+    path_origen: "assets/dataset-1080x1920-30fps/Zona C/20240102_132223.mp4"
 
   procesar_camara: False #! Procesar la cámara en tiempo real
 
@@ -201,12 +201,12 @@ sumo:
   simular: True #* Iniciar simulación de tráfico con SUMO
 
   gui: True #! Mostrar interfaz gráfica de SUMO (desactivar en servidores sin pantalla)
-  comparar: False #! Modo comparación: Contrastar control RL vs detección YOLO
+  comparar: True #! Modo comparación: Contrastar control RL vs detección YOLO
   path_sumo: "/usr/share/sumo" #! Ruta de instalación de SUMO (Linux: /usr/share/sumo, Windows: C:\sumo)
   simulation_time_limit: 19500 #! Límite temporal de simulación en segundos (19500s ≈ 5.4 horas)
 
   fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
-  use_random_seed: True #! Usar semilla aleatoria basada en tiempo actual
+  use_random_seed: False #! Usar semilla aleatoria basada en tiempo actual
   persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
 
 reporte:
