@@ -1646,6 +1646,12 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     sumo.get("path_sumo", "/usr/share/sumo"),
                     config,
                 )
+                render_field_widget(
+                    "sumo.path_mapa",
+                    "Path Mapa",
+                    sumo.get("path_mapa", "assets/sumo_maps/MapaDe0/mapa.sumocfg"),
+                    config,
+                )
             with col2:
                 render_field_widget(
                     "sumo.comparar",

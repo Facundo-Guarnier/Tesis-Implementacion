@@ -246,6 +246,7 @@ class SumoSettings(BaseModel):
     gui: bool  #! Mostrar la interfaz gráfica de SUMO
     comparar: bool  #! Comparar la simulación con la detección de objetos
     path_sumo: str  #! Path de la instalación de SUMO
+    path_mapa: str  #! Ruta del archivo de configuración del mapa SUMO (.sumocfg)
     simulation_time_limit: int
 
     # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
