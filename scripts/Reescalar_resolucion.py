@@ -4,9 +4,37 @@ import os
 import sys
 
 import cv2
+import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from src.traffic_system.core.types import Resolution
+
+
+def detectar_y_corregir_orientacion(
+    frame: np.ndarray, es_video_vertical: bool = True
+) -> np.ndarray:
+    """
+    Detecta si un frame necesita rotación y la aplica automáticamente.
+
+    Args:
+        frame: El frame de video a verificar
+        es_video_vertical: True si el video debería ser vertical (alto > ancho)
+
+    Returns:
+        Frame corregido con la orientación correcta
+    """
+    alto, ancho = frame.shape[:2]
+
+    # Si esperamos un video vertical pero el frame es horizontal, rotar
+    if es_video_vertical and ancho > alto:
+        # Rotar 90° en sentido horario para corregir la orientación
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    # Si esperamos un video horizontal pero el frame es vertical, rotar
+    elif not es_video_vertical and alto > ancho:
+        # Rotar 90° en sentido antihorario para corregir la orientación
+        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+    return frame
 
 
 def reescalar_video(
@@ -18,6 +46,7 @@ def reescalar_video(
     """
     - Reduce a un tercio los fps.
     - Reescala un video a una nueva resolución.
+    - Corrige automáticamente problemas de orientación.
     """
     cap = cv2.VideoCapture(ruta_entrada)
 
@@ -39,6 +68,9 @@ def reescalar_video(
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     out = cv2.VideoWriter(ruta_salida, fourcc, fps_nuevo, nueva_resolucion)
 
+    # Determinar si el video objetivo es vertical (altura > anchura)
+    es_video_vertical = nueva_resolucion[1] > nueva_resolucion[0]
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -47,6 +79,9 @@ def reescalar_video(
         # Reducir a un tercio los fps
         if cap.get(cv2.CAP_PROP_POS_FRAMES) % factor_reduccion_fps != 0:
             continue
+
+        # Corregir orientación si es necesario
+        frame = detectar_y_corregir_orientacion(frame, es_video_vertical)
 
         # Reescalar el frame
         frame_reescalado = cv2.resize(frame, nueva_resolucion)
@@ -110,8 +145,8 @@ nueva_resolucion = (576, 1024)
 factor_reduccion_fps = 6  #! 30/factor = fps
 
 # #! Reescalar todos los videos carpetas
-carpeta_entrada = "Deteccion/Dataset/Dataset_original"
-carpeta_salida = "Deteccion/Dataset/Dataset_reescalado"
+carpeta_entrada = "C:\\Users\\facun\\Desktop\\nuevos_video"
+carpeta_salida = "C:\\Users\\facun\\Desktop\\nuevos_video_salida"
 reescalar_carpeta_videos(
     carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps
 )
