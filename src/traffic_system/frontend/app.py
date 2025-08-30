@@ -409,58 +409,12 @@ def render_services_page() -> None:
                     "Servicios Activos",
                     f"{summary['running_services']}/{summary['total_services']}",
                 )
-            with col2:
-                if summary["all_running"]:
-                    st.success("✅ Todos activos")
-                elif summary["all_stopped"]:
-                    st.error("❌ Todos detenidos")
-                else:
-                    st.warning("⚠️ Algunos activos")
             with col3:
                 if st.button(
                     "🔄 Actualizar Estado",
                     help="Verificar estado real de todos los servicios",
                 ):
                     summary = force_services_check()
-                    st.rerun()
-
-            st.markdown("---")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("▶️ Iniciar Todos", use_container_width=True):
-                    with st.spinner("⚙️ Iniciando todos los servicios..."):
-                        results = controller.start_all_services()
-                        for service, (success, message) in results.items():
-                            if success:
-                                st.success(
-                                    f"✅ {controller.get_service_display_name(service)}"
-                                )
-                            else:
-                                st.error(
-                                    f"❌ {controller.get_service_display_name(service)}: {message}"
-                                )
-                    update_multiple_services_cache_status(results, True)
-                    # Verificar estado automáticamente después de la operación
-                    auto_refresh_services_status()
-                    st.rerun()
-
-            with col2:
-                if st.button("⏹️ Detener Todos", use_container_width=True):
-                    with st.spinner("🛑 Deteniendo todos los servicios..."):
-                        results = controller.stop_all_services()
-                        for service, (success, message) in results.items():
-                            if success:
-                                st.success(
-                                    f"✅ {controller.get_service_display_name(service)}"
-                                )
-                            else:
-                                st.error(
-                                    f"❌ {controller.get_service_display_name(service)}: {message}"
-                                )
-                    update_multiple_services_cache_status(results, False)
-                    # Verificar estado automáticamente después de la operación
-                    auto_refresh_services_status()
                     st.rerun()
 
             st.markdown("---")
