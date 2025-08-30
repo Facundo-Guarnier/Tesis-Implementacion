@@ -215,9 +215,9 @@ reporte:
 
   steps: 60 #! Número de pasos a considerar entre cada reporte
   tiempo_total_espera_maximo: 700 #! Tiempo de espera máximo en segundos en total
-  tiempo_zona_espera_maximo: 100 #! Tiempo de espera máximo en segundos por zona
+  tiempo_zona_espera_maximo: 200 #! Tiempo de espera máximo en segundos por zona
   total_vehiculos_maximo: 65  #! Número mínimo de vehículos para considerar congestión
-  zona_vehiculos_maximo: 17  #! Número máximo de vehículos por zona
+  zona_vehiculos_maximo: 20  #! Número máximo de vehículos por zona
 
   path_reporte: "results/reportes" #! Carpeta donde se guardará el reporte
   db_path_base: "results/reportes/db"
