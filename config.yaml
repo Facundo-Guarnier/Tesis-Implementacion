@@ -20,7 +20,7 @@ deteccion:
     path_destino: "results/deteccion_dataset/" #! Carpeta donde se guardarán los resultados
 
   un_video:
-    procesar: False #! Procesar un video en específico
+    procesar: True #! Procesar un video en específico
     guardar: False #! Guardar el video con los resultados
     zona: "Zona C"
     path_destino: "results/deteccion/"
