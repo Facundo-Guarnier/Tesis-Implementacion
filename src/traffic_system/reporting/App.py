@@ -1,4 +1,3 @@
-import inspect
 import logging
 
 from src.traffic_system.reporting.report_service import ReportService
@@ -22,8 +21,6 @@ class ReportApp:
         """
         Generar reporte.
         """
-        logger = logging.getLogger(
-            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
-        )
-        logger.info("📄 Iniciando generación de reporte...")
+        logger = logging.getLogger("ReportApp")
+        logger.info("Iniciando generacion de reporte...")
         self.report_service.generate_report()

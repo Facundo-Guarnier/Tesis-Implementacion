@@ -272,7 +272,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
         else:
             show_recent_first = st.checkbox(
                 "📄 Mostrar recientes primero",
-                value=False,
+                value=True,
                 key=f"recent_first_{service_name}",
                 help="Los logs más nuevos aparecen arriba (evita hacer scroll manual)",
             )
@@ -293,7 +293,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.text_area(
                 "🖥️ Logs del servicio",
                 value=log_text,
-                height=300,
+                height=400,
                 key=text_area_key,
                 help="Los logs se actualizan automáticamente. El orden cronológico intenta mostrar desde el final por defecto.",
                 disabled=True,
@@ -1697,12 +1697,6 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
 
             with col1:
                 render_field_widget(
-                    "reporte.steps",
-                    "Steps por Reporte",
-                    reporte.get("steps", 60),
-                    config,
-                )
-                render_field_widget(
                     "reporte.tiempo_total_espera_maximo",
                     "Tiempo Espera Total Máx",
                     reporte.get("tiempo_total_espera_maximo", 600),
@@ -1715,28 +1709,34 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
                 render_field_widget(
+                    "reporte.db_path_base",
+                    "Path Base DB",
+                    reporte.get("db_path_base", "results/reportes/db"),
+                    config,
+                )
+                render_field_widget(
+                    "reporte.steps",
+                    "Steps por Reporte",
+                    reporte.get("steps", 60),
+                    config,
+                )
+            with col2:
+                render_field_widget(
                     "reporte.total_vehiculos_maximo",
                     "Vehículos Totales Máx",
                     reporte.get("total_vehiculos_maximo", 50),
                     config,
                 )
-            with col2:
                 render_field_widget(
                     "reporte.zona_vehiculos_maximo",
                     "Vehículos Zona Máx",
-                    reporte.get("zona_vehiculos_maximo", 200.0),
+                    reporte.get("zona_vehiculos_maximo", 200),
                     config,
                 )
                 render_field_widget(
                     "reporte.path_reporte",
                     "Path Reportes",
                     reporte.get("path_reporte", "results/reportes"),
-                    config,
-                )
-                render_field_widget(
-                    "reporte.db_path_base",
-                    "Path Base DB",
-                    reporte.get("db_path_base", "results/reportes/db"),
                     config,
                 )
 

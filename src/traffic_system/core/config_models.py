@@ -271,7 +271,7 @@ class ReporteSettings(BaseModel):
     tiempo_total_espera_maximo: int  #! Tiempo de espera máximo en segundos en total
     tiempo_zona_espera_maximo: int  #! Tiempo de espera máximo en segundos por zona
     total_vehiculos_maximo: int
-    zona_vehiculos_maximo: float
+    zona_vehiculos_maximo: int
     db_path_base: str
 
 
