@@ -240,14 +240,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 )
                 st.session_state.logs_refresh_interval = refresh_interval
 
-            with col2:
-                service_running = controller.get_service_status(service_name)
-                if service_running:
-                    st.success("🟢 Servicio activo")
-                else:
-                    st.warning("⚠️ Servicio detenido")
-                    st.caption("Live logs pausado")
-
         try:
             log_path = controller.get_service_log_path(service_name)
             st.caption(f"📁 Archivo: {log_path}")
