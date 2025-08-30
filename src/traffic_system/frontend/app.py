@@ -1,14 +1,19 @@
 """
 Frontend Simplificado para el Sistema de Tráfico
 
-Aplicación Streamlit con 2 páginas: Configuración y Servicios.
+Aplicación Streamlit con 3 páginas: Configuración, Servicios y Base de Datos.
 Funcionalidad esencial sin sobre-ingeniería.
 """
 
 import atexit
+import datetime
+import glob
+import os
+import sqlite3
 import time
 from typing import Any
 
+import pandas as pd
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
@@ -80,10 +85,14 @@ atexit.register(cleanup_on_exit)
 
 
 def render_navigation() -> str:
-    """Renderizar navegación simple con 2 opciones."""
+    """Renderizar navegación simple con 3 opciones."""
     st.sidebar.title("🚦 SemaforIA")
 
-    pages = {"🔧 Servicios": "services", "⚙️ Configuración": "config"}
+    pages = {
+        "🔧 Servicios": "services",
+        "⚙️ Configuración": "config",
+        "⚠️ Alertas": "database",
+    }
     current_page: str = st.session_state.current_page
     st.sidebar.markdown("---")
 
@@ -1687,6 +1696,279 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                 )
 
 
+def render_database_page() -> None:
+    """Renderizar página de visualización de alertas de congestión."""
+    st.title("⚠️ Alertas de Congestión")
+
+    try:
+        # Buscar archivos de base de datos
+        db_pattern = "results/reportes/*/reporte.db"
+        db_files = glob.glob(db_pattern)
+
+        # Ordenar por fecha de modificación (más reciente primero)
+        if db_files:
+            db_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+        if not db_files:
+            st.warning("⚠️ No se encontraron registros de alertas de congestión")
+            st.info(f"📁 Buscando en: `{db_pattern}`")
+            st.info(
+                "💡 Ejecuta el servicio de reportes para generar datos cuando se superen umbrales"
+            )
+            return
+
+        # Selección de archivo de DB
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("📊 Seleccionar Sesión")
+
+        # Crear nombres amigables para los archivos
+        db_names = []
+        for db_file in db_files:
+            # Extraer el nombre del directorio padre (timestamp del reporte)
+            parent_dir = os.path.basename(os.path.dirname(db_file))
+
+            # Intentar parsear la fecha del nombre del directorio para formato más amigable
+            try:
+                # El formato típico es report_YYYY-MM-DD_HH-MM-SS
+                if parent_dir.startswith("report_"):
+                    date_part = parent_dir.replace("report_", "")
+                    # Reemplazar guiones por formato más legible
+                    formatted_date = (
+                        date_part.replace("_", " ")
+                        .replace("-", "/", 2)
+                        .replace("-", ":")
+                    )
+                    db_names.append(f"📅 {formatted_date}")
+                else:
+                    db_names.append(f"📁 {parent_dir}")
+            except Exception:
+                # Si no se puede parsear, usar el nombre original
+                db_names.append(f"📁 {parent_dir}")
+
+        selected_idx = st.sidebar.selectbox(
+            "Sesión de alertas:",
+            range(len(db_files)),
+            format_func=lambda x: f"🆕 {db_names[x]}" if x == 0 else db_names[x],
+            help="Ordenadas por fecha: la más reciente aparece primero",
+        )
+
+        selected_db = db_files[selected_idx]
+        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
+
+        # Mostrar información adicional de la sesión seleccionada
+        try:
+            file_time = os.path.getmtime(selected_db)
+            formatted_time = datetime.datetime.fromtimestamp(file_time).strftime(
+                "%d/%m/%Y %H:%M:%S"
+            )
+            st.sidebar.caption(f"🕒 Última modificación: {formatted_time}")
+
+            if selected_idx == 0:
+                st.sidebar.success("🆕 Sesión más reciente")
+        except Exception:
+            pass
+
+        # Conectar a la base de datos
+        try:
+            conn = sqlite3.connect(selected_db)
+
+            # Obtener información básica de la tabla
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM reporte")
+            total_records = cursor.fetchone()[0]
+
+            cursor.execute(
+                "SELECT MIN(step_simulacion), MAX(step_simulacion) FROM reporte"
+            )
+            min_step, max_step = cursor.fetchone()
+
+            # Mostrar estadísticas básicas
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("⚠️ Total Alertas", total_records)
+            with col2:
+                st.metric("⏮️ Step Mínimo", min_step if min_step else 0)
+            with col3:
+                st.metric("⏭️ Step Máximo", max_step if max_step else 0)
+
+            st.markdown("---")
+
+            # Opciones de visualización
+            st.subheader("🔍 Opciones de Visualización")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Filtro por rango de steps
+                use_step_filter = st.checkbox("📈 Filtrar por rango de steps")
+                if use_step_filter and min_step is not None and max_step is not None:
+                    step_range = st.slider(
+                        "Rango de steps:",
+                        min_value=int(min_step),
+                        max_value=int(max_step),
+                        value=(int(min_step), int(max_step)),
+                        step=1,
+                    )
+                else:
+                    step_range = None
+
+            with col2:
+                # Límite de registros
+                limit_records = st.number_input(
+                    "📝 Límite de registros a mostrar:",
+                    min_value=10,
+                    max_value=10000,
+                    value=500,
+                    step=50,
+                )
+
+                # Orden de resultados
+                order_desc = st.checkbox("📅 Más recientes primero", value=True)
+
+            # Construir consulta SQL
+            query = "SELECT * FROM reporte"
+            params = []
+
+            if use_step_filter and step_range:
+                query += " WHERE step_simulacion BETWEEN ? AND ?"
+                params.extend([step_range[0], step_range[1]])
+
+            query += f" ORDER BY step_simulacion {'DESC' if order_desc else 'ASC'}"
+            query += f" LIMIT {limit_records}"
+
+            # Cargar datos
+            with st.spinner("📊 Cargando datos..."):
+                df = pd.read_sql_query(query, conn, params=params)
+
+            if df.empty:
+                st.warning("⚠️ No se encontraron datos con los filtros aplicados")
+                return
+
+            # Mostrar tabla de datos
+            st.subheader(f"⚠️ Alertas de Congestión ({len(df)} registros)")
+
+            st.info(
+                "💡 Estos datos representan momentos donde se superaron umbrales críticos de tiempo de espera o cantidad de vehículos"
+            )
+
+            # Configurar columnas para mejor visualización
+            display_df = df.copy()
+
+            # Renombrar columnas para mejor legibilidad
+            column_mapping = {
+                "step_simulacion": "Step",
+                "estado_simulacion": "Estado",
+                "timestamp_simulacion": "Timestamp",
+                "total_tiempo_espera": "Tiempo Espera Total",
+                "total_vehiculos": "Vehículos Total",
+                "generado_en": "Generado En",
+            }
+
+            # Agregar columnas de zonas más legibles
+            for zone in ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]:
+                column_mapping[f"zona_{zone}_tiempo_espera"] = (
+                    f"Zona {zone.upper()} - Tiempo"
+                )
+                column_mapping[f"zona_{zone}_vehiculos"] = (
+                    f"Zona {zone.upper()} - Vehículos"
+                )
+                column_mapping[
+                    f'estado_semaforo_{["1", "2", "3", "4"][ord(zone) - ord("a")] if ord(zone) - ord("a") < 4 else "1"}'
+                ] = f'Semáforo {["1", "2", "3", "4"][ord(zone) - ord("a")] if ord(zone) - ord("a") < 4 else "1"}'
+
+            # Aplicar renombrado solo a columnas que existen
+            existing_mapping = {
+                k: v for k, v in column_mapping.items() if k in display_df.columns
+            }
+            display_df = display_df.rename(columns=existing_mapping)
+
+            # Mostrar tabla interactiva
+            st.dataframe(display_df, use_container_width=True, height=400)
+
+            # Gráficos de análisis
+            st.markdown("---")
+            st.subheader("📈 Análisis Visual")
+
+            tab1, tab2 = st.tabs(["🕐 Tiempos de Espera", "🚗 Cantidad de Vehículos"])
+
+            with tab1:
+                st.subheader("⏱️ Evolución de Tiempos de Espera")
+
+                if (
+                    "Tiempo Espera Total" in display_df.columns
+                    and "Step" in display_df.columns
+                ):
+                    # Gráfico de tiempo total
+                    chart_data = display_df.set_index("Step")["Tiempo Espera Total"]
+                    st.line_chart(chart_data)
+
+                    # Gráfico por zonas (primeras 6 zonas para no saturar)
+                    zone_columns = [
+                        col
+                        for col in display_df.columns
+                        if "Zona" in col and "Tiempo" in col
+                    ][:6]
+                    if zone_columns:
+                        st.subheader("🗺️ Tiempos de Espera por Zona (A-F)")
+                        zone_data = display_df.set_index("Step")[zone_columns]
+                        st.line_chart(zone_data)
+
+            with tab2:
+                st.subheader("🚗 Evolución de Cantidad de Vehículos")
+
+                if (
+                    "Vehículos Total" in display_df.columns
+                    and "Step" in display_df.columns
+                ):
+                    # Gráfico de vehículos total
+                    chart_data = display_df.set_index("Step")["Vehículos Total"]
+                    st.line_chart(chart_data)
+
+                    # Gráfico por zonas (primeras 6 zonas)
+                    vehicle_columns = [
+                        col
+                        for col in display_df.columns
+                        if "Zona" in col and "Vehículos" in col
+                    ][:6]
+                    if vehicle_columns:
+                        st.subheader("🗺️ Vehículos por Zona (A-F)")
+                        vehicle_data = display_df.set_index("Step")[vehicle_columns]
+                        st.line_chart(vehicle_data)
+
+            # Opción de descarga
+            st.markdown("---")
+            st.subheader("💾 Exportar Alertas")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Descargar CSV
+                csv_data = df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Descargar alertas como CSV",
+                    data=csv_data,
+                    file_name=f"alertas_congestion_{db_names[selected_idx]}.csv",
+                    mime="text/csv",
+                )
+
+            with col2:
+                # Información del archivo
+                st.info(f"📍 Ubicación: `{selected_db}`")
+                file_size = os.path.getsize(selected_db)
+                st.caption(f"💿 Tamaño: {file_size / 1024:.1f} KB")
+
+            conn.close()
+
+        except sqlite3.Error as e:
+            st.error(f"❌ Error conectando a la base de datos: {e}")
+        except Exception as e:
+            st.error(f"❌ Error procesando datos: {e}")
+
+    except Exception as e:
+        st.error(f"❌ Error en página de base de datos: {e}")
+        log_error(f"Error en render_database_page: {e}")
+
+
 def main() -> None:
     """Función principal de la aplicación."""
     st.set_page_config(
@@ -1705,6 +1987,8 @@ def main() -> None:
             render_services_page()
         elif current_page == "config":
             render_config_page()
+        elif current_page == "database":
+            render_database_page()
         else:
             st.error("❌ Página no encontrada")
 

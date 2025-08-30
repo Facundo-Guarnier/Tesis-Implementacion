@@ -136,7 +136,7 @@ CONFIG_TOOLTIPS: dict[str, str] = {
     "reporte.total_vehiculos_maximo": "Umbral de vehículos totales: número mínimo de vehículos en el sistema para considerar que hay tráfico significativo",
     "reporte.zona_vehiculos_maximo": "Umbral por zona: número máximo de vehículos por zona antes de considerar saturación crítica",
     "reporte.path_reporte": "Directorio de reportes: carpeta donde se guardan archivos CSV, gráficos PNG y análisis estadísticos post-simulación",
-    "reporte.db_path_base": "Base de datos: directorio donde se almacena la BD SQLite con métricas históricas para análisis temporal",
+    "reporte.db_path_base": "Alertas de congestión: directorio donde se almacena la BD SQLite con registros de momentos críticos cuando se superaron umbrales de tráfico",
 }
 
 
