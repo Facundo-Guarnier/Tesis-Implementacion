@@ -1803,8 +1803,6 @@ def render_database_page() -> None:
             )
             st.sidebar.caption(f"🕒 Última modificación: {formatted_time}")
 
-            if selected_idx == 0:
-                st.sidebar.success("🆕 Sesión más reciente")
         except Exception:
             pass
 
@@ -2011,7 +2009,7 @@ def render_database_page() -> None:
 
 def render_comparisons_page() -> None:
     """Renderizar página de visualización de comparaciones S1 vs S2."""
-    st.header("📊 Comparaciones S1 vs S2")
+    st.title("📊 Comparaciones S1 vs S2")
 
     # Botón de refresco para actualizar datos
     if st.button(
