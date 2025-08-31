@@ -82,8 +82,8 @@ class APIRequestHelper:
                     if not infinite_retry:
                         return None
 
-            except requests.RequestException as e:
-                logger.error(f"Error de conexión al endpoint {endpoint}: {e}")
+            except requests.RequestException:
+                logger.error(f"Error de conexion al endpoint {endpoint}")
                 if not infinite_retry:
                     return None
 
