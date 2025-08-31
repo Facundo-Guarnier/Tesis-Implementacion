@@ -241,6 +241,17 @@ class DecisionSettings(BaseModel):
 
 
 # --- Modelos para 'sumo' y 'reporte' ---
+
+
+class ComparacionExportSettings(BaseModel):
+    """Configuración para exportación de métricas comparativas DQN vs Tiempos Fijos."""
+
+    enabled: bool = True  # * Activar guardado de métricas comparativas
+    db_path: str = (
+        "results/comparisons/comparison.db"  # * Ruta base - se genera directorio único por sesión
+    )
+
+
 class SumoSettings(BaseModel):
     simular: bool  # * Iniciar la simulación en SUMO
     gui: bool  #! Mostrar la interfaz gráfica de SUMO
@@ -259,6 +270,9 @@ class SumoSettings(BaseModel):
     persist_random_seed: bool = (
         True  # * Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)
     )
+
+    # === EXPORTACIÓN DE COMPARACIONES ===
+    comparacion_export: ComparacionExportSettings
 
 
 class ReporteSettings(BaseModel):

@@ -235,7 +235,9 @@ if __name__ == "__main__":
                     load_app_settings().sumo,
                 ),
             )
-            comparison_logger = ComparisonLogger(interval_seconds=15)
+            comparison_logger = ComparisonLogger(
+                interval_seconds=settings.decision.steps
+            )
 
             # Verificar sincronización inicial
             tiempo_s1 = app_s1.traci.simulation.getTime()

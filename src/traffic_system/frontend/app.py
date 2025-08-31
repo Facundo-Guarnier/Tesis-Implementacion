@@ -14,6 +14,7 @@ import time
 from typing import Any
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
@@ -92,6 +93,7 @@ def render_navigation() -> str:
         "🔧 Servicios": "services",
         "⚙️ Configuración": "config",
         "⚠️ Alertas": "database",
+        "📊 Comparaciones": "comparisons",
     }
     current_page: str = st.session_state.current_page
     st.sidebar.markdown("---")
@@ -1645,6 +1647,26 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
 
+            st.markdown("---")
+            st.subheader("Exportación de Comparaciones")
+            if "comparacion_export" in sumo:
+                comparacion = sumo["comparacion_export"]
+                col1, col2 = st.columns(2)
+                with col1:
+                    render_field_widget(
+                        "sumo.comparacion_export.enabled",
+                        "Exportar Comparaciones a SQLite",
+                        comparacion.get("enabled", False),
+                        config,
+                    )
+                with col2:
+                    render_field_widget(
+                        "sumo.comparacion_export.db_path",
+                        "Ruta Base de Datos",
+                        comparacion.get("db_path", "results/comparacion_metrics.db"),
+                        config,
+                    )
+
     with st.expander("📊 Reportes", expanded=False):
         if "reporte" in config:
             reporte = config["reporte"]
@@ -1969,6 +1991,905 @@ def render_database_page() -> None:
         log_error(f"Error en render_database_page: {e}")
 
 
+def render_comparisons_page() -> None:
+    """Renderizar página de visualización de comparaciones S1 vs S2."""
+    st.header("📊 Comparaciones S1 vs S2")
+    st.markdown(
+        "Visualización de métricas comparativas entre **S1 (DQN)** y **S2 (Tiempos Fijos)**"
+    )
+
+    try:
+        # Buscar bases de datos de comparaciones (patrón similar a reportes)
+        db_pattern = "results/comparisons/*/comparison.db"
+        db_files = glob.glob(db_pattern)
+
+        if not db_files:
+            st.warning(
+                "📭 No se encontraron bases de datos de comparaciones.\n\n"
+                "Para generar datos:\n"
+                "1. Activar `sumo.comparacion_export.enabled` en Configuración\n"
+                "2. Ejecutar una simulación con `sumo.comparar=True`\n"
+                "3. Cada simulación creará su propio directorio: `results/comparisons/comparison_YYYY-MM-DD_HH-MM-SS/`"
+            )
+            return
+
+        # Ordenar por fecha de modificación (más nueva primero)
+        db_files.sort(key=os.path.getmtime, reverse=True)
+
+        # Sidebar para selección de base de datos
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 📊 Sesión de Comparaciones")
+
+        db_names = []
+        for db_file in db_files:
+            try:
+                parent_dir = os.path.basename(os.path.dirname(db_file))
+                # El formato típico es comparison_YYYY-MM-DD_HH-MM-SS
+                if parent_dir.startswith("comparison_"):
+                    date_part = parent_dir.replace("comparison_", "")
+                    try:
+                        # Intentar parsear el timestamp del nombre del directorio
+                        parsed_time = datetime.datetime.strptime(
+                            date_part, "%Y-%m-%d_%H-%M-%S"
+                        )
+                        formatted_time = parsed_time.strftime("%d/%m %H:%M")
+                        db_names.append(f"{formatted_time} - {parent_dir}")
+                    except ValueError:
+                        # Si no se puede parsear, usar fecha de archivo
+                        file_time = os.path.getmtime(db_file)
+                        formatted_time = datetime.datetime.fromtimestamp(
+                            file_time
+                        ).strftime("%d/%m %H:%M")
+                        db_names.append(f"{formatted_time} - {parent_dir}")
+                else:
+                    # Para directorios que no siguen el patrón
+                    file_time = os.path.getmtime(db_file)
+                    formatted_time = datetime.datetime.fromtimestamp(
+                        file_time
+                    ).strftime("%d/%m %H:%M")
+                    db_names.append(f"{formatted_time} - {parent_dir}")
+            except Exception:
+                # Si no se puede parsear, usar el nombre original
+                parent_dir = os.path.basename(os.path.dirname(db_file))
+                db_names.append(f"📁 {parent_dir}")
+
+        selected_idx = st.sidebar.selectbox(
+            "Sesión de comparaciones:",
+            range(len(db_files)),
+            format_func=lambda x: f"🆕 {db_names[x]}" if x == 0 else db_names[x],
+            help="Ordenadas por fecha: la más reciente aparece primero",
+        )
+
+        selected_db = db_files[selected_idx]
+        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
+
+        # Mostrar información adicional de la sesión seleccionada
+        try:
+            file_time = os.path.getmtime(selected_db)
+            formatted_time = datetime.datetime.fromtimestamp(file_time).strftime(
+                "%d/%m/%Y %H:%M:%S"
+            )
+            st.sidebar.caption(f"🕒 Última modificación: {formatted_time}")
+        except Exception:
+            pass
+
+        # Conectar a la base de datos y mostrar contenido
+        conn = sqlite3.connect(selected_db)
+
+        # Verificar qué tablas existen
+        tables_query = "SELECT name FROM sqlite_master WHERE type='table';"
+        tables_df = pd.read_sql_query(tables_query, conn)
+
+        if tables_df.empty:
+            st.warning("📭 No se encontraron tablas en la base de datos seleccionada")
+            conn.close()
+            return
+
+        # Solo métricas temporales - eliminamos pestañas innecesarias
+        if "comparacion_metricas" in tables_df["name"].values:
+            metrics_df = pd.read_sql_query(
+                "SELECT * FROM comparacion_metricas ORDER BY timestamp_simulacion", conn
+            )
+
+            if not metrics_df.empty:
+                # Convertir timestamp_simulacion a datetime para gráficas
+                metrics_df["datetime"] = pd.to_datetime(
+                    metrics_df["timestamp_simulacion"], unit="s"
+                )
+
+                # Selector de sesión
+                if "session_id" in metrics_df.columns:
+                    sessions = metrics_df["session_id"].unique()
+                    if len(sessions) > 1:
+                        selected_session = st.selectbox(
+                            "🎯 Seleccionar Sesión de Simulación:",
+                            sessions,
+                            help="Cada sesión representa una ejecución completa de simulación",
+                        )
+                        metrics_df = metrics_df[
+                            metrics_df["session_id"] == selected_session
+                        ]
+
+                # RESUMEN EJECUTIVO AL INICIO - Lo primero que ve el usuario
+                if "comparacion_resumenes" in tables_df["name"].values:
+                    summary_df = pd.read_sql_query(
+                        "SELECT * FROM comparacion_resumenes", conn
+                    )
+                    create_executive_summary(summary_df, metrics_df)
+
+                    st.markdown("---")  # Separador visual
+
+                # Gráficas de métricas comparativas - MÁS GRANDES Y CLARAS
+                st.subheader("📈 Evolución Temporal Detallada")
+
+                # Gráfico de tiempo de espera - PANTALLA COMPLETA
+                st.markdown("#### ⏱️ Tiempo de Espera Promedio")
+                if (
+                    "s1_tiempo_actual" in metrics_df.columns
+                    and "s2_tiempo_actual" in metrics_df.columns
+                ):
+                    fig_wait = create_comparison_chart(
+                        metrics_df,
+                        "s1_tiempo_actual",
+                        "s2_tiempo_actual",
+                        "S1 (DQN)",
+                        "S2 (Fijo)",
+                        "Tiempo de Espera (s)",
+                    )
+                    st.plotly_chart(fig_wait, use_container_width=True, height=500)
+
+                # Gráfico de vehículos - PANTALLA COMPLETA
+                st.markdown("#### � Número de Vehículos Esperando")
+                if (
+                    "s1_vehiculos_actual" in metrics_df.columns
+                    and "s2_vehiculos_actual" in metrics_df.columns
+                ):
+                    fig_stops = create_comparison_chart(
+                        metrics_df,
+                        "s1_vehiculos_actual",
+                        "s2_vehiculos_actual",
+                        "S1 (DQN)",
+                        "S2 (Fijo)",
+                        "Número de Vehículos",
+                    )
+                    st.plotly_chart(fig_stops, use_container_width=True, height=500)
+
+                    # Métricas adicionales si existen
+                    if "s1_tiempo_promedio" in metrics_df.columns:
+                        col3, col4 = st.columns(2)
+
+                        with col3:
+                            st.markdown("#### 📊 Tiempo de Espera Acumulado")
+                            fig_speed = create_comparison_chart(
+                                metrics_df,
+                                "s1_tiempo_acumulado",
+                                "s2_tiempo_acumulado",
+                                "S1 (DQN)",
+                                "S2 (Fijo)",
+                                "Tiempo Acumulado (s)",
+                            )
+                            st.plotly_chart(fig_speed, use_container_width=True)
+
+                        with col4:
+                            st.markdown("#### 📊 Análisis Estadístico Detallado")
+
+                            # Obtener las últimas métricas para estadísticas
+                            latest_metrics = (
+                                metrics_df.iloc[-1] if not metrics_df.empty else None
+                            )
+
+                            if latest_metrics is not None:
+                                # Métricas estadísticas en expandible
+                                with st.expander(
+                                    "⏱️ Estadísticas de Tiempo de Espera - ¿Qué significan?"
+                                ):
+                                    st.markdown("📖 **Explicación de métricas:**")
+                                    st.markdown(
+                                        "• **Promedio**: Tiempo típico que espera un vehículo\n"
+                                        "• **Mediana**: 50% de vehículos esperan menos que este tiempo\n"
+                                        "• **Desv. Est**: Qué tan consistentes son los tiempos (menor = más predecible)\n"
+                                        "• **P95**: 95% de vehículos esperan menos que este tiempo"
+                                    )
+
+                                    col_stat1, col_stat2 = st.columns(2)
+
+                                    with col_stat1:
+                                        st.markdown(
+                                            "**📈 S1 (DQN - Sistema Inteligente)**"
+                                        )
+                                        s1_promedio = latest_metrics.get(
+                                            "s1_tiempo_promedio", 0
+                                        )
+                                        s1_mediana = latest_metrics.get(
+                                            "s1_tiempo_mediana", 0
+                                        )
+                                        s1_std = latest_metrics.get("s1_tiempo_std", 0)
+                                        s1_p95 = latest_metrics.get("s1_tiempo_p95", 0)
+
+                                        st.write(
+                                            f"• Promedio: **{s1_promedio:.1f}s** ⏱️"
+                                        )
+                                        st.write(
+                                            f"• Mediana: **{s1_mediana:.1f}s** (50% esperan menos)"
+                                        )
+                                        st.write(
+                                            f"• Desv. Est: **{s1_std:.1f}s** {'✅ Muy consistente' if s1_std < 10 else '⚠️ Variable' if s1_std < 20 else '❌ Inconsistente'}"
+                                        )
+                                        st.write(
+                                            f"• P95: **{s1_p95:.1f}s** (95% esperan menos)"
+                                        )
+
+                                    with col_stat2:
+                                        st.markdown(
+                                            "**📉 S2 (Tiempos Fijos - Sistema Tradicional)**"
+                                        )
+                                        s2_promedio = latest_metrics.get(
+                                            "s2_tiempo_promedio", 0
+                                        )
+                                        s2_mediana = latest_metrics.get(
+                                            "s2_tiempo_mediana", 0
+                                        )
+                                        s2_std = latest_metrics.get("s2_tiempo_std", 0)
+                                        s2_p95 = latest_metrics.get("s2_tiempo_p95", 0)
+
+                                        st.write(
+                                            f"• Promedio: **{s2_promedio:.1f}s** ⏱️"
+                                        )
+                                        st.write(
+                                            f"• Mediana: **{s2_mediana:.1f}s** (50% esperan menos)"
+                                        )
+                                        st.write(
+                                            f"• Desv. Est: **{s2_std:.1f}s** {'✅ Muy consistente' if s2_std < 10 else '⚠️ Variable' if s2_std < 20 else '❌ Inconsistente'}"
+                                        )
+                                        st.write(
+                                            f"• P95: **{s2_p95:.1f}s** (95% esperan menos)"
+                                        )
+
+                                        # Mostrar comparación directa
+                                        if s2_promedio > 0:
+                                            mejora_promedio = (
+                                                (s2_promedio - s1_promedio)
+                                                / s2_promedio
+                                            ) * 100
+                                            if mejora_promedio > 5:
+                                                st.success(
+                                                    f"🎉 DQN reduce {mejora_promedio:.1f}% el tiempo promedio"
+                                                )
+                                            elif mejora_promedio > 0:
+                                                st.info(
+                                                    f"📊 DQN mejora ligeramente ({mejora_promedio:.1f}%)"
+                                                )
+                                            else:
+                                                st.warning(
+                                                    f"⚠️ Tiempos fijos son {abs(mejora_promedio):.1f}% mejores"
+                                                )
+
+                                with st.expander(
+                                    "🚗 Estadísticas de Congestión Vehicular"
+                                ):
+                                    st.markdown(
+                                        "📖 **¿Qué mide esto?** Cantidad de vehículos esperando en los semáforos"
+                                    )
+
+                                    col_stat3, col_stat4 = st.columns(2)
+
+                                    with col_stat3:
+                                        st.markdown("**📈 S1 (DQN)**")
+                                        v1_promedio = latest_metrics.get(
+                                            "s1_vehiculos_promedio", 0
+                                        )
+                                        v1_mediana = latest_metrics.get(
+                                            "s1_vehiculos_mediana", 0
+                                        )
+                                        v1_std = latest_metrics.get(
+                                            "s1_vehiculos_std", 0
+                                        )
+                                        v1_p95 = latest_metrics.get(
+                                            "s1_vehiculos_p95", 0
+                                        )
+
+                                        st.write(
+                                            f"• Promedio: **{v1_promedio:.1f}** vehículos esperando"
+                                        )
+                                        st.write(
+                                            f"• Mediana: **{v1_mediana:.1f}** vehículos"
+                                        )
+                                        st.write(
+                                            f"• Desv. Est: **{v1_std:.1f}** {'✅ Estable' if v1_std < 5 else '⚠️ Variable'}"
+                                        )
+                                        st.write(
+                                            f"• P95: **{v1_p95:.1f}** vehículos máximo"
+                                        )
+
+                                    with col_stat4:
+                                        st.markdown("**📉 S2 (Tiempos Fijos)**")
+                                        v2_promedio = latest_metrics.get(
+                                            "s2_vehiculos_promedio", 0
+                                        )
+                                        v2_mediana = latest_metrics.get(
+                                            "s2_vehiculos_mediana", 0
+                                        )
+                                        v2_std = latest_metrics.get(
+                                            "s2_vehiculos_std", 0
+                                        )
+                                        v2_p95 = latest_metrics.get(
+                                            "s2_vehiculos_p95", 0
+                                        )
+
+                                        st.write(
+                                            f"• Promedio: **{v2_promedio:.1f}** vehículos esperando"
+                                        )
+                                        st.write(
+                                            f"• Mediana: **{v2_mediana:.1f}** vehículos"
+                                        )
+                                        st.write(
+                                            f"• Desv. Est: **{v2_std:.1f}** {'✅ Estable' if v2_std < 5 else '⚠️ Variable'}"
+                                        )
+                                        st.write(
+                                            f"• P95: **{v2_p95:.1f}** vehículos máximo"
+                                        )
+
+                                        # Comparación de congestión
+                                        if v2_promedio > 0:
+                                            mejora_vehiculos = (
+                                                (v2_promedio - v1_promedio)
+                                                / v2_promedio
+                                            ) * 100
+                                            if mejora_vehiculos > 10:
+                                                st.success(
+                                                    f"🎉 DQN reduce {mejora_vehiculos:.1f}% la congestión"
+                                                )
+                                            elif mejora_vehiculos > 0:
+                                                st.info(
+                                                    f"📊 DQN reduce ligeramente la congestión ({mejora_vehiculos:.1f}%)"
+                                                )
+                                            else:
+                                                st.warning(
+                                                    f"⚠️ Tiempos fijos generan {abs(mejora_vehiculos):.1f}% menos congestión"
+                                                )
+
+                            # Tabla de datos recientes con formato mejorado
+                            st.markdown("#### 📋 Historial Reciente de Mediciones")
+                            st.markdown(
+                                "📝 **Últimas 20 mediciones** - Cada fila representa una medición cada 15 segundos"
+                            )
+
+                            display_cols = [
+                                "datetime",
+                                "s1_tiempo_actual",
+                                "s2_tiempo_actual",
+                                "s1_vehiculos_actual",
+                                "s2_vehiculos_actual",
+                            ]
+                            available_cols = [
+                                col for col in display_cols if col in metrics_df.columns
+                            ]
+
+                            if available_cols:
+                                # Preparar datos con nombres más claros
+                                recent_data = metrics_df[available_cols].tail(20).copy()
+
+                                # Renombrar columnas para mayor claridad
+                                column_mapping = {
+                                    "datetime": "🕐 Hora",
+                                    "s1_tiempo_actual": "⏱️ DQN - Tiempo Espera (s)",
+                                    "s2_tiempo_actual": "⏱️ Fijo - Tiempo Espera (s)",
+                                    "s1_vehiculos_actual": "🚗 DQN - Vehículos",
+                                    "s2_vehiculos_actual": "🚗 Fijo - Vehículos",
+                                }
+
+                                recent_data = recent_data.rename(columns=column_mapping)
+
+                                # Formatear la fecha para mejor legibilidad
+                                if "🕐 Hora" in recent_data.columns:
+                                    recent_data["🕐 Hora"] = recent_data[
+                                        "🕐 Hora"
+                                    ].dt.strftime("%H:%M:%S")
+
+                                # Mostrar tabla con formato
+                                st.dataframe(
+                                    recent_data,
+                                    use_container_width=True,
+                                    height=450,
+                                    hide_index=True,
+                                )
+
+                                # Añadir resumen de la tabla
+                                if len(recent_data) > 0:
+                                    with st.expander("📊 Resumen de estos datos"):
+                                        col_summary1, col_summary2 = st.columns(2)
+
+                                        with col_summary1:
+                                            if (
+                                                "⏱️ DQN - Tiempo Espera (s)"
+                                                in recent_data.columns
+                                            ):
+                                                dqn_avg = recent_data[
+                                                    "⏱️ DQN - Tiempo Espera (s)"
+                                                ].mean()
+                                                st.metric(
+                                                    "🤖 DQN - Promedio reciente",
+                                                    f"{dqn_avg:.1f}s",
+                                                    help="Tiempo promedio de espera en las últimas mediciones",
+                                                )
+
+                                        with col_summary2:
+                                            if (
+                                                "⏱️ Fijo - Tiempo Espera (s)"
+                                                in recent_data.columns
+                                            ):
+                                                fijo_avg = recent_data[
+                                                    "⏱️ Fijo - Tiempo Espera (s)"
+                                                ].mean()
+                                                st.metric(
+                                                    "⏰ Fijo - Promedio reciente",
+                                                    f"{fijo_avg:.1f}s",
+                                                    help="Tiempo promedio de espera en las últimas mediciones",
+                                                )
+
+                                                # Mostrar comparación
+                                                if fijo_avg > 0:
+                                                    mejora_reciente = (
+                                                        (fijo_avg - dqn_avg) / fijo_avg
+                                                    ) * 100
+                                                    if mejora_reciente > 0:
+                                                        st.success(
+                                                            f"📈 En las últimas mediciones, DQN es {mejora_reciente:.1f}% mejor"
+                                                        )
+                                                    else:
+                                                        st.warning(
+                                                            f"📉 En las últimas mediciones, DQN es {abs(mejora_reciente):.1f}% peor"
+                                                        )
+                            else:
+                                st.warning(
+                                    "📭 No hay columnas de datos disponibles para mostrar"
+                                )
+
+                # Organizar estadísticas en tablas claras por métrica
+                st.markdown("---")
+                st.subheader("� Estadísticas Detalladas por Métrica")
+
+                # Obtener la última fila para estadísticas
+                latest_metrics = metrics_df.iloc[-1] if not metrics_df.empty else None
+
+                if latest_metrics is not None:
+                    # TABLA 1: TIEMPO DE ESPERA
+                    st.markdown("### ⏱️ Estadísticas de Tiempo de Espera")
+                    tiempo_stats = {
+                        "Métrica Estadística": [
+                            "Promedio (Media)",
+                            "Experiencia Típica (Mediana)",
+                            "Peor de los Casos (P95)",
+                            "Consistencia (Desv. Estándar)",
+                        ],
+                        "🤖 S1 (DQN)": [
+                            f"{latest_metrics.get('s1_tiempo_promedio', 0):.1f} s",
+                            f"{latest_metrics.get('s1_tiempo_mediana', 0):.1f} s",
+                            f"{latest_metrics.get('s1_tiempo_p95', 0):.1f} s",
+                            f"{latest_metrics.get('s1_tiempo_std', 0):.1f} s",
+                        ],
+                        "⏰ S2 (Tiempos Fijos)": [
+                            f"{latest_metrics.get('s2_tiempo_promedio', 0):.1f} s",
+                            f"{latest_metrics.get('s2_tiempo_mediana', 0):.1f} s",
+                            f"{latest_metrics.get('s2_tiempo_p95', 0):.1f} s",
+                            f"{latest_metrics.get('s2_tiempo_std', 0):.1f} s",
+                        ],
+                        "📈 Diferencia (S1 - S2)": [
+                            f"{latest_metrics.get('s1_tiempo_promedio', 0) - latest_metrics.get('s2_tiempo_promedio', 0):+.1f} s",
+                            f"{latest_metrics.get('s1_tiempo_mediana', 0) - latest_metrics.get('s2_tiempo_mediana', 0):+.1f} s",
+                            f"{latest_metrics.get('s1_tiempo_p95', 0) - latest_metrics.get('s2_tiempo_p95', 0):+.1f} s",
+                            f"{latest_metrics.get('s1_tiempo_std', 0) - latest_metrics.get('s2_tiempo_std', 0):+.1f} s",
+                        ],
+                    }
+
+                    tiempo_df = pd.DataFrame(tiempo_stats)
+                    st.dataframe(tiempo_df, use_container_width=True, hide_index=True)
+
+                    # TABLA 2: CANTIDAD DE VEHÍCULOS
+                    st.markdown("### � Estadísticas de Cantidad de Vehículos")
+                    vehiculos_stats = {
+                        "Métrica Estadística": [
+                            "Promedio (Media)",
+                            "Experiencia Típica (Mediana)",
+                            "Peor de los Casos (P95)",
+                            "Consistencia (Desv. Estándar)",
+                        ],
+                        "🤖 S1 (DQN)": [
+                            f"{latest_metrics.get('s1_vehiculos_promedio', 0):.1f}",
+                            f"{latest_metrics.get('s1_vehiculos_mediana', 0):.1f}",
+                            f"{latest_metrics.get('s1_vehiculos_p95', 0):.1f}",
+                            f"{latest_metrics.get('s1_vehiculos_std', 0):.1f}",
+                        ],
+                        "⏰ S2 (Tiempos Fijos)": [
+                            f"{latest_metrics.get('s2_vehiculos_promedio', 0):.1f}",
+                            f"{latest_metrics.get('s2_vehiculos_mediana', 0):.1f}",
+                            f"{latest_metrics.get('s2_vehiculos_p95', 0):.1f}",
+                            f"{latest_metrics.get('s2_vehiculos_std', 0):.1f}",
+                        ],
+                        "📈 Diferencia (S1 - S2)": [
+                            f"{latest_metrics.get('s1_vehiculos_promedio', 0) - latest_metrics.get('s2_vehiculos_promedio', 0):+.1f}",
+                            f"{latest_metrics.get('s1_vehiculos_mediana', 0) - latest_metrics.get('s2_vehiculos_mediana', 0):+.1f}",
+                            f"{latest_metrics.get('s1_vehiculos_p95', 0) - latest_metrics.get('s2_vehiculos_p95', 0):+.1f}",
+                            f"{latest_metrics.get('s1_vehiculos_std', 0) - latest_metrics.get('s2_vehiculos_std', 0):+.1f}",
+                        ],
+                    }
+
+                    vehiculos_df = pd.DataFrame(vehiculos_stats)
+                    st.dataframe(
+                        vehiculos_df, use_container_width=True, hide_index=True
+                    )
+
+                    # Interpretación de las estadísticas
+                    st.markdown("### 💡 Interpretación de las Estadísticas")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown("**� ¿Qué significan estas métricas?**")
+                        st.markdown(
+                            """
+                        - **Promedio**: Valor típico esperado
+                        - **Mediana**: 50% de casos están por debajo
+                        - **P95**: Solo el 5% de casos superan este valor
+                        - **Desv. Estándar**: Qué tan variable es el sistema (menor = más predecible)
+                        """
+                        )
+
+                    with col2:
+                        st.markdown("**🎯 ¿Cómo interpretar las diferencias?**")
+                        st.markdown(
+                            """
+                        - **Valores negativos** = DQN es mejor
+                        - **Valores positivos** = Tiempos fijos son mejores
+                        - **Desv. Estándar menor** = Sistema más consistente
+                        """
+                        )
+
+            else:
+                st.info("📭 No hay datos de métricas temporales disponibles")
+        else:
+            st.info("📭 Tabla 'comparacion_metricas' no encontrada")
+
+        conn.close()
+
+    except Exception as e:
+        st.error(f"❌ Error al cargar comparaciones: {e}")
+        log_error(f"Error en render_comparisons_page: {e}")
+
+
+def create_comparison_table(summary_df: pd.DataFrame, metrics_df: pd.DataFrame) -> None:
+    """Crear tabla comparativa clara con porcentajes de mejora."""
+    if summary_df.empty:
+        st.warning("📭 No hay datos de resumen para comparar")
+        return
+
+    if metrics_df.empty:
+        st.warning("📭 No hay datos de métricas para comparar")
+        return
+
+    # Obtener la última fila del resumen
+    latest_summary = summary_df.iloc[-1]
+
+    # Calcular promedios de las métricas temporales para la tabla
+    s1_tiempo_promedio = metrics_df["s1_tiempo_actual"].mean()
+    s2_tiempo_promedio = metrics_df["s2_tiempo_actual"].mean()
+    s1_vehiculos_promedio = metrics_df["s1_vehiculos_actual"].mean()
+    s2_vehiculos_promedio = metrics_df["s2_vehiculos_actual"].mean()
+
+    # Estadísticas adicionales de las métricas temporales
+    s1_tiempo_std = metrics_df["s1_tiempo_actual"].std()
+    s2_tiempo_std = metrics_df["s2_tiempo_actual"].std()
+    s1_tiempo_p95 = metrics_df["s1_tiempo_actual"].quantile(0.95)
+    s2_tiempo_p95 = metrics_df["s2_tiempo_actual"].quantile(0.95)
+    s1_tiempo_mediana = metrics_df["s1_tiempo_actual"].median()
+    s2_tiempo_mediana = metrics_df["s2_tiempo_actual"].median()
+
+    # Extraer datos para la tabla
+    data_comparison = {
+        "Métrica": [
+            "⏱️ Tiempo Promedio (s)",
+            "🚗 Congestión Promedio",
+            "📊 Consistencia Tiempo (Desv.Est)",
+            "📈 P95 Tiempo Espera (s)",
+            "🎯 Mediana Tiempo (s)",
+        ],
+        "🤖 DQN": [
+            f"{s1_tiempo_promedio:.1f}",
+            f"{s1_vehiculos_promedio:.1f}",
+            f"{s1_tiempo_std:.1f}",
+            f"{s1_tiempo_p95:.1f}",
+            f"{s1_tiempo_mediana:.1f}",
+        ],
+        "⏰ Tiempos Fijos": [
+            f"{s2_tiempo_promedio:.1f}",
+            f"{s2_vehiculos_promedio:.1f}",
+            f"{s2_tiempo_std:.1f}",
+            f"{s2_tiempo_p95:.1f}",
+            f"{s2_tiempo_mediana:.1f}",
+        ],
+        "📈 Mejora (%)": [],
+        "🚦 Estado": [],
+    }
+
+    # Calcular mejoras y estados
+    metricas_valores = [
+        (s1_tiempo_promedio, s2_tiempo_promedio),
+        (s1_vehiculos_promedio, s2_vehiculos_promedio),
+        (s1_tiempo_std, s2_tiempo_std),  # Para desviación, menor es mejor
+        (s1_tiempo_p95, s2_tiempo_p95),
+        (s1_tiempo_mediana, s2_tiempo_mediana),
+    ]
+
+    for i, (s1_val, s2_val) in enumerate(metricas_valores):
+        if s2_val > 0:
+            mejora = ((s2_val - s1_val) / s2_val) * 100
+            data_comparison["📈 Mejora (%)"].append(f"{mejora:+.1f}%")
+
+            # Estado basado en mejora
+            if mejora > 30:
+                estado = "🟢 Excelente"
+            elif mejora > 15:
+                estado = "🟡 Bueno"
+            elif mejora > 0:
+                estado = "🟠 Regular"
+            else:
+                estado = "🔴 Necesita mejora"
+
+            data_comparison["🚦 Estado"].append(estado)
+        else:
+            data_comparison["📈 Mejora (%)"].append("N/A")
+            data_comparison["🚦 Estado"].append("❓ Sin datos")
+
+    # Crear DataFrame y mostrar tabla
+    comparison_df = pd.DataFrame(data_comparison)
+
+    st.markdown("### 📊 Tabla Comparativa Detallada")
+    st.dataframe(comparison_df, use_container_width=True, hide_index=True, height=250)
+
+    # Resumen rápido
+    mejoras_positivas = sum(
+        1
+        for mejora in data_comparison["📈 Mejora (%)"]
+        if mejora != "N/A" and float(mejora.strip("%+").replace("+", "")) > 0
+    )
+    total_metricas = len([m for m in data_comparison["📈 Mejora (%)"] if m != "N/A"])
+
+    if total_metricas > 0:
+        porcentaje_exito = (mejoras_positivas / total_metricas) * 100
+        st.metric(
+            label="🎯 Métricas Mejoradas",
+            value=f"{mejoras_positivas}/{total_metricas}",
+            delta=f"{porcentaje_exito:.0f}% de éxito",
+        )
+
+    # Añadir contexto sobre los resultados del diagnóstico
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"📊 **Datos reales analizados:** {len(metrics_df):,} mediciones")
+    with col2:
+        mejora_principal = latest_summary.get("mejora_tiempo_porcentual", 0)
+        if mejora_principal > 50:
+            st.success(f"🎉 **DQN supera por {mejora_principal:.1f}%** a tiempos fijos")
+        elif mejora_principal > 0:
+            st.info(f"📈 **DQN mejora {mejora_principal:.1f}%** sobre tiempos fijos")
+        else:
+            st.warning("⚠️ **DQN necesita optimización**")
+
+
+def create_executive_summary(
+    summary_df: pd.DataFrame, metrics_df: pd.DataFrame
+) -> None:
+    """Crear un resumen ejecutivo fácil de entender con los hallazgos principales."""
+    st.markdown("## 🎯 Resumen Ejecutivo")
+
+    if summary_df.empty or metrics_df.empty:
+        st.warning("📭 No hay datos suficientes para el resumen ejecutivo")
+        return
+
+    # Obtener la última fila del resumen
+    latest_summary = summary_df.iloc[-1]
+
+    # Usar las columnas que realmente existen en la base de datos
+    mejora_tiempo = latest_summary.get("mejora_tiempo_porcentual", 0)
+    mejora_congestion = latest_summary.get("mejora_vehiculos_porcentual", 0)
+
+    # Calcular promedios de las métricas temporales
+    tiempo_s1 = metrics_df["s1_tiempo_actual"].mean()
+    tiempo_s2 = metrics_df["s2_tiempo_actual"].mean()
+    vehiculos_s1 = metrics_df["s1_vehiculos_actual"].mean()
+    vehiculos_s2 = metrics_df["s2_vehiculos_actual"].mean()
+
+    # Crear 3 columnas para métricas principales
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if mejora_tiempo > 0:
+            st.metric(
+                label="⏱️ Reducción Tiempo de Espera",
+                value=f"{mejora_tiempo:.1f}%",
+                delta=f"{tiempo_s2 - tiempo_s1:.1f}s menos",
+                delta_color="inverse",
+            )
+        else:
+            st.metric(
+                label="⏱️ Tiempo de Espera",
+                value=f"{abs(mejora_tiempo):.1f}%",
+                delta="Aumentó",
+                delta_color="normal",
+            )
+
+    with col2:
+        if mejora_congestion > 0:
+            st.metric(
+                label="🚗 Reducción Congestión",
+                value=f"{mejora_congestion:.1f}%",
+                delta=f"{vehiculos_s2 - vehiculos_s1:.1f} veh. menos",
+                delta_color="inverse",
+            )
+        else:
+            st.metric(
+                label="🚗 Congestión",
+                value=f"{abs(mejora_congestion):.1f}%",
+                delta="Aumentó",
+                delta_color="normal",
+            )
+
+    with col3:
+        # Calcular puntuación general
+        puntuacion = (mejora_tiempo + mejora_congestion) / 2
+        if puntuacion > 50:
+            emoji = "🟢"
+            estado = "Excelente"
+        elif puntuacion > 20:
+            emoji = "🟡"
+            estado = "Bueno"
+        elif puntuacion > 0:
+            emoji = "🟠"
+            estado = "Regular"
+        else:
+            emoji = "🔴"
+            estado = "Necesita mejoras"
+
+        st.metric(
+            label="📊 Rendimiento General",
+            value=f"{emoji} {estado}",
+            delta=f"Puntuación: {puntuacion:.1f}%",
+        )
+
+    # Interpretación en lenguaje simple
+    st.markdown("### 💬 ¿Qué significan estos resultados?")
+
+    if mejora_tiempo > 50 and mejora_congestion > 25:
+        interpretation = "🎉 **¡Resultados excelentes!** El sistema DQN está funcionando muy bien, reduciendo significativamente tanto los tiempos de espera como la congestión vehicular."
+    elif mejora_tiempo > 20 or mejora_congestion > 15:
+        interpretation = "✅ **Buenos resultados.** El sistema DQN muestra mejoras notables. Hay oportunidades para optimizar aún más."
+    elif mejora_tiempo > 0 or mejora_congestion > 0:
+        interpretation = "📈 **Mejoras moderadas.** El sistema DQN está funcionando, pero las mejoras son pequeñas. Considere ajustar los parámetros."
+    else:
+        interpretation = "⚠️ **Necesita atención.** El sistema DQN no está superando a los tiempos fijos. Revise la configuración y entrenamiento."
+
+    st.info(interpretation)
+
+    # Detalles técnicos en expandible
+    with st.expander("🔍 Ver detalles técnicos"):
+        col_det1, col_det2 = st.columns(2)
+
+        with col_det1:
+            st.markdown("**🤖 Sistema DQN (S1)**")
+            st.write(f"• Tiempo promedio: {tiempo_s1:.1f}s")
+            st.write(f"• Vehículos promedio: {vehiculos_s1:.1f}")
+
+        with col_det2:
+            st.markdown("**⏰ Tiempos Fijos (S2)**")
+            st.write(f"• Tiempo promedio: {tiempo_s2:.1f}s")
+            st.write(f"• Vehículos promedio: {vehiculos_s2:.1f}")
+
+    # Añadir tabla comparativa detallada
+    st.markdown("---")
+    create_comparison_table(summary_df, metrics_df)
+
+
+def create_comparison_chart(
+    df: pd.DataFrame, col1: str, col2: str, name1: str, name2: str, y_title: str
+) -> go.Figure:
+    """Crear gráfica comparativa mejorada con menos ruido y SIN textos solapados."""
+
+    # Reducir ruido - tomar cada 3er punto para gráficos más limpios
+    step = max(1, len(df) // 50)  # Máximo 50 puntos en el gráfico
+    if step > 1:
+        df_sampled = df.iloc[::step].copy()
+    else:
+        df_sampled = df.copy()
+
+    # Redondear valores para mayor claridad
+    df_sampled[col1] = df_sampled[col1].round(1)
+    df_sampled[col2] = df_sampled[col2].round(1)
+
+    # Crear índice de steps para el eje X
+    df_sampled = df_sampled.reset_index(drop=True)
+    df_sampled["step"] = range(1, len(df_sampled) + 1)
+
+    fig = go.Figure()
+
+    # Usar colores más distinguibles y profesionales
+    color1 = "#1f77b4"  # Azul para DQN (color por defecto)
+    color2 = "#ff7f0e"  # Naranja para tiempos fijos (color por defecto)
+
+    # Líneas principales SIN marcadores para mayor claridad
+    fig.add_trace(
+        go.Scatter(
+            x=df_sampled["step"],  # Usar steps en lugar de datetime
+            y=df_sampled[col1],
+            mode="lines",  # Solo líneas, sin marcadores
+            name=name1,
+            line={"color": color1, "width": 4},  # Línea más gruesa
+            hovertemplate=f"<b>{name1}</b><br>Valor: %{{y:.1f}}<br>Step: %{{x}}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df_sampled["step"],  # Usar steps en lugar de datetime
+            y=df_sampled[col2],
+            mode="lines",  # Solo líneas, sin marcadores
+            name=name2,
+            line={"color": color2, "width": 4},  # Línea más gruesa
+            hovertemplate=f"<b>{name2}</b><br>Valor: %{{y:.1f}}<br>Step: %{{x}}<extra></extra>",
+        )
+    )
+
+    # Calcular mejora porcentual SOLO para el título - SIN líneas de promedio solapadas
+    if len(df_sampled) > 0:
+        avg1 = df_sampled[col1].mean()
+        avg2 = df_sampled[col2].mean()
+        if avg2 > 0:
+            improvement = ((avg2 - avg1) / avg2) * 100
+            if improvement > 5:
+                improvement_text = f"DQN es {improvement:.1f}% mejor"
+                title_color = "green"
+            elif improvement < -5:
+                improvement_text = f"Tiempos Fijos son {abs(improvement):.1f}% mejores"
+                title_color = "red"
+            else:
+                improvement_text = f"Rendimiento similar ({improvement:.1f}%)"
+                title_color = "gray"
+        else:
+            improvement_text = "Sin datos suficientes"
+            title_color = "gray"
+    else:
+        improvement_text = "Sin datos"
+        title_color = "gray"
+
+    # Layout LIMPIO - sin anotaciones solapadas
+    fig.update_layout(
+        title={
+            "text": f"{y_title} - {improvement_text}",
+            "x": 0.5,
+            "xanchor": "center",
+            "font": {"size": 18, "color": title_color},
+        },
+        xaxis_title="Steps de Medición (cada 15 segundos)",  # Título más descriptivo
+        yaxis_title=y_title,
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "center",
+            "x": 0.5,
+            "font": {"size": 14},
+        },
+        hovermode="x unified",
+        height=500,  # Más alto para mejor visualización
+        margin={"t": 100, "b": 60, "l": 80, "r": 60},
+    )
+
+    # Grid sutil
+    fig.update_xaxes(showgrid=True, tickfont={"size": 12})
+    fig.update_yaxes(showgrid=True, tickfont={"size": 12})
+
+    return fig
+
+
 def main() -> None:
     """Función principal de la aplicación."""
     st.set_page_config(
@@ -1989,6 +2910,8 @@ def main() -> None:
             render_config_page()
         elif current_page == "database":
             render_database_page()
+        elif current_page == "comparisons":
+            render_comparisons_page()
         else:
             st.error("❌ Página no encontrada")
 

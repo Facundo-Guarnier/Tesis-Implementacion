@@ -210,6 +210,11 @@ sumo:
   use_random_seed: False #! Usar semilla aleatoria basada en tiempo actual
   persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
 
+  # === EXPORTACIÓN DE COMPARACIONES DQN VS TIEMPOS FIJOS ===
+  comparacion_export:
+    enabled: True #! Activar guardado de métricas comparativas S1 vs S2 en base de datos
+    db_path: "results/comparisons/comparison.db" #! Ruta base - se creará directorio con timestamp automáticamente
+
 reporte:
   generar: True #* Generar reportes automáticos post-simulación
 

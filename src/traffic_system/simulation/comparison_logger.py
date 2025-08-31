@@ -1,4 +1,7 @@
 import logging
+import os
+import sqlite3
+import time
 
 import numpy as np
 
@@ -20,10 +23,29 @@ class ComparisonLogger:
         self.interval = interval_seconds
         self._last_log_time = 0
 
-        # Cargar configuración para warmup steps
+        # Cargar configuración para warmup steps y exportación
         settings = load_app_settings()
         self.warmup_steps = settings.decision.entrenamiento_simplificado.warmup_steps
         self._warmup_completed = False
+
+        # Configuración de exportación con timestamp único por sesión
+        self.export_config = settings.sumo.comparacion_export
+        self._db_connection: sqlite3.Connection | None = None
+
+        # Generar ruta única para esta sesión (patrón similar a reportes)
+        if self.export_config.enabled:
+            base_dir = os.path.dirname(
+                self.export_config.db_path
+            )  # results/comparisons/
+            session_timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+            self._session_dir = os.path.join(
+                base_dir, f"comparison_{session_timestamp}"
+            )
+            self._db_path = os.path.join(self._session_dir, "comparison.db")
+            self._init_database()
+        else:
+            self._session_dir = ""
+            self._db_path = ""
 
         # Almacenamiento de estadísticas
         self._report_count = 0
@@ -43,6 +65,250 @@ class ComparisonLogger:
         self.logger.info(
             f"Periodo de warmup configurado: {self.warmup_steps} pasos iniciales se omitirán"
         )
+
+        if self.export_config.enabled:
+            self.logger.info(f"✅ Exportación habilitada: {self._db_path}")
+            self.logger.info(f"📁 Directorio de sesión: {self._session_dir}")
+        else:
+            self.logger.info("⚠️ Exportación de comparaciones deshabilitada")
+
+    def _init_database(self) -> None:
+        """Inicializar la base de datos SQLite y crear las tablas necesarias."""
+        try:
+            # Crear directorio de sesión si no existe
+            if not os.path.exists(self._session_dir):
+                os.makedirs(self._session_dir)
+
+            # Conectar a la base de datos
+            self._db_connection = sqlite3.connect(
+                self._db_path, check_same_thread=False
+            )
+            cursor = self._db_connection.cursor()
+
+            # Crear tabla de métricas temporales (sin session_id ya que cada sesión tiene su propia DB)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS comparacion_metricas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp_simulacion REAL NOT NULL,
+
+                    -- Tiempos de espera S1 (DQN)
+                    s1_tiempo_actual REAL,
+                    s1_tiempo_acumulado REAL,
+                    s1_tiempo_promedio REAL,
+                    s1_tiempo_mediana REAL,
+                    s1_tiempo_std REAL,
+                    s1_tiempo_p95 REAL,
+
+                    -- Tiempos de espera S2 (Fijo)
+                    s2_tiempo_actual REAL,
+                    s2_tiempo_acumulado REAL,
+                    s2_tiempo_promedio REAL,
+                    s2_tiempo_mediana REAL,
+                    s2_tiempo_std REAL,
+                    s2_tiempo_p95 REAL,
+
+                    -- Vehículos S1 (DQN)
+                    s1_vehiculos_actual INTEGER,
+                    s1_vehiculos_acumulado INTEGER,
+                    s1_vehiculos_promedio REAL,
+                    s1_vehiculos_mediana REAL,
+                    s1_vehiculos_std REAL,
+                    s1_vehiculos_p95 REAL,
+
+                    -- Vehículos S2 (Fijo)
+                    s2_vehiculos_actual INTEGER,
+                    s2_vehiculos_acumulado INTEGER,
+                    s2_vehiculos_promedio REAL,
+                    s2_vehiculos_mediana REAL,
+                    s2_vehiculos_std REAL,
+                    s2_vehiculos_p95 REAL,
+
+                    generado_en TEXT NOT NULL
+                )
+            """
+            )
+
+            # Crear tabla de resúmenes finales (sin session_id, solo una fila por DB)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS comparacion_resumenes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    total_mediciones INTEGER NOT NULL,
+                    mejora_tiempo_absoluta REAL,
+                    mejora_tiempo_porcentual REAL,
+                    mejora_vehiculos_absoluta REAL,
+                    mejora_vehiculos_porcentual REAL,
+                    s1_tiempo_final REAL,
+                    s2_tiempo_final REAL,
+                    s1_vehiculos_final REAL,
+                    s2_vehiculos_final REAL,
+                    session_completada_en TEXT NOT NULL
+                )
+            """
+            )
+
+            self._db_connection.commit()
+            self.logger.info(f"🗃️ Base de datos inicializada: {self._db_path}")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error inicializando base de datos: {e}")
+            self._db_connection = None
+
+    def _save_temporal_metrics(
+        self, sim_time: float, app_s1: SumoApp, app_s2: SumoApp
+    ) -> None:
+        """Guardar métricas temporales en la base de datos."""
+        if not self._db_connection:
+            return
+
+        try:
+            # Calcular estadísticas actuales
+            wait_stats_s1 = self._calculate_statistical_metrics(
+                self._stats["s1"]["wait_times"]
+            )
+            wait_stats_s2 = self._calculate_statistical_metrics(
+                self._stats["s2"]["wait_times"]
+            )
+            vehicle_stats_s1 = self._calculate_statistical_metrics(
+                self._stats["s1"]["vehicles_measurements"]
+            )
+            vehicle_stats_s2 = self._calculate_statistical_metrics(
+                self._stats["s2"]["vehicles_measurements"]
+            )
+
+            # Datos actuales
+            t1 = app_s1.get_total_wait_time()
+            t2 = app_s2.get_total_wait_time()
+            zones_s1 = app_s1.get_vehicle_counts_by_zone()
+            zones_s2 = app_s2.get_vehicle_counts_by_zone()
+            v1 = sum(zones_s1.values())
+            v2 = sum(zones_s2.values())
+
+            cursor = self._db_connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO comparacion_metricas (
+                    timestamp_simulacion,
+                    s1_tiempo_actual, s1_tiempo_acumulado, s1_tiempo_promedio, s1_tiempo_mediana, s1_tiempo_std, s1_tiempo_p95,
+                    s2_tiempo_actual, s2_tiempo_acumulado, s2_tiempo_promedio, s2_tiempo_mediana, s2_tiempo_std, s2_tiempo_p95,
+                    s1_vehiculos_actual, s1_vehiculos_acumulado, s1_vehiculos_promedio, s1_vehiculos_mediana, s1_vehiculos_std, s1_vehiculos_p95,
+                    s2_vehiculos_actual, s2_vehiculos_acumulado, s2_vehiculos_promedio, s2_vehiculos_mediana, s2_vehiculos_std, s2_vehiculos_p95,
+                    generado_en
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    sim_time,
+                    # S1 tiempos
+                    t1,
+                    self._cumulative_wait_times["s1"],
+                    wait_stats_s1["mean"],
+                    wait_stats_s1["median"],
+                    wait_stats_s1["std"],
+                    wait_stats_s1["p95"],
+                    # S2 tiempos
+                    t2,
+                    self._cumulative_wait_times["s2"],
+                    wait_stats_s2["mean"],
+                    wait_stats_s2["median"],
+                    wait_stats_s2["std"],
+                    wait_stats_s2["p95"],
+                    # S1 vehículos
+                    v1,
+                    self._stats["s1"]["vehicles_sum"],
+                    vehicle_stats_s1["mean"],
+                    vehicle_stats_s1["median"],
+                    vehicle_stats_s1["std"],
+                    vehicle_stats_s1["p95"],
+                    # S2 vehículos
+                    v2,
+                    self._stats["s2"]["vehicles_sum"],
+                    vehicle_stats_s2["mean"],
+                    vehicle_stats_s2["median"],
+                    vehicle_stats_s2["std"],
+                    vehicle_stats_s2["p95"],
+                    # Metadata
+                    time.strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
+
+            self._db_connection.commit()
+
+        except Exception as e:
+            self.logger.error(f"❌ Error guardando métricas temporales: {e}")
+
+    def _save_final_summary(self) -> None:
+        """Guardar resumen final en la base de datos."""
+        if not self._db_connection or self._report_count == 0:
+            return
+
+        try:
+            # Calcular mejoras finales
+            total_wait_s1 = self._cumulative_wait_times["s1"]
+            total_wait_s2 = self._cumulative_wait_times["s2"]
+
+            vehicle_stats_s1 = self._calculate_statistical_metrics(
+                self._stats["s1"]["vehicles_measurements"]
+            )
+            vehicle_stats_s2 = self._calculate_statistical_metrics(
+                self._stats["s2"]["vehicles_measurements"]
+            )
+
+            # Calcular mejoras
+            if total_wait_s2 > 0:
+                wait_improvement_abs = total_wait_s2 - total_wait_s1
+                wait_improvement_pct = (wait_improvement_abs / total_wait_s2) * 100
+            else:
+                wait_improvement_abs = 0.0
+                wait_improvement_pct = 0.0
+
+            if vehicle_stats_s2["mean"] > 0:
+                vehicles_improvement_abs = (
+                    vehicle_stats_s2["mean"] - vehicle_stats_s1["mean"]
+                )
+                vehicles_improvement_pct = (
+                    vehicles_improvement_abs / vehicle_stats_s2["mean"]
+                ) * 100
+            else:
+                vehicles_improvement_abs = 0.0
+                vehicles_improvement_pct = 0.0
+
+            cursor = self._db_connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO comparacion_resumenes (
+                    total_mediciones,
+                    mejora_tiempo_absoluta, mejora_tiempo_porcentual,
+                    mejora_vehiculos_absoluta, mejora_vehiculos_porcentual,
+                    s1_tiempo_final, s2_tiempo_final,
+                    s1_vehiculos_final, s2_vehiculos_final,
+                    session_completada_en
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    self._report_count,
+                    wait_improvement_abs,
+                    wait_improvement_pct,
+                    vehicles_improvement_abs,
+                    vehicles_improvement_pct,
+                    total_wait_s1,
+                    total_wait_s2,
+                    vehicle_stats_s1["mean"],
+                    vehicle_stats_s2["mean"],
+                    time.strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
+
+            self._db_connection.commit()
+            self.logger.info("💾 Resumen final guardado en base de datos")
+
+        except Exception as e:
+            self.logger.error(f"❌ Error guardando resumen final: {e}")
+
+    def __del__(self) -> None:
+        """Cerrar conexión de base de datos al destruir el objeto."""
+        if self._db_connection:
+            self._db_connection.close()
 
     def log_if_needed(self, app_s1: SumoApp, app_s2: SumoApp) -> None:
         """
@@ -191,6 +457,10 @@ class ComparisonLogger:
         )
         self.logger.info("=" * 75)
 
+        # Guardar métricas en base de datos si está habilitada
+        if self.export_config.enabled:
+            self._save_temporal_metrics(sim_time, app_s1, app_s2)
+
     def log_final_comparative_summary(self) -> None:
         """
         Muestra un resumen final con las métricas comparativas y mejoras porcentuales.
@@ -332,3 +602,7 @@ class ComparisonLogger:
             self.logger.info("Mejora vehiculos: Sin diferencia significativa")
 
         self.logger.info("=" * 80)
+
+        # Guardar resumen final en base de datos si está habilitada
+        if self.export_config.enabled:
+            self._save_final_summary()
