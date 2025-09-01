@@ -8,6 +8,7 @@ Funcionalidad esencial sin sobre-ingeniería.
 import atexit
 import datetime
 import glob
+import json
 import os
 import sqlite3
 import time
@@ -16,6 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
@@ -43,6 +45,10 @@ def initialize_session_state() -> None:
         st.session_state.logs_refresh_interval = 4.0
         st.session_state.last_logs_update = {}
 
+        # API Testing state
+        st.session_state.api_history = []
+        st.session_state.api_base_url = "http://127.0.0.1:5000"
+
     # Asegurar que todas las variables estén inicializadas
     if "current_page" not in st.session_state:
         st.session_state.current_page = "services"
@@ -62,6 +68,10 @@ def initialize_session_state() -> None:
         st.session_state.logs_refresh_interval = 4.0
     if "last_logs_update" not in st.session_state:
         st.session_state.last_logs_update = {}
+    if "api_history" not in st.session_state:
+        st.session_state.api_history = []
+    if "api_base_url" not in st.session_state:
+        st.session_state.api_base_url = "http://127.0.0.1:5000"
 
 
 def cleanup_on_exit() -> None:
@@ -93,6 +103,7 @@ def render_navigation() -> str:
     pages = {
         "🔧 Servicios": "services",
         "⚙️ Configuración": "config",
+        "🧪 API Testing": "api_testing",
         "⚠️ Alertas": "database",
         "📊 Comparaciones": "comparisons",
     }
@@ -2696,6 +2707,399 @@ def create_comparison_chart(
     return fig
 
 
+def execute_api_request(
+    method: str, endpoint: str, data: dict | None = None
+) -> dict[str, Any]:
+    """Ejecutar una petición HTTP a la API y devolver el resultado."""
+    base_url = st.session_state.api_base_url
+    url = f"{base_url}{endpoint}"
+
+    start_time = time.time()
+
+    try:
+        if method == "GET":
+            response = requests.get(url, timeout=5)
+        elif method == "POST":
+            response = requests.post(url, json=data, timeout=5)
+        elif method == "PUT":
+            response = requests.put(url, json=data, timeout=5)
+        else:
+            raise ValueError(f"Método HTTP no soportado: {method}")
+
+        response_time = round((time.time() - start_time) * 1000, 2)
+
+        result = {
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+            "method": method,
+            "endpoint": endpoint,
+            "status_code": response.status_code,
+            "response_time_ms": response_time,
+            "success": response.status_code < 400,
+            "response_data": None,
+            "error": None,
+        }
+
+        # Intentar parsear JSON
+        try:
+            result["response_data"] = response.json()
+        except json.JSONDecodeError:
+            result["response_data"] = response.text
+
+        return result
+
+    except requests.exceptions.RequestException as e:
+        response_time = round((time.time() - start_time) * 1000, 2)
+        return {
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+            "method": method,
+            "endpoint": endpoint,
+            "status_code": None,
+            "response_time_ms": response_time,
+            "success": False,
+            "response_data": None,
+            "error": str(e),
+        }
+
+
+def add_to_history(result: dict[str, Any]) -> None:
+    """Agregar resultado al historial de API."""
+    if "api_history" not in st.session_state:
+        st.session_state.api_history = []
+
+    st.session_state.api_history.insert(0, result)
+
+    # Mantener solo los últimos 20 registros
+    if len(st.session_state.api_history) > 20:
+        st.session_state.api_history = st.session_state.api_history[:20]
+
+
+def render_api_endpoint_card(
+    method: str,
+    endpoint: str,
+    description: str,
+    parameters: dict | None = None,
+    key_prefix: str = "",
+) -> None:
+    """Renderizar una tarjeta de endpoint estilo Postman."""
+    # Color del método HTTP
+    method_colors = {
+        "GET": "#28a745",  # Verde
+        "POST": "#ffc107",  # Amarillo/Naranja
+        "PUT": "#17a2b8",  # Azul
+        "DELETE": "#dc3545",  # Rojo
+    }
+
+    method_color = method_colors.get(method, "#6c757d")
+
+    # Crear la tarjeta visual
+    with st.container():
+        # Header del endpoint con método y URL
+        st.markdown(
+            f"""
+        <div style="
+            border: 2px solid {method_color};
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            background: linear-gradient(90deg, {method_color}15, transparent);
+        ">
+            <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                <span style="
+                    background: {method_color};
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    margin-right: 12px;
+                    font-family: monospace;
+                ">{method}</span>
+                <code style="
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    border: 1px solid {method_color}40;
+                    font-size: 14px;
+                    flex-grow: 1;
+                    opacity: 0.9;
+                ">{st.session_state.api_base_url}{endpoint}</code>
+            </div>
+            <p style="margin: 0; opacity: 0.7; font-style: italic;">{description}</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        # Parámetros y botón de ejecución
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            param_values = {}
+            if parameters:
+                for param_name, param_config in parameters.items():
+                    if param_config["type"] == "select":
+                        param_values[param_name] = st.selectbox(
+                            param_config["label"],
+                            param_config["options"],
+                            key=f"{key_prefix}_{param_name}",
+                        )
+                    elif param_config["type"] == "text":
+                        param_values[param_name] = st.text_input(
+                            param_config["label"],
+                            value=param_config.get("default", ""),
+                            key=f"{key_prefix}_{param_name}",
+                        )
+
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)  # Espaciado
+            send_clicked = st.button(
+                "🚀 SEND",
+                key=f"{key_prefix}_send",
+                type="primary",
+                use_container_width=True,
+            )
+
+    # Mostrar respuesta FUERA del contenedor para ocupar todo el ancho disponible
+    if send_clicked:
+        # Construir endpoint final con parámetros
+        final_endpoint = endpoint
+        if parameters:
+            for param_name, value in param_values.items():
+                final_endpoint = final_endpoint.replace(f"{{{param_name}}}", str(value))
+
+        # Ejecutar request
+        result = execute_api_request(method, final_endpoint)
+        add_to_history(result)
+
+        # Mostrar respuesta con ancho completo
+        st.markdown("---")
+
+        # Status y tiempo en columnas compactas
+        col_status, col_time, col_spacer = st.columns([2, 2, 6])
+        with col_status:
+            if result["success"]:
+                st.markdown(f"**Status:** :green[{result['status_code']} OK]")
+            else:
+                st.markdown(f"**Status:** :red[{result['status_code'] or 'Error'}]")
+
+        with col_time:
+            st.markdown(f"**Time:** {result['response_time_ms']} ms")
+
+        # Response body ocupando todo el ancho disponible
+        st.markdown("**Response:**")
+        if result["error"]:
+            st.error(f"Error: {result['error']}")
+        elif result["response_data"]:
+            st.code(
+                json.dumps(result["response_data"], indent=2, ensure_ascii=False),
+                language="json",
+            )
+        else:
+            st.info("No response data")
+
+
+def render_api_testing_page() -> None:
+    """Renderizar la página de testing de APIs."""
+    st.title("🧪 API Testing")
+
+    # Configuración de API
+    with st.sidebar:
+        st.sidebar.markdown("---")
+        st.subheader("⚙️ Configuración")
+        st.session_state.api_base_url = st.text_input(
+            "Base URL", value=st.session_state.api_base_url, help="URL base de la API"
+        )
+
+        # Test de conectividad
+        if st.button("🔍 Test Conectividad"):
+            result = execute_api_request("GET", "/")
+            if result["success"]:
+                st.success("✅ API accesible")
+            else:
+                st.error(f"❌ Error: {result.get('error', 'No response')}")
+
+    # Tabs principales
+    tab_metricas, tab_multas, tab_historial = st.tabs(
+        ["📊 Métricas", "🚨 Multas", "📜 Historial"]
+    )
+
+    with tab_metricas:
+        st.subheader("📊 Endpoints de Métricas")
+
+        # GET /cantidad
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/cantidad",
+            description="Obtener la cantidad total de vehículos en el sistema",
+            key_prefix="cantidad_total",
+        )
+
+        st.markdown("---")
+
+        # GET /cantidad/{zona}
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/cantidad/{zona}",
+            description="Obtener la cantidad de vehículos en una zona específica",
+            parameters={
+                "zona": {
+                    "type": "select",
+                    "label": "Zona:",
+                    "options": [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ],
+                }
+            },
+            key_prefix="cantidad_zona",
+        )
+
+        st.markdown("---")
+
+        # GET /espera
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/espera",
+            description="Obtener los tiempos de espera generales del sistema",
+            key_prefix="espera_total",
+        )
+
+        st.markdown("---")
+
+        # GET /espera/{zona}
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/espera/{zona}",
+            description="Obtener los tiempos de espera en una zona específica",
+            parameters={
+                "zona": {
+                    "type": "select",
+                    "label": "Zona:",
+                    "options": [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ],
+                }
+            },
+            key_prefix="espera_zona",
+        )
+
+    with tab_multas:
+        st.subheader("🚨 Endpoints de Multas")
+
+        # POST /multas/{zona}
+        render_api_endpoint_card(
+            method="POST",
+            endpoint="/multas/{zona}",
+            description="Reportar una multa detectada en una zona específica",
+            parameters={
+                "zona": {
+                    "type": "select",
+                    "label": "Zona:",
+                    "options": [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ],
+                }
+            },
+            key_prefix="multa_zona",
+        )
+
+    with tab_historial:
+        st.subheader("📜 Historial de Requests")
+
+        if not st.session_state.api_history:
+            st.info("📝 No hay requests en el historial")
+        else:
+            # Botón para limpiar historial
+            if st.button("🗑️ Limpiar historial"):
+                st.session_state.api_history = []
+                st.rerun()
+
+            # Mostrar historial en formato tabla
+            for entry in st.session_state.api_history:
+                # Determinar color según success
+                status_color = "#28a745" if entry["success"] else "#dc3545"
+                method_color = "#28a745" if entry["method"] == "GET" else "#ffc107"
+
+                with st.expander(
+                    f"🕐 {entry['timestamp']} • "
+                    f"{entry['method']} {entry['endpoint']} • "
+                    f"{entry['status_code'] or 'Error'} • "
+                    f"{entry['response_time_ms']}ms"
+                ):
+                    # Header del request
+                    st.markdown(
+                        f"""
+                    <div style="
+                        background: {status_color}15;
+                        border-left: 4px solid {status_color};
+                        padding: 12px;
+                        margin: 8px 0;
+                        border-radius: 0 4px 4px 0;
+                    ">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="
+                                background: {method_color};
+                                color: white;
+                                padding: 2px 8px;
+                                border-radius: 3px;
+                                font-weight: bold;
+                                font-size: 12px;
+                            ">{entry['method']}</span>
+                            <code>{st.session_state.api_base_url}{entry['endpoint']}</code>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 14px;">
+                            <strong>Status:</strong> {entry['status_code'] or 'Connection Error'} |
+                            <strong>Time:</strong> {entry['response_time_ms']}ms |
+                            <strong>Result:</strong> {'✅ Success' if entry['success'] else '❌ Failed'}
+                        </div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                    # Response
+                    if entry["error"]:
+                        st.error(f"**Error:** {entry['error']}")
+                    elif entry["response_data"]:
+                        st.markdown("**Response Body:**")
+                        st.code(
+                            json.dumps(
+                                entry["response_data"], indent=2, ensure_ascii=False
+                            ),
+                            language="json",
+                        )
+
+
 def main() -> None:
     """Función principal de la aplicación."""
     st.set_page_config(
@@ -2714,6 +3118,8 @@ def main() -> None:
             render_services_page()
         elif current_page == "config":
             render_config_page()
+        elif current_page == "api_testing":
+            render_api_testing_page()
         elif current_page == "database":
             render_database_page()
         elif current_page == "comparisons":
