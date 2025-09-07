@@ -66,20 +66,32 @@ class DetectorService:
         # Rotación forzada configurable
         self._rotate_code: int | None = None
 
+        # Sistema de multas mejorado - Una carpeta por sesión
+        self._session_timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+        self._fines_folder_created = False
+        self.__fines_path = ""  # Se inicializa cuando sea necesario
+
     def _create_fines_folder(self) -> None:
         """
-        Crea la carpeta de multas si no existe y devuelve la ruta.
+        Crea la carpeta de multas con el nuevo formato si no existe.
+        Formato: results/detection_results/multa/<fecha-hora-sesion>/Zona A
+        Solo se crea cuando efectivamente se va a guardar una multa.
         """
+        if self._fines_folder_created:
+            return  # Ya se creó la carpeta para esta sesión y zona
 
         self.__fines_path = os.path.join(
             self.settings.path_resultados_deteccion,
             "multa",
+            self._session_timestamp,
             self.video_processor.zone.name,
-            time.strftime("%Y-%m-%d_%H-%M-%S"),
         )
-        log_dir = os.path.join(self.__fines_path)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+
+        if not os.path.exists(self.__fines_path):
+            os.makedirs(self.__fines_path)
+            self.logger.info(f"📁 Carpeta de multas creada: {self.__fines_path}")
+
+        self._fines_folder_created = True
 
     def _define_supervision_parameters(self) -> None:
         """
@@ -401,15 +413,57 @@ class DetectorService:
         # )
         return frame
 
+    def _draw_line_zones_without_counters(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Dibuja las líneas de multa sin los contadores "in" y "out".
+
+        Args:
+            frame: Frame donde dibujar las líneas
+
+        Returns:
+            Frame con las líneas de multa dibujadas (sin contadores)
+        """
+        frame_with_lines = frame.copy()
+
+        # Dibujar cada línea de zona manualmente sin contadores
+        for line_zone in self.line_zones:
+            # Obtener puntos de inicio y fin de la línea desde el vector
+            start_point = (int(line_zone.vector.start.x), int(line_zone.vector.start.y))
+            end_point = (int(line_zone.vector.end.x), int(line_zone.vector.end.y))
+
+            # Dibujar la línea blanca sin texto
+            cv2.line(
+                img=frame_with_lines,
+                pt1=start_point,
+                pt2=end_point,
+                color=(255, 255, 255),  # Blanco
+                thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            )
+
+        return frame_with_lines
+
+    def _draw_fine_lines_only(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Dibuja únicamente las líneas de multa en un frame limpio.
+
+        Args:
+            frame: Frame limpio donde dibujar solo las líneas de multa
+
+        Returns:
+            Frame con solo las líneas de multa dibujadas
+        """
+        return self._draw_line_zones_without_counters(frame)
+
     def _process_fines(
-        self, frame: np.ndarray, detections: sv.Detections
+        self, frame: np.ndarray, detections: sv.Detections, clean_frame: np.ndarray
     ) -> np.ndarray:
         """
         Realiza la deteccion de multas y guarda la foto de la multa.
 
         Args:
-            frame (np.ndarray): Frame actual.
+            frame (np.ndarray): Frame actual con todos los elementos visuales.
             detections (sv.Detections): Detecciones de objetos en el frame.
+            clean_frame (np.ndarray): Frame limpio para generar imágenes de multa.
 
         Returns:
             np.ndarray: Frame resultante con las multas."""
@@ -427,18 +481,29 @@ class DetectorService:
                         x1, y1, x2, y2 = map(
                             int, bbox
                         )  #! Convertir las coordenadas a enteros
-                        cropped_image = frame[
+
+                        # Crear frame limpio solo con líneas de multa para la imagen guardada
+                        fine_frame = self._draw_fine_lines_only(clean_frame)
+                        cropped_image = fine_frame[
                             round(y1 * 0.9) : round(y2 * 1.1),
                             round(x1 * 0.9) : round(x2 * 1.1),
                         ]
 
-                        #! Guardar la imagen recortada
+                        #! Crear carpeta solo cuando se va a guardar una multa (lazy creation)
+                        if not self._fines_folder_created:
+                            self._create_fines_folder()
+
+                        #! Guardar la imagen recortada limpia
                         file_name = os.path.join(
                             self.__fines_path, f"multa_{time.strftime('%H-%M-%S')}.jpg"
                         )
                         cv2.imwrite(file_name, cropped_image)
+                        self.logger.info(
+                            f"🚨 Multa guardada (imagen limpia): {file_name}"
+                        )
 
-            frame = self.line_zone_annotator.annotate(frame, line_zone)
+        # Dibujar líneas sin contadores en el frame de visualización (una sola vez, fuera del bucle)
+        frame = self._draw_line_zones_without_counters(frame)
 
         return frame
 
@@ -458,6 +523,9 @@ class DetectorService:
         # Ajustar orientación del frame si se definió rotación forzada
         if self._rotate_code is not None:
             frame = cv2.rotate(frame, self._rotate_code)
+
+        # Mantener una copia del frame limpio para las multas (después de rotación, antes de dibujos)
+        clean_frame = frame.copy()
 
         # Realizar la detección/predicción de objetos
         model_results = self.model(frame, verbose=False)[0]
@@ -487,7 +555,7 @@ class DetectorService:
             frame = self._annotate_boxes_sv(frame, detections)
 
             if self.video_processor.zone.fines_activated:
-                frame = self._process_fines(frame, detections)
+                frame = self._process_fines(frame, detections, clean_frame)
         else:
             # Cuando no hay detecciones activas, limpiar métricas
             self.detection_times_fps_normalized.clear()
@@ -557,7 +625,6 @@ class DetectorService:
         eff_w, eff_h = self._prepare_orientation_for_stream()
 
         # Configurar parámetros de procesamiento
-        self._create_fines_folder()
         self.video_processor.zone.scale_points((eff_w, eff_h))
         self.video_processor.zone.scale_fine_points((eff_w, eff_h))
         self._define_supervision_parameters()
@@ -597,8 +664,6 @@ class DetectorService:
 
         # Aplicar lógica de orientación automática (como en _process_live_stream)
         eff_w, eff_h = self._prepare_orientation_for_stream()
-
-        self._create_fines_folder()
 
         # Usar la resolución efectiva (después de rotación) para escalar las zonas
         self.video_processor.zone.scale_points((eff_w, eff_h))

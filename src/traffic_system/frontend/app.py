@@ -6,12 +6,14 @@ Funcionalidad esencial sin sobre-ingeniería.
 """
 
 import atexit
+import base64
 import datetime
 import glob
 import json
 import os
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -103,7 +105,7 @@ def render_navigation() -> str:
     pages = {
         "🔧 Servicios": "services",
         "⚙️ Configuración": "config",
-        "🧪 API Testing": "api_testing",
+        "🧪 APIs": "api_testing",
         "⚠️ Alertas": "database",
         "📊 Comparaciones": "comparisons",
     }
@@ -2169,7 +2171,7 @@ def render_comparisons_page() -> None:
                     st.plotly_chart(fig_wait, use_container_width=True, height=500)
 
                 # Gráfico de vehículos - PANTALLA COMPLETA
-                st.markdown("#### � Número de Vehículos Esperando")
+                st.markdown("#### 🚗 Número de Vehículos Esperando")
                 if (
                     "s1_vehiculos_actual" in metrics_df.columns
                     and "s2_vehiculos_actual" in metrics_df.columns
@@ -2761,6 +2763,127 @@ def execute_api_request(
         }
 
 
+def get_multas_dates() -> list[str]:
+    """Obtener lista de fechas disponibles en el directorio de multas."""
+    multas_dir = Path("results/detection_results/multa")
+
+    if not multas_dir.exists():
+        return []
+
+    dates = []
+    for date_dir in multas_dir.iterdir():
+        if date_dir.is_dir():
+            dates.append(date_dir.name)
+
+    # Ordenar fechas más recientes primero
+    dates.sort(reverse=True)
+    return dates
+
+
+def get_multas_images_by_date(date: str) -> dict[str, list[str]]:
+    """Obtener todas las imágenes de multas organizadas por zona para una fecha específica."""
+    date_dir = Path(f"results/detection_results/multa/{date}")
+
+    if not date_dir.exists():
+        return {}
+
+    images_by_zone = {}
+
+    for zone_dir in date_dir.iterdir():
+        if zone_dir.is_dir():
+            zone_name = zone_dir.name
+            images = []
+
+            # Buscar imágenes en la carpeta de la zona
+            for ext in ["*.jpg", "*.jpeg", "*.png", "*.bmp"]:
+                images.extend(glob.glob(str(zone_dir / ext)))
+
+            if images:
+                # Ordenar por nombre de archivo
+                images.sort()
+                images_by_zone[zone_name] = images
+
+    return images_by_zone
+
+
+def render_multas_gallery(date: str) -> None:
+    """Renderizar galería de imágenes de multas para una fecha específica."""
+    images_by_zone = get_multas_images_by_date(date)
+
+    if not images_by_zone:
+        st.info(f"📷 No se encontraron imágenes de multas para la fecha {date}")
+        return
+
+    st.markdown(f"### 📸 Imágenes de Multas - {date}")
+
+    total_images = sum(len(images) for images in images_by_zone.values())
+    st.markdown(f"**Total:** {total_images} imágenes en {len(images_by_zone)} zonas")
+
+    # CSS para imágenes uniformes
+    st.markdown(
+        """
+    <style>
+    .uniform-image {
+        width: 100% !important;
+        height: 200px !important;
+        object-fit: cover !important;
+        border-radius: 8px;
+        border: 2px solid #ddd;
+    }
+    .uniform-image:hover {
+        border-color: #007bff;
+        cursor: pointer;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Mostrar imágenes organizadas por zona
+    for zone_name, images in images_by_zone.items():
+        with st.expander(f"📍 {zone_name} ({len(images)} imágenes)", expanded=True):
+
+            # Mostrar imágenes en grid de 3 columnas
+            cols_per_row = 3
+            for i in range(0, len(images), cols_per_row):
+                cols = st.columns(cols_per_row)
+
+                for j, col in enumerate(cols):
+                    img_index = i + j
+                    if img_index < len(images):
+                        img_path = images[img_index]
+                        img_name = Path(img_path).name
+
+                        with col:
+                            try:
+                                # Mostrar imagen uniforme usando HTML
+                                st.markdown(
+                                    f"""
+                                <div style="text-align: center; margin-bottom: 10px;">
+                                    <img src="data:image/jpeg;base64,{get_image_base64(img_path)}"
+                                         class="uniform-image"
+                                         alt="{zone_name} - {img_name}">
+                                    <br>
+                                    <small style="color: #666;">{zone_name} - {img_name}</small>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                            except Exception as e:
+                                st.error(f"❌ Error cargando imagen: {img_name}")
+                                st.caption(f"Error: {str(e)}")
+
+
+def get_image_base64(image_path: str) -> str:
+    """Convertir imagen a base64 para mostrarla en HTML."""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return ""
+
+
 def add_to_history(result: dict[str, Any]) -> None:
     """Agregar resultado al historial de API."""
     if "api_history" not in st.session_state:
@@ -2898,7 +3021,7 @@ def render_api_endpoint_card(
 
 def render_api_testing_page() -> None:
     """Renderizar la página de testing de APIs."""
-    st.title("🧪 API Testing")
+    st.title("🧪 APIs")
 
     # Configuración de API
     with st.sidebar:
@@ -3032,6 +3155,66 @@ def render_api_testing_page() -> None:
             },
             key_prefix="multa_zona",
         )
+
+        st.markdown("---")
+
+        # Galería de imágenes de multas
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.subheader("📸 Galería de Multas Detectadas")
+
+        with col2:
+            if st.button(
+                "🔄 Refrescar",
+                help="Actualizar lista de fechas e imágenes de multas",
+                key="refresh_multas",
+                use_container_width=True,
+            ):
+                # Limpiar cache si existe
+                if "multas_cache" in st.session_state:
+                    del st.session_state["multas_cache"]
+                st.session_state["last_multas_refresh"] = (
+                    datetime.datetime.now().strftime("%H:%M:%S")
+                )
+                st.rerun()
+
+        # Mostrar última actualización
+        last_refresh = st.session_state.get("last_multas_refresh", "Nunca")
+        st.caption(f"🕒 Última actualización: {last_refresh}")
+
+        # Obtener fechas disponibles
+        available_dates = get_multas_dates()
+
+        if not available_dates:
+            st.info(
+                "📁 No se encontraron carpetas de multas en `results/detection_results/multa/`"
+            )
+        else:
+            st.markdown(
+                "Selecciona una fecha para ver todas las imágenes de multas detectadas:"
+            )
+
+            # Obtener la fecha previamente seleccionada para mantenerla
+            previous_selected = st.session_state.get("multas_selected_date", None)
+
+            # Si la fecha previamente seleccionada ya no existe, usar la primera disponible
+            default_index = 0
+            if previous_selected and previous_selected in available_dates:
+                default_index = available_dates.index(previous_selected)
+
+            selected_date = st.selectbox(
+                "📅 Fecha:",
+                available_dates,
+                index=default_index,
+                key="multas_date_selector",
+                help="Selecciona una fecha para ver las imágenes de multas de todas las zonas",
+            )
+
+            # Guardar la fecha seleccionada en session_state
+            if selected_date:
+                st.session_state["multas_selected_date"] = selected_date
+                render_multas_gallery(selected_date)
 
     with tab_historial:
         st.subheader("📜 Historial de Requests")
