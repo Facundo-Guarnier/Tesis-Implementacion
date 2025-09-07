@@ -82,8 +82,18 @@ class APIRequestHelper:
                     if not infinite_retry:
                         return None
 
+            except requests.Timeout:
+                #! No loguear timeouts para evitar spam en logs
+                if not infinite_retry:
+                    return None
+
+            except requests.ConnectionError:
+                logger.error(f"Error de conexión al endpoint {endpoint}")
+                if not infinite_retry:
+                    return None
+
             except requests.RequestException as e:
-                logger.error(f"Error de conexión al endpoint {endpoint}: {e}")
+                logger.error(f"Error de request al endpoint {endpoint}: {e}")
                 if not infinite_retry:
                     return None
 

@@ -173,6 +173,10 @@ class SumoAPI(Flask):
 
         # Si alguna simulación terminó, reiniciarlas DESPUÉS de capturar el estado
         if done:
+            # Mostrar resumen final de métricas comparativas antes de reiniciar
+            if self.comparison_logger and self.app_s2:
+                self.comparison_logger.log_final_comparative_summary()
+
             # Reiniciar S1
             if done_s1:
                 self.app_s1.reset()

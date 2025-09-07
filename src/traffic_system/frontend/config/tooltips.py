@@ -29,7 +29,7 @@ CONFIG_TOOLTIPS: dict[str, str] = {
     "deteccion.un_video.procesar": "Procesar un video en específico",
     "deteccion.un_video.guardar": "Guardar el video con los resultados de detección",
     "deteccion.un_video.zona": "Zona de detección para el video",
-    "deteccion.un_video.path_origen": "Ruta del video a procesar",
+    "deteccion.un_video.path_origen": "Ruta del video a procesar. 1080x1920-30fps o 576x1024-5fps",
     "deteccion.un_video.path_destino": "Carpeta donde se guardará el resultado",
     # Detección - Cámara
     "deteccion.procesar_camara": "Procesar la cámara en tiempo real",
@@ -128,6 +128,9 @@ CONFIG_TOOLTIPS: dict[str, str] = {
     "sumo.fixed_seed": "Semilla específica: valor fijo para reproducibilidad exacta. null = usar default SUMO (23423), número = semilla custom",
     "sumo.use_random_seed": "Semilla aleatoria: True = generar semilla basada en tiempo actual, False = usar fixed_seed o default SUMO",
     "sumo.persist_random_seed": "Persistir semilla: si use_random_seed=True, reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)",
+    # Exportación de comparaciones
+    "sumo.comparacion_export.enabled": "Activar exportación: guardar métricas comparativas DQN vs Tiempos Fijos en directorios únicos con timestamp",
+    "sumo.comparacion_export.db_path": "Ruta base: cada simulación creará comparison_YYYY-MM-DD_HH-MM-SS/comparison.db automáticamente",
     # Reportes
     "reporte.generar": "Generar reportes: activar la creación automática de estadísticas, gráficos y análisis post-simulación",
     "reporte.steps": "Intervalo de reporte: cada cuántos steps de simulación recopilar métricas. 60 = cada minuto de simulación virtual",
@@ -136,7 +139,7 @@ CONFIG_TOOLTIPS: dict[str, str] = {
     "reporte.total_vehiculos_maximo": "Umbral de vehículos totales: número mínimo de vehículos en el sistema para considerar que hay tráfico significativo",
     "reporte.zona_vehiculos_maximo": "Umbral por zona: número máximo de vehículos por zona antes de considerar saturación crítica",
     "reporte.path_reporte": "Directorio de reportes: carpeta donde se guardan archivos CSV, gráficos PNG y análisis estadísticos post-simulación",
-    "reporte.db_path_base": "Base de datos: directorio donde se almacena la BD SQLite con métricas históricas para análisis temporal",
+    "reporte.db_path_base": "Alertas de congestión: directorio donde se almacena la BD SQLite con registros de momentos críticos cuando se superaron umbrales de tráfico",
 }
 
 

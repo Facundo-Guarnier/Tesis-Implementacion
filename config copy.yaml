@@ -20,7 +20,7 @@ deteccion:
     path_destino: "results/deteccion_dataset/" #! Carpeta donde se guardarán los resultados
 
   un_video:
-    procesar: True #! Procesar un video en específico
+    procesar: False #! Procesar un video en específico
     guardar: False #! Guardar el video con los resultados
     zona: "Zona C"
     path_destino: "results/deteccion/"
@@ -209,11 +209,6 @@ sumo:
   fixed_seed: null #! Semilla específica para reproducibilidad (null = default SUMO: 23423)
   use_random_seed: False #! Usar semilla aleatoria basada en tiempo actual
   persist_random_seed: False #! Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o nueva cada vez (False)
-
-  # === EXPORTACIÓN DE COMPARACIONES DQN VS TIEMPOS FIJOS ===
-  comparacion_export:
-    enabled: True #! Activar guardado de métricas comparativas S1 vs S2 en base de datos
-    db_path: "results/comparisons/comparison.db" #! Ruta base - se creará directorio con timestamp automáticamente
 
 reporte:
   generar: True #* Generar reportes automáticos post-simulación

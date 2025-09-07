@@ -1,4 +1,3 @@
-import inspect
 import logging
 import os
 import sqlite3
@@ -35,9 +34,7 @@ class ReportService:
         - Verifica si la simulación está en curso.
         - Genera el reporte de la simulación.
         """
-        logger = logging.getLogger(
-            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
-        )
+        logger = logging.getLogger("ReportService")
 
         #! Verificar si la simulación fue exitosa
         while not self._client_api_report.is_simulation_running():
@@ -52,7 +49,7 @@ class ReportService:
         while True:
             data = self._get_data()
             if data is None:
-                logger.error("❌ Error al obtener datos del reporte. Reintentando...")
+                logger.error("Error al obtener datos del reporte. Reintentando...")
                 time.sleep(5)
                 continue
 
@@ -62,18 +59,8 @@ class ReportService:
             if should_save:
                 if self._save_report(data=data):
                     self._check_and_alert(data=data)
-                    logger.info(
-                        f"✅ Reporte guardado para step {data.steps} - Umbral de congestión superado"
-                    )
                 else:
-                    logger.error(
-                        f"❌ Error al guardar el reporte para step {data.steps}"
-                    )
-            else:
-                # Log solo en debug para evitar spam (condiciones normales)
-                logger.debug(
-                    f"📊 Step {data.steps} - Condiciones normales, no se guarda reporte"
-                )
+                    logger.error(f"Error al guardar el reporte para step {data.steps}")
 
             # Esperar un poco antes de verificar nuevamente
             time.sleep(1)  # 1 segundo entre verificaciones
@@ -85,21 +72,21 @@ class ReportService:
         """
         Crea un logger para registrar las alertas en un archivo .log.
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("ReportService")
         self.logger.setLevel(logging.INFO)
 
         log_dir = os.path.join(self._report_path)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        #! Crear un manejador de archivos con encoding UTF-8 para soportar emojis
+        #! Crear un manejador de archivos con encoding UTF-8
         file_handler = logging.FileHandler(
             os.path.join(self._report_path, "alertas.log"),
-            encoding="utf-8",  # Especificar UTF-8 para soportar caracteres Unicode
+            encoding="utf-8",
         )
         file_handler.setLevel(logging.INFO)
 
-        #! Crear un formateador para dar formato a los mensajes de registro
+        #! Crear un formateador simplificado sin el nombre largo del modulo
         formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(formatter)
 
@@ -129,9 +116,7 @@ class ReportService:
         Returns:
             ReportData | None: Datos validados de la simulación o None si hay error.
         """
-        logger = logging.getLogger(
-            f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
-        )
+        logger = logging.getLogger("ReportService")
 
         if not self._client_api_report.is_simulation_running():
             return None
@@ -146,16 +131,16 @@ class ReportService:
 
             # Validar y estructurar los datos usando el modelo ReportData
             validated_data = ReportData(**raw_data)
-            logger.info(
-                f"✅ Datos del reporte validados correctamente: steps={validated_data.steps}"
+            logger.debug(
+                f"Datos del reporte validados correctamente: steps={validated_data.steps}"
             )
             return validated_data
 
         except ValidationError as e:
-            logger.error(f"❌ Error de validación en datos del reporte: {e}")
+            logger.error(f"Error de validacion en datos del reporte: {e}")
             return None
         except Exception as e:
-            logger.error(f"❌ Error inesperado al procesar datos del reporte: {e}")
+            logger.error(f"Error inesperado al procesar datos del reporte: {e}")
             return None
 
     def _create_table(self) -> None:
@@ -255,9 +240,7 @@ class ReportService:
                     :generado_en
                 );
             """
-            logger = logging.getLogger(
-                f" {self.__class__.__name__}.{inspect.currentframe().f_code.co_name}"  # type: ignore
-            )
+            logger = logging.getLogger("ReportService")
             if not self._cursor:
                 return False
             else:
@@ -318,15 +301,16 @@ class ReportService:
                     self._db_connection.commit()
                     return True
         except Exception as e:
-            logger.error(f"❌ Error al guardar el reporte en la base de datos: {e}")
+            logger.error(f"Error al guardar el reporte en la base de datos: {e}")
             return False
 
     def _evaluate_thresholds(self, data: ReportData) -> bool:
         """
-        Evalúa si algún umbral crítico de congestión se supera.
+        Evalua si algun umbral critico de congestion se supera.
+        Retorna True solo si se debe guardar el reporte (umbral superado).
 
         Args:
-            data (ReportData): Datos validados de la simulación.
+            data (ReportData): Datos validados de la simulacion.
 
         Returns:
             bool: True si se debe guardar el reporte (umbral superado), False en caso contrario.
@@ -341,38 +325,62 @@ class ReportService:
             if zone_wait_time >= self.settings.tiempo_zona_espera_maximo:
                 return True
 
-        # 3. Verificar total de vehículos
+        # 3. Verificar total de vehiculos
         total_vehiculos = data.get_total_vehiculos()
         if total_vehiculos >= self.settings.total_vehiculos_maximo:
             return True
 
-        # 4. Verificar cantidad de vehículos por zona
-        for zone_vehicles in data.cantidad_vehiculos_por_zona.values():
+        # 4. Verificar cantidad de vehiculos por zona
+        vehiculos_ordenados = data.get_vehiculos_ordenados()
+        for zone_vehicles in vehiculos_ordenados:
             if zone_vehicles >= self.settings.zona_vehiculos_maximo:
                 return True
 
-        # Ningún umbral superado
+        # Ningun umbral superado - condiciones normales
         return False
 
     def _check_and_alert(self, data: ReportData) -> None:
         """
-        Revisa si se tiene que generar alguna alerta. Condiciones:
-        - Tiempo de espera total mayor al tiempo de espera máximo permitido.
-        - Tiempo de espera de una zona mayor al tiempo de espera máximo permitido.
+        Revisa y registra alertas cuando se superan umbrales especificos.
+        Solo registra logs cuando se detectan condiciones criticas.
 
         Args:
-            data (ReportData): Datos validados de la simulación.
+            data (ReportData): Datos validados de la simulacion.
         """
-        tiempo_espera_total = data.get_tiempo_espera_total()
+        # Definir nombres de zonas para logs más claros
+        zone_names = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
 
+        # 1. Verificar tiempo total de espera
+        tiempo_espera_total = data.get_tiempo_espera_total()
         if tiempo_espera_total > self.settings.tiempo_total_espera_maximo:
             self.logger.warning(
-                f"ALERTA Step {data.steps}: Tiempo de espera total mayor al permitido ({tiempo_espera_total})."
+                f"{data.steps}: Tiempo total espera SUPERADO - "
+                f"Valor: {tiempo_espera_total:.1f}s | Umbral: {self.settings.tiempo_total_espera_maximo}s"
             )
 
+        # 2. Verificar tiempo de espera por zona
         for i, zone_wait_time in enumerate(data.tiempos_espera):
             if zone_wait_time > self.settings.tiempo_zona_espera_maximo:
-                max_wait_zone_name = chr(ord("A") + i)  #! Convertir índice a letra
+                zone_name = zone_names[i]
                 self.logger.warning(
-                    f"ALERTA Step {data.steps}: Tiempo de espera en la zona {max_wait_zone_name} mayor permitido ({zone_wait_time})."
+                    f"{data.steps}: Zona {zone_name} tiempo espera SUPERADO - "
+                    f"Valor: {zone_wait_time:.1f}s | Umbral: {self.settings.tiempo_zona_espera_maximo}s"
+                )
+
+        # 3. Verificar total de vehiculos
+        total_vehiculos = data.get_total_vehiculos()
+        if total_vehiculos > self.settings.total_vehiculos_maximo:
+            self.logger.warning(
+                f"{data.steps}: Total vehiculos SUPERADO - "
+                f"Valor: {total_vehiculos} | Umbral: {self.settings.total_vehiculos_maximo}"
+            )
+
+        # 4. Verificar cantidad de vehiculos por zona
+        vehiculos_ordenados = data.get_vehiculos_ordenados()
+        for i, zone_vehicles in enumerate(vehiculos_ordenados):
+            if zone_vehicles > self.settings.zona_vehiculos_maximo:
+                zone_name = zone_names[i]
+                self.logger.warning(
+                    f"{data.steps}: Zona {zone_name} vehiculos SUPERADO - "
+                    f"Valor: {zone_vehicles} | Umbral: {self.settings.zona_vehiculos_maximo}"
                 )

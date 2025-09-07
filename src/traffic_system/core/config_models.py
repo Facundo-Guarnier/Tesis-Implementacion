@@ -241,11 +241,23 @@ class DecisionSettings(BaseModel):
 
 
 # --- Modelos para 'sumo' y 'reporte' ---
+
+
+class ComparacionExportSettings(BaseModel):
+    """Configuración para exportación de métricas comparativas DQN vs Tiempos Fijos."""
+
+    enabled: bool = True  # * Activar guardado de métricas comparativas
+    db_path: str = (
+        "results/comparisons/comparison.db"  # * Ruta base - se genera directorio único por sesión
+    )
+
+
 class SumoSettings(BaseModel):
     simular: bool  # * Iniciar la simulación en SUMO
     gui: bool  #! Mostrar la interfaz gráfica de SUMO
     comparar: bool  #! Comparar la simulación con la detección de objetos
     path_sumo: str  #! Path de la instalación de SUMO
+    path_mapa: str  #! Ruta del archivo de configuración del mapa SUMO (.sumocfg)
     simulation_time_limit: int
 
     # === CONFIGURACIÓN DE SEMILLAS ALEATORIAS ===
@@ -259,6 +271,9 @@ class SumoSettings(BaseModel):
         True  # * Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)
     )
 
+    # === EXPORTACIÓN DE COMPARACIONES ===
+    comparacion_export: ComparacionExportSettings
+
 
 class ReporteSettings(BaseModel):
     """Configuración del servicio de reportes de tráfico."""
@@ -270,7 +285,7 @@ class ReporteSettings(BaseModel):
     tiempo_total_espera_maximo: int  #! Tiempo de espera máximo en segundos en total
     tiempo_zona_espera_maximo: int  #! Tiempo de espera máximo en segundos por zona
     total_vehiculos_maximo: int
-    zona_vehiculos_maximo: float
+    zona_vehiculos_maximo: int
     db_path_base: str
 
 

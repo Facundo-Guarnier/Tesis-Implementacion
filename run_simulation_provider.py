@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     try:
         zonas = ZoneList()
-        config_file_path = "assets/sumo_maps/MapaDe0/mapa.sumocfg"
+        config_file_path = settings.sumo.path_mapa
 
         logger.info("Iniciando conexión Traci para la simulación principal (s1)...")
         traci_s1 = start_traci_connection(
@@ -235,7 +235,9 @@ if __name__ == "__main__":
                     load_app_settings().sumo,
                 ),
             )
-            comparison_logger = ComparisonLogger(interval_seconds=15)
+            comparison_logger = ComparisonLogger(
+                interval_seconds=settings.decision.steps
+            )
 
             # Verificar sincronización inicial
             tiempo_s1 = app_s1.traci.simulation.getTime()

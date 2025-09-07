@@ -1,14 +1,25 @@
 """
 Frontend Simplificado para el Sistema de Tráfico
 
-Aplicación Streamlit con 2 páginas: Configuración y Servicios.
+Aplicación Streamlit con 3 páginas: Configuración, Servicios y Base de Datos.
 Funcionalidad esencial sin sobre-ingeniería.
 """
 
 import atexit
+import base64
+import datetime
+import glob
+import json
+import os
+import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
@@ -36,6 +47,10 @@ def initialize_session_state() -> None:
         st.session_state.logs_refresh_interval = 4.0
         st.session_state.last_logs_update = {}
 
+        # API Testing state
+        st.session_state.api_history = []
+        st.session_state.api_base_url = "http://127.0.0.1:5000"
+
     # Asegurar que todas las variables estén inicializadas
     if "current_page" not in st.session_state:
         st.session_state.current_page = "services"
@@ -55,6 +70,10 @@ def initialize_session_state() -> None:
         st.session_state.logs_refresh_interval = 4.0
     if "last_logs_update" not in st.session_state:
         st.session_state.last_logs_update = {}
+    if "api_history" not in st.session_state:
+        st.session_state.api_history = []
+    if "api_base_url" not in st.session_state:
+        st.session_state.api_base_url = "http://127.0.0.1:5000"
 
 
 def cleanup_on_exit() -> None:
@@ -80,10 +99,16 @@ atexit.register(cleanup_on_exit)
 
 
 def render_navigation() -> str:
-    """Renderizar navegación simple con 2 opciones."""
+    """Renderizar navegación simple con 3 opciones."""
     st.sidebar.title("🚦 SemaforIA")
 
-    pages = {"🔧 Servicios": "services", "⚙️ Configuración": "config"}
+    pages = {
+        "🔧 Servicios": "services",
+        "⚙️ Configuración": "config",
+        "🧪 APIs": "api_testing",
+        "⚠️ Alertas": "database",
+        "📊 Comparaciones": "comparisons",
+    }
     current_page: str = st.session_state.current_page
     st.sidebar.markdown("---")
 
@@ -240,14 +265,6 @@ def render_service_logs(service_name: str, controller: Any) -> None:
                 )
                 st.session_state.logs_refresh_interval = refresh_interval
 
-            with col2:
-                service_running = controller.get_service_status(service_name)
-                if service_running:
-                    st.success("🟢 Servicio activo")
-                else:
-                    st.warning("⚠️ Servicio detenido")
-                    st.caption("Live logs pausado")
-
         try:
             log_path = controller.get_service_log_path(service_name)
             st.caption(f"📁 Archivo: {log_path}")
@@ -272,7 +289,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
         else:
             show_recent_first = st.checkbox(
                 "📄 Mostrar recientes primero",
-                value=False,
+                value=True,
                 key=f"recent_first_{service_name}",
                 help="Los logs más nuevos aparecen arriba (evita hacer scroll manual)",
             )
@@ -293,7 +310,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.text_area(
                 "🖥️ Logs del servicio",
                 value=log_text,
-                height=300,
+                height=400,
                 key=text_area_key,
                 help="Los logs se actualizan automáticamente. El orden cronológico intenta mostrar desde el final por defecto.",
                 disabled=True,
@@ -409,58 +426,12 @@ def render_services_page() -> None:
                     "Servicios Activos",
                     f"{summary['running_services']}/{summary['total_services']}",
                 )
-            with col2:
-                if summary["all_running"]:
-                    st.success("✅ Todos activos")
-                elif summary["all_stopped"]:
-                    st.error("❌ Todos detenidos")
-                else:
-                    st.warning("⚠️ Algunos activos")
             with col3:
                 if st.button(
                     "🔄 Actualizar Estado",
                     help="Verificar estado real de todos los servicios",
                 ):
                     summary = force_services_check()
-                    st.rerun()
-
-            st.markdown("---")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("▶️ Iniciar Todos", use_container_width=True):
-                    with st.spinner("⚙️ Iniciando todos los servicios..."):
-                        results = controller.start_all_services()
-                        for service, (success, message) in results.items():
-                            if success:
-                                st.success(
-                                    f"✅ {controller.get_service_display_name(service)}"
-                                )
-                            else:
-                                st.error(
-                                    f"❌ {controller.get_service_display_name(service)}: {message}"
-                                )
-                    update_multiple_services_cache_status(results, True)
-                    # Verificar estado automáticamente después de la operación
-                    auto_refresh_services_status()
-                    st.rerun()
-
-            with col2:
-                if st.button("⏹️ Detener Todos", use_container_width=True):
-                    with st.spinner("🛑 Deteniendo todos los servicios..."):
-                        results = controller.stop_all_services()
-                        for service, (success, message) in results.items():
-                            if success:
-                                st.success(
-                                    f"✅ {controller.get_service_display_name(service)}"
-                                )
-                            else:
-                                st.error(
-                                    f"❌ {controller.get_service_display_name(service)}: {message}"
-                                )
-                    update_multiple_services_cache_status(results, False)
-                    # Verificar estado automáticamente después de la operación
-                    auto_refresh_services_status()
                     st.rerun()
 
             st.markdown("---")
@@ -1646,6 +1617,12 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     sumo.get("path_sumo", "/usr/share/sumo"),
                     config,
                 )
+                render_field_widget(
+                    "sumo.path_mapa",
+                    "Path Mapa",
+                    sumo.get("path_mapa", "assets/sumo_maps/MapaDe0/mapa.sumocfg"),
+                    config,
+                )
             with col2:
                 render_field_widget(
                     "sumo.comparar",
@@ -1684,18 +1661,32 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
 
+            st.markdown("---")
+            st.subheader("Exportación de Comparaciones")
+            if "comparacion_export" in sumo:
+                comparacion = sumo["comparacion_export"]
+                col1, col2 = st.columns(2)
+                with col1:
+                    render_field_widget(
+                        "sumo.comparacion_export.enabled",
+                        "Exportar Comparaciones a SQLite",
+                        comparacion.get("enabled", False),
+                        config,
+                    )
+                with col2:
+                    render_field_widget(
+                        "sumo.comparacion_export.db_path",
+                        "Ruta Base de Datos",
+                        comparacion.get("db_path", "results/comparacion_metrics.db"),
+                        config,
+                    )
+
     with st.expander("📊 Reportes", expanded=False):
         if "reporte" in config:
             reporte = config["reporte"]
             col1, col2 = st.columns(2)
 
             with col1:
-                render_field_widget(
-                    "reporte.steps",
-                    "Steps por Reporte",
-                    reporte.get("steps", 60),
-                    config,
-                )
                 render_field_widget(
                     "reporte.tiempo_total_espera_maximo",
                     "Tiempo Espera Total Máx",
@@ -1709,16 +1700,28 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
                 render_field_widget(
+                    "reporte.db_path_base",
+                    "Path Base DB",
+                    reporte.get("db_path_base", "results/reportes/db"),
+                    config,
+                )
+                render_field_widget(
+                    "reporte.steps",
+                    "Steps por Reporte",
+                    reporte.get("steps", 60),
+                    config,
+                )
+            with col2:
+                render_field_widget(
                     "reporte.total_vehiculos_maximo",
                     "Vehículos Totales Máx",
                     reporte.get("total_vehiculos_maximo", 50),
                     config,
                 )
-            with col2:
                 render_field_widget(
                     "reporte.zona_vehiculos_maximo",
                     "Vehículos Zona Máx",
-                    reporte.get("zona_vehiculos_maximo", 200.0),
+                    reporte.get("zona_vehiculos_maximo", 200),
                     config,
                 )
                 render_field_widget(
@@ -1727,12 +1730,1557 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     reporte.get("path_reporte", "results/reportes"),
                     config,
                 )
-                render_field_widget(
-                    "reporte.db_path_base",
-                    "Path Base DB",
-                    reporte.get("db_path_base", "results/reportes/db"),
-                    config,
+
+
+def render_database_page() -> None:
+    """Renderizar página de visualización de alertas de congestión."""
+    st.title("⚠️ Alertas de Congestión")
+
+    if st.button(
+        "🔄 Refrescar Datos",
+        help="Actualizar lista de archivos de alertas",
+        key="refresh_alerts",
+    ):
+        # Limpiar cache si existe
+        if "last_alerts_refresh" in st.session_state:
+            del st.session_state["last_alerts_refresh"]
+        st.session_state["last_alerts_refresh"] = datetime.datetime.now().strftime(
+            "%H:%M:%S"
+        )
+        st.rerun()
+
+    last_refresh = st.session_state.get("last_alerts_refresh", "Nunca")
+    st.caption(f"🕒 Última actualización: {last_refresh}")
+
+    try:
+        # Buscar archivos de base de datos
+        db_pattern = "results/reportes/*/reporte.db"
+        db_files = glob.glob(db_pattern)
+
+        # Ordenar por fecha de modificación (más reciente primero)
+        if db_files:
+            db_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+        # Mostrar información de archivos encontrados
+        if not db_files:
+            st.warning("⚠️ No se encontraron registros de alertas de congestión")
+            st.info(f"📁 Buscando en: `{db_pattern}`")
+            st.info(
+                "💡 Ejecuta el servicio de reportes para generar datos cuando se superen umbrales"
+            )
+            return
+
+        # Selección de archivo de DB
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("📊 Seleccionar Sesión")
+
+        # Crear nombres amigables para los archivos
+        db_names = []
+        for db_file in db_files:
+            # Extraer el nombre del directorio padre (timestamp del reporte)
+            parent_dir = os.path.basename(os.path.dirname(db_file))
+
+            # Intentar parsear la fecha del nombre del directorio para formato más amigable
+            try:
+                # El formato típico es report_YYYY-MM-DD_HH-MM-SS
+                if parent_dir.startswith("report_"):
+                    date_part = parent_dir.replace("report_", "")
+                    # Reemplazar guiones por formato más legible
+                    formatted_date = (
+                        date_part.replace("_", " ")
+                        .replace("-", "/", 2)
+                        .replace("-", ":")
+                    )
+                    db_names.append(f"📅 {formatted_date}")
+                else:
+                    db_names.append(f"📁 {parent_dir}")
+            except Exception:
+                # Si no se puede parsear, usar el nombre original
+                db_names.append(f"📁 {parent_dir}")
+
+        selected_idx = st.sidebar.selectbox(
+            "Sesión de alertas:",
+            range(len(db_files)),
+            format_func=lambda x: f"🆕 {db_names[x]}" if x == 0 else db_names[x],
+            help="Ordenadas por fecha: la más reciente aparece primero",
+        )
+
+        selected_db = db_files[selected_idx]
+        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
+
+        # Mostrar información adicional de la sesión seleccionada
+        try:
+            file_time = os.path.getmtime(selected_db)
+            formatted_time = datetime.datetime.fromtimestamp(file_time).strftime(
+                "%d/%m/%Y %H:%M:%S"
+            )
+            st.sidebar.caption(f"🕒 Última modificación: {formatted_time}")
+
+        except Exception:
+            pass
+
+        # Conectar a la base de datos
+        try:
+            conn = sqlite3.connect(selected_db)
+
+            # Obtener información básica de la tabla
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM reporte")
+            total_records = cursor.fetchone()[0]
+
+            cursor.execute(
+                "SELECT MIN(step_simulacion), MAX(step_simulacion) FROM reporte"
+            )
+            min_step, max_step = cursor.fetchone()
+
+            # Mostrar estadísticas básicas
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("⚠️ Total Alertas", total_records)
+            with col2:
+                st.metric("⏮️ Step Mínimo", min_step if min_step else 0)
+            with col3:
+                st.metric("⏭️ Step Máximo", max_step if max_step else 0)
+
+            st.markdown("---")
+
+            # Opciones de visualización
+            st.subheader("🔍 Opciones de Visualización")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Filtro por rango de steps
+                use_step_filter = st.checkbox("📈 Filtrar por rango de steps")
+                if use_step_filter and min_step is not None and max_step is not None:
+                    step_range = st.slider(
+                        "Rango de steps:",
+                        min_value=int(min_step),
+                        max_value=int(max_step),
+                        value=(int(min_step), int(max_step)),
+                        step=1,
+                    )
+                else:
+                    step_range = None
+
+            with col2:
+                # Límite de registros
+                limit_records = st.number_input(
+                    "📝 Límite de registros a mostrar:",
+                    min_value=10,
+                    max_value=10000,
+                    value=500,
+                    step=50,
                 )
+
+                # Orden de resultados
+                order_desc = st.checkbox("📅 Más recientes primero", value=True)
+
+            # Construir consulta SQL
+            query = "SELECT * FROM reporte"
+            params = []
+
+            if use_step_filter and step_range:
+                query += " WHERE step_simulacion BETWEEN ? AND ?"
+                params.extend([step_range[0], step_range[1]])
+
+            query += f" ORDER BY step_simulacion {'DESC' if order_desc else 'ASC'}"
+            query += f" LIMIT {limit_records}"
+
+            # Cargar datos
+            with st.spinner("📊 Cargando datos..."):
+                df = pd.read_sql_query(query, conn, params=params)
+
+            if df.empty:
+                st.warning("⚠️ No se encontraron datos con los filtros aplicados")
+                return
+
+            # Mostrar tabla de datos
+            st.subheader(f"⚠️ Alertas de Congestión ({len(df)} registros)")
+
+            st.info(
+                "💡 Estos datos representan momentos donde se superaron umbrales críticos de tiempo de espera o cantidad de vehículos"
+            )
+
+            # Configurar columnas para mejor visualización
+            display_df = df.copy()
+
+            # Renombrar columnas para mejor legibilidad
+            column_mapping = {
+                "step_simulacion": "Step",
+                "estado_simulacion": "Estado",
+                "timestamp_simulacion": "Timestamp",
+                "total_tiempo_espera": "Tiempo Espera Total",
+                "total_vehiculos": "Vehículos Total",
+                "generado_en": "Generado En",
+            }
+
+            # Agregar columnas de zonas más legibles
+            for zone in ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]:
+                column_mapping[f"zona_{zone}_tiempo_espera"] = (
+                    f"Zona {zone.upper()} - Tiempo"
+                )
+                column_mapping[f"zona_{zone}_vehiculos"] = (
+                    f"Zona {zone.upper()} - Vehículos"
+                )
+                column_mapping[
+                    f'estado_semaforo_{["1", "2", "3", "4"][ord(zone) - ord("a")] if ord(zone) - ord("a") < 4 else "1"}'
+                ] = f'Semáforo {["1", "2", "3", "4"][ord(zone) - ord("a")] if ord(zone) - ord("a") < 4 else "1"}'
+
+            # Aplicar renombrado solo a columnas que existen
+            existing_mapping = {
+                k: v for k, v in column_mapping.items() if k in display_df.columns
+            }
+            display_df = display_df.rename(columns=existing_mapping)
+
+            # Mostrar tabla interactiva
+            st.dataframe(display_df, use_container_width=True, height=400)
+
+            # Gráficos de análisis
+            st.markdown("---")
+            st.subheader("📈 Análisis Visual")
+
+            tab1, tab2 = st.tabs(["🕐 Tiempos de Espera", "🚗 Cantidad de Vehículos"])
+
+            with tab1:
+                st.subheader("⏱️ Evolución de Tiempos de Espera")
+
+                if (
+                    "Tiempo Espera Total" in display_df.columns
+                    and "Step" in display_df.columns
+                ):
+                    # Gráfico de tiempo total
+                    chart_data = display_df.set_index("Step")["Tiempo Espera Total"]
+                    st.line_chart(chart_data)
+
+                    # Gráfico por zonas (primeras 6 zonas para no saturar)
+                    zone_columns = [
+                        col
+                        for col in display_df.columns
+                        if "Zona" in col and "Tiempo" in col
+                    ][:6]
+                    if zone_columns:
+                        st.subheader("🗺️ Tiempos de Espera por Zona (A-F)")
+                        zone_data = display_df.set_index("Step")[zone_columns]
+                        st.line_chart(zone_data)
+
+            with tab2:
+                st.subheader("🚗 Evolución de Cantidad de Vehículos")
+
+                if (
+                    "Vehículos Total" in display_df.columns
+                    and "Step" in display_df.columns
+                ):
+                    # Gráfico de vehículos total
+                    chart_data = display_df.set_index("Step")["Vehículos Total"]
+                    st.line_chart(chart_data)
+
+                    # Gráfico por zonas (primeras 6 zonas)
+                    vehicle_columns = [
+                        col
+                        for col in display_df.columns
+                        if "Zona" in col and "Vehículos" in col
+                    ][:6]
+                    if vehicle_columns:
+                        st.subheader("🗺️ Vehículos por Zona (A-F)")
+                        vehicle_data = display_df.set_index("Step")[vehicle_columns]
+                        st.line_chart(vehicle_data)
+
+            # Opción de descarga
+            st.markdown("---")
+            st.subheader("💾 Exportar Alertas")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Descargar CSV
+                csv_data = df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Descargar alertas como CSV",
+                    data=csv_data,
+                    file_name=f"alertas_congestion_{db_names[selected_idx]}.csv",
+                    mime="text/csv",
+                )
+
+            with col2:
+                # Información del archivo
+                st.info(f"📍 Ubicación: `{selected_db}`")
+                file_size = os.path.getsize(selected_db)
+                st.caption(f"💿 Tamaño: {file_size / 1024:.1f} KB")
+
+            conn.close()
+
+        except sqlite3.Error as e:
+            st.error(f"❌ Error conectando a la base de datos: {e}")
+        except Exception as e:
+            st.error(f"❌ Error procesando datos: {e}")
+
+    except Exception as e:
+        st.error(f"❌ Error en página de base de datos: {e}")
+        log_error(f"Error en render_database_page: {e}")
+
+
+def render_comparisons_page() -> None:
+    """Renderizar página de visualización de comparaciones S1 vs S2."""
+    st.title("📊 Comparaciones S1 vs S2")
+
+    # Botón de refresco para actualizar datos
+    if st.button(
+        "🔄 Refrescar Datos",
+        help="Actualizar lista de comparaciones disponibles",
+        key="refresh_comparisons",
+    ):
+        # Limpiar cache si existe
+        if "last_comparisons_refresh" in st.session_state:
+            del st.session_state["last_comparisons_refresh"]
+        st.session_state["last_comparisons_refresh"] = datetime.datetime.now().strftime(
+            "%H:%M:%S"
+        )
+        st.rerun()
+
+    last_refresh = st.session_state.get("last_comparisons_refresh", "Nunca")
+    st.caption(f"🕒 Última actualización: {last_refresh}")
+
+    try:
+        # Buscar bases de datos de comparaciones (patrón similar a reportes)
+        db_pattern = "results/comparisons/*/comparison.db"
+        db_files = glob.glob(db_pattern)
+
+        # Mostrar información de archivos encontrados
+        if db_files:
+            # Ordenar por fecha de modificación (más nueva primero)
+            db_files.sort(key=os.path.getmtime, reverse=True)
+        else:
+            st.warning(
+                "📭 No se encontraron bases de datos de comparaciones.\n\n"
+                "Para generar datos:\n"
+                "1. Activar `sumo.comparacion_export.enabled` en Configuración\n"
+                "2. Ejecutar una simulación con `sumo.comparar=True`\n"
+                "3. Cada simulación creará su propio directorio: `results/comparisons/comparison_YYYY-MM-DD_HH-MM-SS/`"
+            )
+            return
+
+        # Sidebar para selección de base de datos
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 📊 Sesión de Comparaciones")
+
+        db_names = []
+        for db_file in db_files:
+            try:
+                parent_dir = os.path.basename(os.path.dirname(db_file))
+                # El formato típico es comparison_YYYY-MM-DD_HH-MM-SS
+                if parent_dir.startswith("comparison_"):
+                    date_part = parent_dir.replace("comparison_", "")
+                    try:
+                        # Intentar parsear el timestamp del nombre del directorio
+                        parsed_time = datetime.datetime.strptime(
+                            date_part, "%Y-%m-%d_%H-%M-%S"
+                        )
+                        formatted_time = parsed_time.strftime("%d/%m %H:%M")
+                        db_names.append(f"{formatted_time} - {parent_dir}")
+                    except ValueError:
+                        # Si no se puede parsear, usar fecha de archivo
+                        file_time = os.path.getmtime(db_file)
+                        formatted_time = datetime.datetime.fromtimestamp(
+                            file_time
+                        ).strftime("%d/%m %H:%M")
+                        db_names.append(f"{formatted_time} - {parent_dir}")
+                else:
+                    # Para directorios que no siguen el patrón
+                    file_time = os.path.getmtime(db_file)
+                    formatted_time = datetime.datetime.fromtimestamp(
+                        file_time
+                    ).strftime("%d/%m %H:%M")
+                    db_names.append(f"{formatted_time} - {parent_dir}")
+            except Exception:
+                # Si no se puede parsear, usar el nombre original
+                parent_dir = os.path.basename(os.path.dirname(db_file))
+                db_names.append(f"📁 {parent_dir}")
+
+        selected_idx = st.sidebar.selectbox(
+            "Sesión de comparaciones:",
+            range(len(db_files)),
+            format_func=lambda x: f"🆕 {db_names[x]}" if x == 0 else db_names[x],
+            help="Ordenadas por fecha: la más reciente aparece primero",
+        )
+
+        selected_db = db_files[selected_idx]
+        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
+
+        # Mostrar información adicional de la sesión seleccionada
+        try:
+            file_time = os.path.getmtime(selected_db)
+            formatted_time = datetime.datetime.fromtimestamp(file_time).strftime(
+                "%d/%m/%Y %H:%M:%S"
+            )
+            st.sidebar.caption(f"🕒 Última modificación: {formatted_time}")
+        except Exception:
+            pass
+
+        # Conectar a la base de datos y mostrar contenido
+        conn = sqlite3.connect(selected_db)
+
+        # Verificar qué tablas existen
+        tables_query = "SELECT name FROM sqlite_master WHERE type='table';"
+        tables_df = pd.read_sql_query(tables_query, conn)
+
+        if tables_df.empty:
+            st.warning("📭 No se encontraron tablas en la base de datos seleccionada")
+            conn.close()
+            return
+
+        # Solo métricas temporales - eliminamos pestañas innecesarias
+        if "comparacion_metricas" in tables_df["name"].values:
+            metrics_df = pd.read_sql_query(
+                "SELECT * FROM comparacion_metricas ORDER BY timestamp_simulacion", conn
+            )
+
+            if not metrics_df.empty:
+                # Convertir timestamp_simulacion a datetime para gráficas
+                metrics_df["datetime"] = pd.to_datetime(
+                    metrics_df["timestamp_simulacion"], unit="s"
+                )
+
+                # Selector de sesión
+                if "session_id" in metrics_df.columns:
+                    sessions = metrics_df["session_id"].unique()
+                    if len(sessions) > 1:
+                        selected_session = st.selectbox(
+                            "🎯 Seleccionar Sesión de Simulación:",
+                            sessions,
+                            help="Cada sesión representa una ejecución completa de simulación",
+                        )
+                        metrics_df = metrics_df[
+                            metrics_df["session_id"] == selected_session
+                        ]
+
+                # Gráfico de tiempo de espera - PANTALLA COMPLETA
+                st.markdown("#### ⏱️ Tiempo de Espera Promedio")
+                if (
+                    "s1_tiempo_actual" in metrics_df.columns
+                    and "s2_tiempo_actual" in metrics_df.columns
+                ):
+                    fig_wait = create_comparison_chart(
+                        metrics_df,
+                        "s1_tiempo_actual",
+                        "s2_tiempo_actual",
+                        "S1 (DQN)",
+                        "S2 (Fijo)",
+                        "Tiempo de Espera (s)",
+                    )
+                    st.plotly_chart(fig_wait, use_container_width=True, height=500)
+
+                # Gráfico de vehículos - PANTALLA COMPLETA
+                st.markdown("#### 🚗 Número de Vehículos Esperando")
+                if (
+                    "s1_vehiculos_actual" in metrics_df.columns
+                    and "s2_vehiculos_actual" in metrics_df.columns
+                ):
+                    fig_stops = create_comparison_chart(
+                        metrics_df,
+                        "s1_vehiculos_actual",
+                        "s2_vehiculos_actual",
+                        "S1 (DQN)",
+                        "S2 (Fijo)",
+                        "Número de Vehículos",
+                    )
+                    st.plotly_chart(fig_stops, use_container_width=True, height=500)
+
+                    # Métricas adicionales si existen
+                    if "s1_tiempo_promedio" in metrics_df.columns:
+                        st.markdown("#### 📊 Tiempo de Espera Acumulado")
+                        fig_speed = create_comparison_chart(
+                            metrics_df,
+                            "s1_tiempo_acumulado",
+                            "s2_tiempo_acumulado",
+                            "S1 (DQN)",
+                            "S2 (Fijo)",
+                            "Tiempo Acumulado (s)",
+                        )
+                        st.plotly_chart(fig_speed, use_container_width=True)
+
+                # Organizar estadísticas en tablas claras por métrica
+                st.markdown("---")
+
+                # Obtener la última fila para estadísticas
+                latest_metrics = metrics_df.iloc[-1] if not metrics_df.empty else None
+
+                if latest_metrics is not None:
+                    # TABLA 1: TIEMPO DE ESPERA
+                    st.markdown("### ⏱️ Estadísticas de Tiempo de Espera")
+
+                    # Obtener valores para calcular porcentajes
+                    s1_tiempo_promedio = latest_metrics.get("s1_tiempo_promedio", 0)
+                    s2_tiempo_promedio = latest_metrics.get("s2_tiempo_promedio", 0)
+                    s1_tiempo_mediana = latest_metrics.get("s1_tiempo_mediana", 0)
+                    s2_tiempo_mediana = latest_metrics.get("s2_tiempo_mediana", 0)
+                    s1_tiempo_p95 = latest_metrics.get("s1_tiempo_p95", 0)
+                    s2_tiempo_p95 = latest_metrics.get("s2_tiempo_p95", 0)
+                    s1_tiempo_std = latest_metrics.get("s1_tiempo_std", 0)
+                    s2_tiempo_std = latest_metrics.get("s2_tiempo_std", 0)
+
+                    # Calcular porcentajes de mejora (valores positivos = mejora para DQN)
+                    def calcular_mejora_porcentual(s1_val: float, s2_val: float) -> str:
+                        """Calcular porcentaje de mejora de S1 respecto a S2."""
+                        if s2_val == 0:
+                            return "N/A"
+                        mejora = ((s2_val - s1_val) / s2_val) * 100
+                        return f"{mejora:+.1f}%"
+
+                    tiempo_stats = {
+                        "Métrica Estadística": [
+                            "Promedio (Media)",
+                            "Experiencia Típica (Mediana)",
+                            "Peor de los Casos (P95)",
+                            "Consistencia (Desv. Estándar)",
+                        ],
+                        "🤖 S1 (DQN)": [
+                            f"{s1_tiempo_promedio:.1f} s",
+                            f"{s1_tiempo_mediana:.1f} s",
+                            f"{s1_tiempo_p95:.1f} s",
+                            f"{s1_tiempo_std:.1f} s",
+                        ],
+                        "⏰ S2 (Tiempos Fijos)": [
+                            f"{s2_tiempo_promedio:.1f} s",
+                            f"{s2_tiempo_mediana:.1f} s",
+                            f"{s2_tiempo_p95:.1f} s",
+                            f"{s2_tiempo_std:.1f} s",
+                        ],
+                        "📈 Diferencia (S1 - S2)": [
+                            f"{s1_tiempo_promedio - s2_tiempo_promedio:+.1f} s",
+                            f"{s1_tiempo_mediana - s2_tiempo_mediana:+.1f} s",
+                            f"{s1_tiempo_p95 - s2_tiempo_p95:+.1f} s",
+                            f"{s1_tiempo_std - s2_tiempo_std:+.1f} s",
+                        ],
+                        "📊 % Mejora": [
+                            calcular_mejora_porcentual(
+                                s1_tiempo_promedio, s2_tiempo_promedio
+                            ),
+                            calcular_mejora_porcentual(
+                                s1_tiempo_mediana, s2_tiempo_mediana
+                            ),
+                            calcular_mejora_porcentual(s1_tiempo_p95, s2_tiempo_p95),
+                            calcular_mejora_porcentual(s1_tiempo_std, s2_tiempo_std),
+                        ],
+                    }
+
+                    tiempo_df = pd.DataFrame(tiempo_stats)
+                    st.dataframe(tiempo_df, use_container_width=True, hide_index=True)
+
+                    # TABLA 2: CANTIDAD DE VEHÍCULOS
+                    st.markdown("### 🚗 Estadísticas de Cantidad de Vehículos")
+
+                    # Obtener valores para calcular porcentajes
+                    s1_vehiculos_promedio = latest_metrics.get(
+                        "s1_vehiculos_promedio", 0
+                    )
+                    s2_vehiculos_promedio = latest_metrics.get(
+                        "s2_vehiculos_promedio", 0
+                    )
+                    s1_vehiculos_mediana = latest_metrics.get("s1_vehiculos_mediana", 0)
+                    s2_vehiculos_mediana = latest_metrics.get("s2_vehiculos_mediana", 0)
+                    s1_vehiculos_p95 = latest_metrics.get("s1_vehiculos_p95", 0)
+                    s2_vehiculos_p95 = latest_metrics.get("s2_vehiculos_p95", 0)
+                    s1_vehiculos_std = latest_metrics.get("s1_vehiculos_std", 0)
+                    s2_vehiculos_std = latest_metrics.get("s2_vehiculos_std", 0)
+
+                    vehiculos_stats = {
+                        "Métrica Estadística": [
+                            "Promedio (Media)",
+                            "Experiencia Típica (Mediana)",
+                            "Peor de los Casos (P95)",
+                            "Consistencia (Desv. Estándar)",
+                        ],
+                        "🤖 S1 (DQN)": [
+                            f"{s1_vehiculos_promedio:.1f}",
+                            f"{s1_vehiculos_mediana:.1f}",
+                            f"{s1_vehiculos_p95:.1f}",
+                            f"{s1_vehiculos_std:.1f}",
+                        ],
+                        "⏰ S2 (Tiempos Fijos)": [
+                            f"{s2_vehiculos_promedio:.1f}",
+                            f"{s2_vehiculos_mediana:.1f}",
+                            f"{s2_vehiculos_p95:.1f}",
+                            f"{s2_vehiculos_std:.1f}",
+                        ],
+                        "📈 Diferencia (S1 - S2)": [
+                            f"{s1_vehiculos_promedio - s2_vehiculos_promedio:+.1f}",
+                            f"{s1_vehiculos_mediana - s2_vehiculos_mediana:+.1f}",
+                            f"{s1_vehiculos_p95 - s2_vehiculos_p95:+.1f}",
+                            f"{s1_vehiculos_std - s2_vehiculos_std:+.1f}",
+                        ],
+                        "📊 % Mejora": [
+                            calcular_mejora_porcentual(
+                                s1_vehiculos_promedio, s2_vehiculos_promedio
+                            ),
+                            calcular_mejora_porcentual(
+                                s1_vehiculos_mediana, s2_vehiculos_mediana
+                            ),
+                            calcular_mejora_porcentual(
+                                s1_vehiculos_p95, s2_vehiculos_p95
+                            ),
+                            calcular_mejora_porcentual(
+                                s1_vehiculos_std, s2_vehiculos_std
+                            ),
+                        ],
+                    }
+
+                    vehiculos_df = pd.DataFrame(vehiculos_stats)
+                    st.dataframe(
+                        vehiculos_df, use_container_width=True, hide_index=True
+                    )
+
+                    # Interpretación de las estadísticas
+                    st.markdown("### 💡 ¿Qué significan estas métricas?")
+
+                    st.markdown(
+                        """
+                    **📊 Estadísticas:**
+                    - **Promedio**: Valor típico esperado
+                    - **Mediana**: 50% de casos están por debajo
+                    - **P95**: Solo el 5% de casos superan este valor
+                    - **Desv. Estándar**: Qué tan variable es el sistema (menor = más predecible)
+                    """
+                    )
+
+            else:
+                st.info("📭 No hay datos de métricas temporales disponibles")
+        else:
+            st.info("📭 Tabla 'comparacion_metricas' no encontrada")
+
+        conn.close()
+
+    except Exception as e:
+        st.error(f"❌ Error al cargar comparaciones: {e}")
+        log_error(f"Error en render_comparisons_page: {e}")
+
+
+def create_comparison_table(summary_df: pd.DataFrame, metrics_df: pd.DataFrame) -> None:
+    """Crear tabla comparativa clara con porcentajes de mejora."""
+    if summary_df.empty:
+        st.warning("📭 No hay datos de resumen para comparar")
+        return
+
+    if metrics_df.empty:
+        st.warning("📭 No hay datos de métricas para comparar")
+        return
+
+    # Calcular promedios de las métricas temporales para la tabla
+    s1_tiempo_promedio = metrics_df["s1_tiempo_actual"].mean()
+    s2_tiempo_promedio = metrics_df["s2_tiempo_actual"].mean()
+    s1_vehiculos_promedio = metrics_df["s1_vehiculos_actual"].mean()
+    s2_vehiculos_promedio = metrics_df["s2_vehiculos_actual"].mean()
+
+    # Estadísticas adicionales de las métricas temporales
+    s1_tiempo_std = metrics_df["s1_tiempo_actual"].std()
+    s2_tiempo_std = metrics_df["s2_tiempo_actual"].std()
+    s1_tiempo_p95 = metrics_df["s1_tiempo_actual"].quantile(0.95)
+    s2_tiempo_p95 = metrics_df["s2_tiempo_actual"].quantile(0.95)
+    s1_tiempo_mediana = metrics_df["s1_tiempo_actual"].median()
+    s2_tiempo_mediana = metrics_df["s2_tiempo_actual"].median()
+
+    # Extraer datos para la tabla
+    data_comparison = {
+        "Métrica": [
+            "⏱️ Tiempo Promedio (s)",
+            "🚗 Congestión Promedio",
+            "📊 Consistencia Tiempo (Desv.Est)",
+            "📈 P95 Tiempo Espera (s)",
+            "🎯 Mediana Tiempo (s)",
+        ],
+        "🤖 DQN": [
+            f"{s1_tiempo_promedio:.1f}",
+            f"{s1_vehiculos_promedio:.1f}",
+            f"{s1_tiempo_std:.1f}",
+            f"{s1_tiempo_p95:.1f}",
+            f"{s1_tiempo_mediana:.1f}",
+        ],
+        "⏰ Tiempos Fijos": [
+            f"{s2_tiempo_promedio:.1f}",
+            f"{s2_vehiculos_promedio:.1f}",
+            f"{s2_tiempo_std:.1f}",
+            f"{s2_tiempo_p95:.1f}",
+            f"{s2_tiempo_mediana:.1f}",
+        ],
+        "📈 Mejora (%)": [],
+    }
+
+    # Calcular mejoras y estados
+    metricas_valores = [
+        (s1_tiempo_promedio, s2_tiempo_promedio),
+        (s1_vehiculos_promedio, s2_vehiculos_promedio),
+        (s1_tiempo_std, s2_tiempo_std),  # Para desviación, menor es mejor
+        (s1_tiempo_p95, s2_tiempo_p95),
+        (s1_tiempo_mediana, s2_tiempo_mediana),
+    ]
+
+    for _, (s1_val, s2_val) in enumerate(metricas_valores):
+        if s2_val > 0:
+            mejora = ((s2_val - s1_val) / s2_val) * 100
+            data_comparison["📈 Mejora (%)"].append(f"{mejora:+.1f}%")
+
+        else:
+            data_comparison["📈 Mejora (%)"].append("N/A")
+
+    comparison_df = pd.DataFrame(data_comparison)
+
+    st.markdown("### 📊 Tabla Comparativa Detallada")
+    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+
+def create_executive_summary(
+    summary_df: pd.DataFrame, metrics_df: pd.DataFrame
+) -> None:
+    """Crear un resumen ejecutivo fácil de entender con los hallazgos principales."""
+    st.markdown("## 🎯 Resumen Ejecutivo")
+
+    if summary_df.empty or metrics_df.empty:
+        st.warning("📭 No hay datos suficientes para el resumen ejecutivo")
+        return
+
+    # Obtener la última fila del resumen
+    latest_summary = summary_df.iloc[-1]
+
+    # Usar las columnas que realmente existen en la base de datos
+    mejora_tiempo = latest_summary.get("mejora_tiempo_porcentual", 0)
+    mejora_congestion = latest_summary.get("mejora_vehiculos_porcentual", 0)
+
+    # Calcular promedios de las métricas temporales
+    tiempo_s1 = metrics_df["s1_tiempo_actual"].mean()
+    tiempo_s2 = metrics_df["s2_tiempo_actual"].mean()
+    vehiculos_s1 = metrics_df["s1_vehiculos_actual"].mean()
+    vehiculos_s2 = metrics_df["s2_vehiculos_actual"].mean()
+
+    # Crear 3 columnas para métricas principales
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if mejora_tiempo > 0:
+            st.metric(
+                label="⏱️ Reducción Tiempo de Espera",
+                value=f"{mejora_tiempo:.1f}%",
+                delta=f"{tiempo_s2 - tiempo_s1:.1f}s menos",
+                delta_color="inverse",
+            )
+        else:
+            st.metric(
+                label="⏱️ Tiempo de Espera",
+                value=f"{abs(mejora_tiempo):.1f}%",
+                delta="Aumentó",
+                delta_color="normal",
+            )
+
+    with col2:
+        if mejora_congestion > 0:
+            st.metric(
+                label="🚗 Reducción Congestión",
+                value=f"{mejora_congestion:.1f}%",
+                delta=f"{vehiculos_s2 - vehiculos_s1:.1f} veh. menos",
+                delta_color="inverse",
+            )
+        else:
+            st.metric(
+                label="🚗 Congestión",
+                value=f"{abs(mejora_congestion):.1f}%",
+                delta="Aumentó",
+                delta_color="normal",
+            )
+
+    with col3:
+        # Calcular puntuación general
+        puntuacion = (mejora_tiempo + mejora_congestion) / 2
+        if puntuacion > 50:
+            emoji = "🟢"
+            estado = "Excelente"
+        elif puntuacion > 20:
+            emoji = "🟡"
+            estado = "Bueno"
+        elif puntuacion > 0:
+            emoji = "🟠"
+            estado = "Regular"
+        else:
+            emoji = "🔴"
+            estado = "Necesita mejoras"
+
+        st.metric(
+            label="📊 Rendimiento General",
+            value=f"{emoji} {estado}",
+            delta=f"Puntuación: {puntuacion:.1f}%",
+        )
+
+    # Detalles técnicos en expandible
+    with st.expander("🔍 Ver detalles técnicos", expanded=True):
+        col_det1, col_det2 = st.columns(2)
+
+        with col_det1:
+            st.markdown("**🤖 Sistema DQN (S1)**")
+            st.write(f"• Tiempo promedio: {tiempo_s1:.1f}s")
+            st.write(f"• Vehículos promedio: {vehiculos_s1:.1f}")
+
+        with col_det2:
+            st.markdown("**⏰ Tiempos Fijos (S2)**")
+            st.write(f"• Tiempo promedio: {tiempo_s2:.1f}s")
+            st.write(f"• Vehículos promedio: {vehiculos_s2:.1f}")
+
+    # Añadir tabla comparativa detallada
+    st.markdown("---")
+    create_comparison_table(summary_df, metrics_df)
+
+
+def create_comparison_chart(
+    df: pd.DataFrame, col1: str, col2: str, name1: str, name2: str, y_title: str
+) -> go.Figure:
+    """Crear gráfica comparativa usando timestamp_simulacion real del sistema."""
+
+    # Reducir ruido - tomar cada N puntos para gráficos más limpios
+    step = max(1, len(df) // 50)  # Máximo 50 puntos en el gráfico
+    if step > 1:
+        df_sampled = df.iloc[::step].copy()
+    else:
+        df_sampled = df.copy()
+
+    # Redondear valores para mayor claridad
+    df_sampled[col1] = df_sampled[col1].round(1)
+    df_sampled[col2] = df_sampled[col2].round(1)
+
+    # Usar timestamp_simulacion real de la base de datos
+    df_sampled = df_sampled.reset_index(drop=True)
+
+    # Verificar si existe la columna timestamp_simulacion
+    if "timestamp_simulacion" in df_sampled.columns:
+        # Usar los valores reales de timestamp de la simulación (steps, no segundos)
+        timestamps = df_sampled["timestamp_simulacion"].values
+        df_sampled["time_real"] = timestamps
+        x_axis_title = "Step de Simulación"
+        time_unit = "step"
+    else:
+        # Fallback: usar índice como referencia
+        df_sampled["time_real"] = range(len(df_sampled))
+        x_axis_title = "Índice de Registro"
+        time_unit = "idx"
+
+    fig = go.Figure()
+
+    # Usar colores más distinguibles y profesionales
+    color1 = "#1f77b4"  # Azul para DQN
+    color2 = "#ff7f0e"  # Naranja para tiempos fijos
+
+    # Líneas principales SIN marcadores para mayor claridad
+    fig.add_trace(
+        go.Scatter(
+            x=df_sampled["time_real"],  # Usar timestamp real
+            y=df_sampled[col1],
+            mode="lines",
+            name=name1,
+            line={"color": color1, "width": 4},
+            hovertemplate=f"<b>{name1}</b><br>Valor: %{{y:.1f}}<br>Tiempo: %{{x}} {time_unit}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df_sampled["time_real"],  # Usar timestamp real
+            y=df_sampled[col2],
+            mode="lines",
+            name=name2,
+            line={"color": color2, "width": 4},
+            hovertemplate=f"<b>{name2}</b><br>Valor: %{{y:.1f}}<br>Tiempo: %{{x}} {time_unit}<extra></extra>",
+        )
+    )
+
+    # Agregar líneas de tendencia
+    if len(df_sampled) > 2:  # Necesitamos al menos 3 puntos para una tendencia
+        x_vals = df_sampled["time_real"].values
+
+        # Calcular tendencia para serie 1 (DQN) usando regresión lineal
+        y1_vals = df_sampled[col1].values
+        coef1 = np.polyfit(x_vals, y1_vals, 1)  # Regresión lineal (grado 1)
+        tendencia1 = np.poly1d(coef1)(x_vals)
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_vals,
+                y=tendencia1,
+                mode="lines",
+                name=f"Tendencia {name1}",
+                line={"color": color1, "width": 2, "dash": "dash"},
+                opacity=0.7,
+                hovertemplate=f"<b>Tendencia {name1}</b><br>Valor: %{{y:.1f}}<br>Tiempo: %{{x}} {time_unit}<extra></extra>",
+            )
+        )
+
+        # Calcular tendencia para serie 2 (Tiempos Fijos)
+        y2_vals = df_sampled[col2].values
+        coef2 = np.polyfit(x_vals, y2_vals, 1)  # Regresión lineal (grado 1)
+        tendencia2 = np.poly1d(coef2)(x_vals)
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_vals,
+                y=tendencia2,
+                mode="lines",
+                name=f"Tendencia {name2}",
+                line={"color": color2, "width": 2, "dash": "dash"},
+                opacity=0.7,
+                hovertemplate=f"<b>Tendencia {name2}</b><br>Valor: %{{y:.1f}}<br>Tiempo: %{{x}} {time_unit}<extra></extra>",
+            )
+        )  # Calcular mejora porcentual y análisis de tendencias para el título
+    if len(df_sampled) > 0:
+        avg1 = df_sampled[col1].mean()
+        avg2 = df_sampled[col2].mean()
+
+        if avg2 > 0:
+            improvement = ((avg2 - avg1) / avg2) * 100
+            if improvement > 5:
+                improvement_text = f"DQN es {improvement:.1f}% mejor"
+            elif improvement < -5:
+                improvement_text = f"Tiempos Fijos son {abs(improvement):.1f}% mejores"
+            else:
+                improvement_text = f"Rendimiento similar ({improvement:.1f}%)"
+        else:
+            improvement_text = "Sin datos suficientes"
+
+        # Agregar información de tendencia si hay suficientes datos
+        if len(df_sampled) > 2:
+            x_vals = df_sampled["time_real"].values
+            y1_vals = df_sampled[col1].values
+            y2_vals = df_sampled[col2].values
+
+            # Calcular pendientes de las tendencias
+            coef1 = np.polyfit(x_vals, y1_vals, 1)
+            coef2 = np.polyfit(x_vals, y2_vals, 1)
+
+            pendiente1 = coef1[0]  # Pendiente de DQN (por segundo de simulación)
+            pendiente2 = coef2[
+                0
+            ]  # Pendiente de Tiempos Fijos (por segundo de simulación)
+
+            # Determinar tendencias (umbral dinámico basado en rango de datos)
+            rango_y1 = y1_vals.max() - y1_vals.min()
+            rango_y2 = y2_vals.max() - y2_vals.min()
+            rango_x = x_vals.max() - x_vals.min()
+
+            # Umbral dinámico: 0.1% del rango Y por unidad de tiempo
+            threshold1 = (rango_y1 * 0.001) / rango_x if rango_x > 0 else 0.001
+            threshold2 = (rango_y2 * 0.001) / rango_x if rango_x > 0 else 0.001
+
+            if abs(pendiente1) < threshold1 and abs(pendiente2) < threshold2:
+                trend_info = " | Ambos estables"
+            elif pendiente1 < -threshold1 and pendiente2 > threshold2:
+                trend_info = " | DQN mejorando, Fijos empeorando"
+            elif pendiente1 > threshold1 and pendiente2 < -threshold2:
+                trend_info = " | DQN empeorando, Fijos mejorando"
+            elif pendiente1 < pendiente2:
+                trend_info = " | DQN con mejor tendencia"
+            else:
+                trend_info = " | Tendencias similares"
+
+            improvement_text += trend_info
+    else:
+        improvement_text = "Sin datos"
+
+    # Layout LIMPIO - sin anotaciones solapadas
+    fig.update_layout(
+        title={
+            "text": f"{y_title}",
+            "x": 0.5,
+            "xanchor": "center",
+            "font": {"size": 18, "color": "white"},
+        },
+        xaxis_title=x_axis_title,  # Título dinámico basado en datos disponibles
+        yaxis_title=y_title,
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "center",
+            "x": 0.5,
+            "font": {"size": 14},
+        },
+        hovermode="x unified",
+        height=500,  # Más alto para mejor visualización
+        margin={"t": 100, "b": 60, "l": 80, "r": 60},
+    )
+
+    # Grid sutil
+    fig.update_xaxes(showgrid=True, tickfont={"size": 12})
+    fig.update_yaxes(showgrid=True, tickfont={"size": 12})
+
+    return fig
+
+
+def execute_api_request(
+    method: str, endpoint: str, data: dict | None = None
+) -> dict[str, Any]:
+    """Ejecutar una petición HTTP a la API y devolver el resultado."""
+    base_url = st.session_state.api_base_url
+    url = f"{base_url}{endpoint}"
+
+    start_time = time.time()
+
+    try:
+        if method == "GET":
+            response = requests.get(url, timeout=5)
+        elif method == "POST":
+            response = requests.post(url, json=data, timeout=5)
+        elif method == "PUT":
+            response = requests.put(url, json=data, timeout=5)
+        else:
+            raise ValueError(f"Método HTTP no soportado: {method}")
+
+        response_time = round((time.time() - start_time) * 1000, 2)
+
+        result = {
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+            "method": method,
+            "endpoint": endpoint,
+            "status_code": response.status_code,
+            "response_time_ms": response_time,
+            "success": response.status_code < 400,
+            "response_data": None,
+            "error": None,
+        }
+
+        # Intentar parsear JSON
+        try:
+            result["response_data"] = response.json()
+        except json.JSONDecodeError:
+            result["response_data"] = response.text
+
+        return result
+
+    except requests.exceptions.RequestException as e:
+        response_time = round((time.time() - start_time) * 1000, 2)
+        return {
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+            "method": method,
+            "endpoint": endpoint,
+            "status_code": None,
+            "response_time_ms": response_time,
+            "success": False,
+            "response_data": None,
+            "error": str(e),
+        }
+
+
+def get_multas_dates() -> list[str]:
+    """Obtener lista de fechas disponibles en el directorio de multas."""
+    multas_dir = Path("results/detection_results/multa")
+
+    if not multas_dir.exists():
+        return []
+
+    dates = []
+    for date_dir in multas_dir.iterdir():
+        if date_dir.is_dir():
+            dates.append(date_dir.name)
+
+    # Ordenar fechas más recientes primero
+    dates.sort(reverse=True)
+    return dates
+
+
+def get_multas_images_by_date(date: str) -> dict[str, list[str]]:
+    """Obtener todas las imágenes de multas organizadas por zona para una fecha específica."""
+    date_dir = Path(f"results/detection_results/multa/{date}")
+
+    if not date_dir.exists():
+        return {}
+
+    images_by_zone = {}
+
+    for zone_dir in date_dir.iterdir():
+        if zone_dir.is_dir():
+            zone_name = zone_dir.name
+            images = []
+
+            # Buscar imágenes en la carpeta de la zona
+            for ext in ["*.jpg", "*.jpeg", "*.png", "*.bmp"]:
+                images.extend(glob.glob(str(zone_dir / ext)))
+
+            if images:
+                # Ordenar por nombre de archivo
+                images.sort()
+                images_by_zone[zone_name] = images
+
+    return images_by_zone
+
+
+def render_multas_gallery(date: str) -> None:
+    """Renderizar galería de imágenes de multas para una fecha específica."""
+    images_by_zone = get_multas_images_by_date(date)
+
+    if not images_by_zone:
+        st.info(f"📷 No se encontraron imágenes de multas para la fecha {date}")
+        return
+
+    st.markdown(f"### 📸 Imágenes de Multas - {date}")
+
+    total_images = sum(len(images) for images in images_by_zone.values())
+    st.markdown(f"**Total:** {total_images} imágenes en {len(images_by_zone)} zonas")
+
+    # CSS para imágenes uniformes
+    st.markdown(
+        """
+    <style>
+    .uniform-image {
+        width: 100% !important;
+        height: 200px !important;
+        object-fit: cover !important;
+        border-radius: 8px;
+        border: 2px solid #ddd;
+    }
+    .uniform-image:hover {
+        border-color: #007bff;
+        cursor: pointer;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Mostrar imágenes organizadas por zona
+    for zone_name, images in images_by_zone.items():
+        with st.expander(f"📍 {zone_name} ({len(images)} imágenes)", expanded=True):
+
+            # Mostrar imágenes en grid de 3 columnas
+            cols_per_row = 3
+            for i in range(0, len(images), cols_per_row):
+                cols = st.columns(cols_per_row)
+
+                for j, col in enumerate(cols):
+                    img_index = i + j
+                    if img_index < len(images):
+                        img_path = images[img_index]
+                        img_name = Path(img_path).name
+
+                        with col:
+                            try:
+                                # Mostrar imagen uniforme usando HTML
+                                st.markdown(
+                                    f"""
+                                <div style="text-align: center; margin-bottom: 10px;">
+                                    <img src="data:image/jpeg;base64,{get_image_base64(img_path)}"
+                                         class="uniform-image"
+                                         alt="{zone_name} - {img_name}">
+                                    <br>
+                                    <small style="color: #666;">{zone_name} - {img_name}</small>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                            except Exception as e:
+                                st.error(f"❌ Error cargando imagen: {img_name}")
+                                st.caption(f"Error: {str(e)}")
+
+
+def get_image_base64(image_path: str) -> str:
+    """Convertir imagen a base64 para mostrarla en HTML."""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return ""
+
+
+def add_to_history(result: dict[str, Any]) -> None:
+    """Agregar resultado al historial de API."""
+    if "api_history" not in st.session_state:
+        st.session_state.api_history = []
+
+    st.session_state.api_history.insert(0, result)
+
+    # Mantener solo los últimos 20 registros
+    if len(st.session_state.api_history) > 20:
+        st.session_state.api_history = st.session_state.api_history[:20]
+
+
+def render_api_endpoint_card(
+    method: str,
+    endpoint: str,
+    description: str,
+    parameters: dict | None = None,
+    key_prefix: str = "",
+) -> None:
+    """Renderizar una tarjeta de endpoint estilo Postman."""
+    # Color del método HTTP
+    method_colors = {
+        "GET": "#28a745",  # Verde
+        "POST": "#ffc107",  # Amarillo/Naranja
+        "PUT": "#17a2b8",  # Azul
+        "DELETE": "#dc3545",  # Rojo
+    }
+
+    method_color = method_colors.get(method, "#6c757d")
+
+    # Crear la tarjeta visual
+    with st.container():
+        # Header del endpoint con método y URL
+        st.markdown(
+            f"""
+        <div style="
+            border: 2px solid {method_color};
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            background: linear-gradient(90deg, {method_color}15, transparent);
+        ">
+            <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                <span style="
+                    background: {method_color};
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    margin-right: 12px;
+                    font-family: monospace;
+                ">{method}</span>
+                <code style="
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    border: 1px solid {method_color}40;
+                    font-size: 14px;
+                    flex-grow: 1;
+                    opacity: 0.9;
+                ">{st.session_state.api_base_url}{endpoint}</code>
+            </div>
+            <p style="margin: 0; opacity: 0.7; font-style: italic;">{description}</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        # Parámetros y botón de ejecución
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            param_values = {}
+            if parameters:
+                for param_name, param_config in parameters.items():
+                    if param_config["type"] == "select":
+                        param_values[param_name] = st.selectbox(
+                            param_config["label"],
+                            param_config["options"],
+                            key=f"{key_prefix}_{param_name}",
+                        )
+                    elif param_config["type"] == "text":
+                        param_values[param_name] = st.text_input(
+                            param_config["label"],
+                            value=param_config.get("default", ""),
+                            key=f"{key_prefix}_{param_name}",
+                        )
+
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)  # Espaciado
+            send_clicked = st.button(
+                "🚀 SEND",
+                key=f"{key_prefix}_send",
+                type="primary",
+                use_container_width=True,
+            )
+
+    # Mostrar respuesta FUERA del contenedor para ocupar todo el ancho disponible
+    if send_clicked:
+        # Construir endpoint final con parámetros
+        final_endpoint = endpoint
+        if parameters:
+            for param_name, value in param_values.items():
+                final_endpoint = final_endpoint.replace(f"{{{param_name}}}", str(value))
+
+        # Ejecutar request
+        result = execute_api_request(method, final_endpoint)
+        add_to_history(result)
+
+        # Mostrar respuesta con ancho completo
+        st.markdown("---")
+
+        # Status y tiempo en columnas compactas
+        col_status, col_time, col_spacer = st.columns([2, 2, 6])
+        with col_status:
+            if result["success"]:
+                st.markdown(f"**Status:** :green[{result['status_code']} OK]")
+            else:
+                st.markdown(f"**Status:** :red[{result['status_code'] or 'Error'}]")
+
+        with col_time:
+            st.markdown(f"**Time:** {result['response_time_ms']} ms")
+
+        # Response body ocupando todo el ancho disponible
+        st.markdown("**Response:**")
+        if result["error"]:
+            st.error(f"Error: {result['error']}")
+        elif result["response_data"]:
+            st.code(
+                json.dumps(result["response_data"], indent=2, ensure_ascii=False),
+                language="json",
+            )
+        else:
+            st.info("No response data")
+
+
+def render_api_testing_page() -> None:
+    """Renderizar la página de testing de APIs."""
+    st.title("🧪 APIs")
+
+    # Configuración de API
+    with st.sidebar:
+        st.sidebar.markdown("---")
+        st.subheader("⚙️ Configuración")
+        st.session_state.api_base_url = st.text_input(
+            "Base URL", value=st.session_state.api_base_url, help="URL base de la API"
+        )
+
+        # Test de conectividad
+        if st.button("🔍 Test Conectividad"):
+            result = execute_api_request("GET", "/")
+            if result["success"]:
+                st.success("✅ API accesible")
+            else:
+                st.error(f"❌ Error: {result.get('error', 'No response')}")
+
+    # Tabs principales
+    tab_metricas, tab_multas, tab_historial = st.tabs(
+        ["📊 Métricas", "🚨 Multas", "📜 Historial"]
+    )
+
+    with tab_metricas:
+        st.subheader("📊 Endpoints de Métricas")
+
+        # GET /cantidad
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/cantidad",
+            description="Obtener la cantidad total de vehículos en el sistema",
+            key_prefix="cantidad_total",
+        )
+
+        st.markdown("---")
+
+        # GET /cantidad/{zona}
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/cantidad/{zona}",
+            description="Obtener la cantidad de vehículos en una zona específica",
+            parameters={
+                "zona": {
+                    "type": "select",
+                    "label": "Zona:",
+                    "options": [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ],
+                }
+            },
+            key_prefix="cantidad_zona",
+        )
+
+        st.markdown("---")
+
+        # GET /espera
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/espera",
+            description="Obtener los tiempos de espera generales del sistema",
+            key_prefix="espera_total",
+        )
+
+        st.markdown("---")
+
+        # GET /espera/{zona}
+        render_api_endpoint_card(
+            method="GET",
+            endpoint="/espera/{zona}",
+            description="Obtener los tiempos de espera en una zona específica",
+            parameters={
+                "zona": {
+                    "type": "select",
+                    "label": "Zona:",
+                    "options": [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ],
+                }
+            },
+            key_prefix="espera_zona",
+        )
+
+    with tab_multas:
+        st.subheader("🚨 Endpoints de Multas")
+
+        # POST /multas/{zona}
+        render_api_endpoint_card(
+            method="POST",
+            endpoint="/multas/{zona}",
+            description="Reportar una multa detectada en una zona específica",
+            parameters={
+                "zona": {
+                    "type": "select",
+                    "label": "Zona:",
+                    "options": [
+                        "Zona A",
+                        "Zona B",
+                        "Zona C",
+                        "Zona D",
+                        "Zona E",
+                        "Zona F",
+                        "Zona G",
+                        "Zona H",
+                        "Zona I",
+                        "Zona J",
+                        "Zona K",
+                        "Zona L",
+                    ],
+                }
+            },
+            key_prefix="multa_zona",
+        )
+
+        st.markdown("---")
+
+        # Galería de imágenes de multas
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.subheader("📸 Galería de Multas Detectadas")
+
+        with col2:
+            if st.button(
+                "🔄 Refrescar",
+                help="Actualizar lista de fechas e imágenes de multas",
+                key="refresh_multas",
+                use_container_width=True,
+            ):
+                # Limpiar cache si existe
+                if "multas_cache" in st.session_state:
+                    del st.session_state["multas_cache"]
+                st.session_state["last_multas_refresh"] = (
+                    datetime.datetime.now().strftime("%H:%M:%S")
+                )
+                st.rerun()
+
+        # Mostrar última actualización
+        last_refresh = st.session_state.get("last_multas_refresh", "Nunca")
+        st.caption(f"🕒 Última actualización: {last_refresh}")
+
+        # Obtener fechas disponibles
+        available_dates = get_multas_dates()
+
+        if not available_dates:
+            st.info(
+                "📁 No se encontraron carpetas de multas en `results/detection_results/multa/`"
+            )
+        else:
+            st.markdown(
+                "Selecciona una fecha para ver todas las imágenes de multas detectadas:"
+            )
+
+            # Obtener la fecha previamente seleccionada para mantenerla
+            previous_selected = st.session_state.get("multas_selected_date", None)
+
+            # Si la fecha previamente seleccionada ya no existe, usar la primera disponible
+            default_index = 0
+            if previous_selected and previous_selected in available_dates:
+                default_index = available_dates.index(previous_selected)
+
+            selected_date = st.selectbox(
+                "📅 Fecha:",
+                available_dates,
+                index=default_index,
+                key="multas_date_selector",
+                help="Selecciona una fecha para ver las imágenes de multas de todas las zonas",
+            )
+
+            # Guardar la fecha seleccionada en session_state
+            if selected_date:
+                st.session_state["multas_selected_date"] = selected_date
+                render_multas_gallery(selected_date)
+
+    with tab_historial:
+        st.subheader("📜 Historial de Requests")
+
+        if not st.session_state.api_history:
+            st.info("📝 No hay requests en el historial")
+        else:
+            # Botón para limpiar historial
+            if st.button("🗑️ Limpiar historial"):
+                st.session_state.api_history = []
+                st.rerun()
+
+            # Mostrar historial en formato tabla
+            for entry in st.session_state.api_history:
+                # Determinar color según success
+                status_color = "#28a745" if entry["success"] else "#dc3545"
+                method_color = "#28a745" if entry["method"] == "GET" else "#ffc107"
+
+                with st.expander(
+                    f"🕐 {entry['timestamp']} • "
+                    f"{entry['method']} {entry['endpoint']} • "
+                    f"{entry['status_code'] or 'Error'} • "
+                    f"{entry['response_time_ms']}ms"
+                ):
+                    # Header del request
+                    st.markdown(
+                        f"""
+                    <div style="
+                        background: {status_color}15;
+                        border-left: 4px solid {status_color};
+                        padding: 12px;
+                        margin: 8px 0;
+                        border-radius: 0 4px 4px 0;
+                    ">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="
+                                background: {method_color};
+                                color: white;
+                                padding: 2px 8px;
+                                border-radius: 3px;
+                                font-weight: bold;
+                                font-size: 12px;
+                            ">{entry['method']}</span>
+                            <code>{st.session_state.api_base_url}{entry['endpoint']}</code>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 14px;">
+                            <strong>Status:</strong> {entry['status_code'] or 'Connection Error'} |
+                            <strong>Time:</strong> {entry['response_time_ms']}ms |
+                            <strong>Result:</strong> {'✅ Success' if entry['success'] else '❌ Failed'}
+                        </div>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                    # Response
+                    if entry["error"]:
+                        st.error(f"**Error:** {entry['error']}")
+                    elif entry["response_data"]:
+                        st.markdown("**Response Body:**")
+                        st.code(
+                            json.dumps(
+                                entry["response_data"], indent=2, ensure_ascii=False
+                            ),
+                            language="json",
+                        )
 
 
 def main() -> None:
@@ -1753,6 +3301,12 @@ def main() -> None:
             render_services_page()
         elif current_page == "config":
             render_config_page()
+        elif current_page == "api_testing":
+            render_api_testing_page()
+        elif current_page == "database":
+            render_database_page()
+        elif current_page == "comparisons":
+            render_comparisons_page()
         else:
             st.error("❌ Página no encontrada")
 
