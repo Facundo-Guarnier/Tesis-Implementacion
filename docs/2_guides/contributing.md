@@ -69,3 +69,128 @@ Antes de hacer un commit, asegúrate de que tu código cumple con las guías de 
 
 - **Guía de estilo de código:** [`./code_style.md`](./code_style.md)
 - **Herramientas de calidad:** [`./tooling.md`](./tooling.md)
+
+## 🌐 Desarrollo del Frontend
+
+### Dependencias Específicas
+
+El frontend utiliza tecnologías adicionales incluidas en `pyproject.toml`:
+
+```python
+streamlit          # Framework web principal
+plotly             # Gráficos interactivos avanzados
+pandas             # Manipulación de datos y análisis
+numpy              # Computación numérica
+psutil             # Monitoreo de sistema y procesos
+pydantic           # Validación de configuración
+```
+
+### Estructura del Frontend
+
+```
+src/traffic_system/frontend/
+├── app.py                     # Aplicación principal con 5 pestañas
+├── config_manager.py          # Gestión de config.yaml
+├── service_controller.py      # Control de microservicios
+├── config/
+│   └── tooltips.py           # Tooltips explicativos
+└── utils/
+    └── utils.py              # Utilidades comunes
+```
+
+### Convenciones de UI/UX
+
+#### Emojis y Consistencia Visual
+```python
+# Usar emojis para identificación rápida de secciones
+st.title("🔧 Control de Servicios")
+st.subheader("⚙️ Configuración Avanzada")
+
+# Estados visuales consistentes
+🟢 # Servicio activo/funcionando
+🔴 # Servicio detenido/error
+⚠️ # Advertencia/atención requerida
+✅ # Operación exitosa
+❌ # Error/falló
+```
+
+#### Widgets y Validación
+```python
+# Widgets inteligentes según tipo de dato
+def render_field_widget(field_path: str, field_name: str, value: Any):
+    if isinstance(value, bool):
+        st.checkbox(field_name, value=value, key=widget_key)
+    elif isinstance(value, int) and "port" in field_path:
+        st.number_input(field_name, min_value=1, max_value=65535)
+    # ... más casos específicos
+```
+
+#### Session State y Estado Persistente
+```python
+# Inicializar estado de sesión correctamente
+if "app_initialized" not in st.session_state:
+    st.session_state.app_initialized = True
+    st.session_state.current_config = {}
+    # ... otros estados
+```
+
+### Testing del Frontend
+
+#### Verificación Manual
+```bash
+# Iniciar frontend en modo debug
+poetry run streamlit run run_frontend.py --logger.level debug
+
+# Verificar dependencias específicas
+poetry run python -c "import streamlit, plotly, pandas; print('✅ Frontend OK')"
+
+# Verificar puertos disponibles
+netstat -tulpn | grep 8501  # Linux
+netstat -ano | findstr 8501  # Windows
+```
+
+#### Casos de Prueba Recomendados
+1. **Validación de configuración**: Probar campos inválidos en todas las secciones
+2. **Control de servicios**: Iniciar/detener servicios y verificar logs
+3. **Navegación**: Cambiar entre pestañas sin perder estado
+4. **Responsive**: Probar en diferentes tamaños de ventana
+5. **Errores de red**: Simular servicios no disponibles
+
+### Buenas Prácticas de Desarrollo
+
+#### Manejo de Errores
+```python
+# Usar logging centralizado con emojis
+from src.traffic_system.frontend.utils import log_error
+
+try:
+    # operación riesgosa
+    resultado = operacion_compleja()
+except Exception as e:
+    log_error(f"Error en operacion_compleja: {e}")
+    st.error(f"❌ Error: {e}")
+    return None
+```
+
+#### Performance y Caching
+```python
+# Usar cache de Streamlit para operaciones costosas
+@st.cache_data(ttl=60)  # Cache por 60 segundos
+def get_services_summary():
+    return controller.get_services_summary()
+
+# Session state para evitar recálculos
+if "services_cache" not in st.session_state:
+    st.session_state.services_cache = get_services_summary()
+```
+
+#### Componentes Reutilizables
+```python
+# Crear funciones para widgets complejos reutilizables
+def render_service_status(service_name: str, is_running: bool):
+    """Renderizar estado visual consistente de servicios."""
+    if is_running:
+        st.success(f"🟢 {service_name}")
+    else:
+        st.error(f"🔴 {service_name}")
+```

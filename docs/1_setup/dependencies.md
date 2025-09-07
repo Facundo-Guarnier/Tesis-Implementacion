@@ -24,8 +24,8 @@ curl -sSL https://install.python-poetry.org | python3 -
 # Instalar todas las dependencias (desarrollo + producción)
 poetry install
 
-# Solo dependencias de producción
-poetry install --no-dev
+# Solo dependencias de producción  
+poetry install --only main
 ```
 
 ## 🛠️ Uso Diario

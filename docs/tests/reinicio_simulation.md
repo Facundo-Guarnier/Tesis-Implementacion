@@ -70,7 +70,7 @@ Se incluyen dos scripts de prueba:
 Prueba el reinicio programático directamente:
 
 ```bash
-python test_reinicio_simulation.py
+poetry run python test_reinicio_simulation.py
 ```
 
 ### 2. `test_reinicio_api.py`
@@ -79,10 +79,10 @@ Prueba el reinicio a través de la API REST:
 
 ```bash
 # Primero inicia el servidor
-python run_simulation_provider.py
+poetry run python run_simulation_provider.py
 
 # En otra terminal, ejecuta la prueba
-python test_reinicio_api.py
+poetry run python test_reinicio_api.py
 ```
 
 ## ⚙️ Configuración
@@ -155,4 +155,4 @@ print(f"Tiempo final: {app.traci.simulation.getTime()}")
 
 ---
 
-_Esta funcionalidad fue implementada el 5 de julio de 2025 para resolver el problema de reinicio en las simulaciones SUMO._
+_Esta funcionalidad fue implementada para resolver el problema de reinicio en las simulaciones SUMO._

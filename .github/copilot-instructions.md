@@ -1,215 +1,75 @@
-# Instrucciones para GitHub Copilot
+# GitHub Copilot Instructions
 
-Este proyecto es un "Sistema de Semáforos Inteligentes" que usa aprendizaje por refuerzo (DQN) para optimizar el control de tráfico implementando el simulador SUMO, con **Poetry** como gestor de dependencias y **pre-commit** para calidad automática de código.
+## 🎯 Proyecto
+Sistema semáforos inteligentes: YOLOv8 + DQN + SUMO + Streamlit
 
-## Directrices Fundamentales para Agentes de IA
-
-Como Agente de Código AI, mi objetivo primordial es asistir en la creación de software de alta calidad, mantenible y escalable, adhiriéndome estrictamente a las siguientes directrices:
-
-### 1. Coherencia y Documentación Esencial
-
-- Ante cualquier modificación, adición o eliminación de archivos considerados _críticos_ para la funcionalidad, estructura o configuración del proyecto, es **imperativo** que se actualice de forma simultánea la documentación relevante en la carpeta `docs/` y cualquier archivo de configuración o automatización específico para el comportamiento de la AI en `.github/`.
-- La documentación debe ser siempre el reflejo fiel del estado actual del código.
-- **Especial atención**: Cuando se modifiquen dependencias o configuraciones de entorno (Poetry, pre-commit), actualizar inmediatamente `docs/1_setup/dependencies.md` y `docs/2_guides/tooling.md`.
-
-### 2. Resolución de Conflictos: La Documentación es la Verdad
-
-- Si detecto una **contradicción** entre la solicitud presentada y la información existente en la documentación del proyecto o el código base actual, mi _primera acción_ será detener la ejecución de la solicitud.
-- Informaré inmediatamente sobre la discrepancia y solicitaré una aclaración o la corrección de los archivos conflictivos _antes_ de proceder con la tarea original.
-- La integridad del proyecto prevalece.
-
-### 3. Reglas Críticas de Type Safety - NO VIOLENTAS
-
-**⚠️ PROHIBICIONES ABSOLUTAS:**
-
-1. **NUNCA usar `cast()` de typing** - Es solo para análisis estático, no protege en runtime
-
-   ```python
-   # ❌ PROHIBIDO
-   from typing import cast
-   result = cast(MyType, some_function())
-
-   # ✅ CORRECTO
-   try:
-       result = MyType.model_validate(data)
-   except ValidationError as e:
-       logger.error(f"Error validando: {e}")
-       return None
-   ```
-
-2. **OBLIGATORIO: Manejo robusto de errores** - Capturar ValidationError y RequestException
-
-### 4. Principios de Diseño, Arquitectura y Calidad de Código
-
-- **DRY (Don't Repeat Yourself):** Aplicar de manera **estricta** el principio DRY. Buscar la reutilización de código existente, evitar la duplicación innecesaria de lógica y abstraer componentes o funcionalidades comunes.
-- **SOLID:** Adherirse a los principios SOLID para el diseño de software, asegurando que las clases y métodos sean cohesivos y estén debidamente desacoplados.
-- **KISS:** Mantener el código lo más simple posible, evitando complejidades innecesarias y la sobre ingeniería. La simplicidad mejora la legibilidad y mantenibilidad.
-- **Adhesión a Buenas Prácticas:** Priorizar las buenas prácticas de codificación, patrones de diseño y convenciones **definidas explícitamente en la documentación del proyecto** (ej., patrones de diseño, convenciones de nomenclatura, principios de seguridad, optimización de rendimiento, legibilidad del código, etc.).
-
-### 5. Flujo de Trabajo Colaborativo (Iterativo y Aprobación)
-
-Para escenarios donde la tarea es muy específica o ya tienes la solución clara, **puedes indicarme explícitamente que proceda directamente con la implementación de código**. Si recibo una instrucción como "Genera el código directamente", "No es necesaria la discusión, solo implementa", o similar, saltaré las fases preliminares de discusión y planificación (Clarificación Inicial, Entendimiento del Problema, Propuesta de Soluciones Teóricas y Discusión y Aprobación) y procederé _directamente_ a la implementación del código. No obstante, incluso en estos casos, mantendré la adhesión a todos los demás principios (DRY, SRP, buenas prácticas, actualización de documentación, objetividad y calidad técnica).
-
-**Cuando no se especifique lo contrario, nuestro proceso de trabajo será el siguiente y lo seguiré rigurosamente:**
-
-1.  **Clarificación Inicial:** Si existe alguna duda o ambigüedad, **preguntar** y solicitar información necesaria _antes_ de plantear cualquier solución.
-2.  **Entendimiento del Problema:** Presentar un resumen conciso del problema a resolver.
-3.  **Propuesta de Soluciones Teóricas:** Desarrollar y exponer soluciones posibles a nivel _teórico_, detallando pros, contras e implicaciones. _No iniciar implementación en este paso._
-4.  **Discusión y Aprobación:** Esperar **"OK" explícito y final** antes de proceder con la implementación.
-
-### 5. Objetividad y Crítica Constructiva
-
-- Ser **completamente objetivo, analítico y crítico**.
-- Identificar y proponer la mejor solución técnica, indicar posibles errores, ineficiencias o riesgos, incluso si esto implica contradecir una idea inicial.
-- La honestidad y la calidad técnica son primordiales.
-
-### 6. Gestión de Dependencias (Poetry) y Versiones
-
-- **NUNCA instalar dependencias directamente** con `pip install <librería>`. El gestor de dependencias principal es **Poetry**.
-- **Proceso obligatorio para nuevas dependencias**:
-  1. Utilizar `poetry add <librería>` para añadir dependencias de ejecución.
-  2. Utilizar `poetry add <librería> --group dev` o `poetry add <librería> --dev` (según tu configuración) para añadir dependencias de desarrollo.
-  3. Poetry actualizará automáticamente `pyproject.toml` y `poetry.lock`.
-- **Para versiones existentes**: Siempre verificar la versión actual en `pyproject.toml` o `poetry.lock` antes de especificar rangos.
-- **Versiones específicas vs rangos**: Usar versiones específicas (`^x.y.z`, `~x.y.z`, `==x.y.z`) según la política definida en `pyproject.toml` y las guías del proyecto. Para herramientas críticas, priorizar la exactitud.
-
-### 7. Gestión del Ciclo de Vida de la Documentación
-
-- **NO crear documentación temporal** o de "migración" que no aporte valor a largo plazo.
-- **Actualizar documentación existente** en lugar de crear archivos nuevos para los cambios.
-- **Eliminar documentación obsoleta** o irrelevante cuando se implementen cambios que la dejen desactualizada.
-- **No duplicar información**: Evitar la redundancia de contenido entre diferentes documentos o entre la documentación y el código base.
-- **No crear documentación de solución de error**: No crear documentación que describa el proceso de solución de un problema planteado por el usuario.
-
-### 8. Política de Limpieza de Archivos Obsoletos
-
-- **Eliminar inmediatamente** archivos, carpetas y configuraciones obsoletas cuando se migre a nuevas herramientas o enfoques.
-- **NO mantener "residuos"** como archivos comentados, carpetas backup, o configuraciones "por si acaso".
-- **NO dejar historial** en el código base - usar el historial de Git para recuperar versiones anteriores.
-- **Ejemplos de eliminación inmediata**:
-  - Scripts manuales al migrar a herramientas automatizadas
-  - Configuraciones deprecated al actualizar sintaxis
-  - Dependencias no utilizadas al optimizar el stack tecnológico
-- **Principio**: Mantener el proyecto limpio y enfocado solo en lo que se usa activamente.
-
-### 9. Gestión de Logs vs Prints
-
-- **NUNCA usar `print()` en código de producción**. Los prints no proporcionan control de niveles, formato uniforme, ni gestión de salida.
-- **SIEMPRE usar el sistema de logging estándar** de Python con la configuración del proyecto.
-- **Formato estándar**: Usar emojis para identificación visual rápida y formato consistente.
-
-## Arquitectura de Microservicios
-
-**Componentes principales:**
-
-- **Simulación** (`run_simulation_provider.py`): SUMO + traci, expone API REST en puerto 5000
-- **Decisión** (`run_decision_agent.py`): Agente DQN que consume APIs y controla semáforos
-- **Detección** (`run_detection_provider.py`): YOLOv8 para análisis de video (opcional)
-- **Reportes** (`run_reporting_service.py`): Métricas y comparaciones
-
-**Flujo de datos:** `Simulación ↔ Decisión ↔ Simulación` (la detección es solo para validación)
-
-## Reglas Críticas
-
-- **Configuración:** **Todo** viene de `config.yaml` validado por Pydantic en `config_models.py`
-- **Para cambiar config:** actualizar `config_models.py` PRIMERO, luego `config.yaml`
-- **APIs:** Flask con DTOs, retornar `return jsonify(response.model_dump()), status_code`
-- **Imports:** absolutos desde `src/` - ej: `from src.traffic_system.core.config_loader import load_app_settings`
-- **Logging:** usar emojis ✅❌⚠️🧪 y formato estándar del proyecto
-
-## Estructura Clave
-
+## 🏗️ Arquitectura
 ```
-run_*.py                     # Scripts de inicio
+Frontend (8501) ↔ APIs ↔ Services
+├─ Servicios      ├─ Decision Agent
+├─ Configuración  ├─ Detection
+├─ API            ├─ Simulation
+├─ Alertas        └─ Reporting
+└─ Métricas
+```
+
+## 📋 Reglas Críticas
+
+### Dependencias
+- **OBLIGATORIO**: Poetry (NUNCA pip install)
+- Comando: `poetry add <package>` | `poetry install`
+
+### Config
+- `config.yaml` validado por `src/traffic_system/core/config_models.py`
+
+### Estructura
+```
 src/traffic_system/
-├── api/                     # APIs Flask
-├── api_client/             # Clientes para consumir APIs
-├── core/config_models.py   # FUENTE DE VERDAD para configuración
-├── {decision,simulation,detection}/app.py  # Lógica principal
-config.yaml                 # Configuración validada por Pydantic
-assets/{dqn_models,sumo_maps,yolo_models}/  # Activos del proyecto
+├─ api/               # APIs REST centralizadas
+├─ api_client/        # Clientes para APIs
+├─ core/              # Código base común
+├─ decision/          # Agente de decisión DQN
+├─ detection/         # Detección YOLOv8
+├─ frontend/          # Streamlit 5 pestañas
+├─ reporting/         # Reportes y métricas
+└─ simulation/        # Simulación SUMO
 ```
 
-## Comandos Esenciales
-
+## 🚀 Comandos
 ```bash
-# Iniciar sistema
-poetry run python run_simulation_provider.py  # Terminal 1
-poetry run python run_decision_agent.py       # Terminal 2
-
-# Testing
-poetry run python test_sincronizacion_completo.py                 # Verificar sincronización
-poetry run python test_reinicio_api.py         # Probar reinicio
-
-# Calidad de código
-# NOTA: No ejecutar estos comandos desde agentes de IA, solo incluidos para referencia humana
-pre-commit run --all-files
+poetry install && poetry shell
+poetry run python run_simulation_provider.py    # Simulation
+poetry run python run_detection_provider.py     # Detection
+poetry run python run_decision_agent.py         # Agente DQN
+poetry run python run_reporting_service.py      # Reporting
+poetry run python run_frontend.py              # 8501
 ```
 
-- La lógica de la aplicación para cada componente se encuentra en `src/traffic_system/<nombre_componente>/app.py`.
-- Las APIs de Flask están definidas en `src/traffic_system/api/`.
-- Los clientes para consumir estas APIs están en `src/traffic_system/api_client/`.
+## 🔧 Frontend (Streamlit)
+- **Servicios**: Monitor servicios 🟢/🔴
+- **Configuración**: Editor YAML + validación Pydantic
+- **API**: Test endpoints REST
+- **Alertas**: Eventos tiempo real
+- **Métricas**: Dashboards Plotly
 
-### Activos y Modelos
+## 💾 Assets
+- `assets/yolo_models/` - YOLOv8 models
+- `assets/dqn_models/` - DQN trained models
+- `assets/sumo_maps/` - SUMO maps
+- `assets/detection_zones/zones.yaml`
 
-- **Modelos de Detección (YOLO)**: Se encuentran en `assets/yolo_models/`.
-- **Modelos de Decisión (DQN)**: Se guardan en `assets/dqn_models/`.
-- **Mapas de Simulación (SUMO)**: Ubicados en `assets/sumo_maps/`.
-
-### Calidad de Código y Herramientas
-
-El proyecto utiliza **pre-commit** para mantener automáticamente la calidad del código:
-
-- **Ruff**: Linter rápido que reemplaza flake8/pylint/isort, con correcciones automáticas
-- **Black**: Formateo automático de código (88 caracteres por línea)
-- **Mypy**: Verificación de tipos estáticos
-
-⚠️ **IMPORTANTE**: Los agentes de IA **NUNCA deben ejecutar** comandos de formateo o linter (pre-commit, black, ruff, mypy, etc.) - solo modificar el código sin ejecutar validaciones.
-
-Los hooks de pre-commit se ejecutan automáticamente en cada commit. Si detectan problemas, el commit se pausa hasta que se corrijan.
-
-## Flujo de Trabajo del Desarrollador
-
-### Instalación
-
-1.  Asegurar que Poetry esté instalado (`pip install poetry`).
-2.  Clonar el repositorio y navegar a la raíz del proyecto.
-3.  Instalar las dependencias del proyecto y crear el entorno virtual con Poetry: `poetry install`
-4.  Configurar pre-commit hooks: `pre-commit install`
-
-### Ejecución del Sistema
-
-Para ejecutar el sistema completo, necesitas iniciar cada servicio en un terminal separado (usando `poetry run` para asegurar que se ejecuten en el entorno virtual de Poetry):
-
+## 🔍 Debug
 ```bash
-# Terminal 1: Iniciar el proveedor de simulación
-poetry run python run_simulation_provider.py
+# Logs
+logs/services/{service}.log
 
-# Terminal 2: Iniciar el agente de decisión
-poetry run python run_decision_agent.py
+# Puertos ocupados
+netstat -ano | findstr :8501
+
+# GPU check
+poetry run python test_verificar_gpu.py
 ```
 
-**Nota**: El comportamiento de cada script (ej. entrenar vs. inferir, usar video vs. cámara) se controla a través de `config.yaml`.
-
-### Branching y Commits
-
-- Usa **Conventional Commits**: `tipo(ámbito): descripción` (ej. `feat(api): agregar endpoint de reportes`). La descripción debe ser en español, pero los nombres de las ramas y los tipos de commit deben ser en inglés.
-- Tipos principales: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
-- Ramas siguen el patrón: `tipo/descripcion-corta` (ej. `feature/deteccion-ambulancias`)
-- Todo el trabajo nuevo debe partir de la rama `develop`
-
-### Pruebas (Testing)
-
-- El proyecto contiene varios scripts de prueba en la raíz, como `test_sincronizacion_completo.py` o `test_entrenamiento_dqn_completo.py`.
-- Estas son pruebas de integración o funcionales que se ejecutan como scripts individuales: `poetry run python test_sincronizacion_completo.py`.
-- Al añadir nuevas funcionalidades, considera crear un script de prueba similar para validar la integración de los componentes.
-
-## Documentos de Referencia Adicionales
-
-Para información más detallada, consulta estos documentos específicos:
-
-- **[Guía de Inicio Rápido](../docs/quickstart.md)**: Configuración y comandos esenciales con Poetry
-- **[Gestión de Dependencias](../docs/1_setup/dependencies.md)**: Poetry y entornos virtuales
-- **[Herramientas de Desarrollo](../docs/2_guides/tooling.md)**: Pre-commit, Black, Ruff, Mypy
-- **[Estructura del Proyecto](../docs/1_setup/project_structure.md)**: Arquitectura del código
-- **[Guía de Contribución](../docs/2_guides/contributing.md)**: Estándares de desarrollo
+## 🎨 Código
+- **Python**: Black, type hints obligatorios
+- **APIs**: Flask-RESTful + JSON validation

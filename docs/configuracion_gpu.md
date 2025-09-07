@@ -39,7 +39,7 @@ nvidia-smi
 
 1. Visita: https://developer.nvidia.com/cuda-downloads
 2. Selecciona tu sistema operativo
-3. Descarga e instala CUDA Toolkit 11.8 o 12.x
+3. Descarga e instala CUDA Toolkit (versión compatible con TensorFlow)
 4. Reinicia tu sistema
 
 ### Paso 3: Instalar cuDNN
@@ -212,10 +212,10 @@ Una vez configurado, simplemente ejecuta el entrenamiento normal:
 
 ```bash
 # El código automáticamente detectará y usará GPU
-python run_decision_agent.py
+poetry run python run_decision_agent.py
 
 # O directamente el entrenamiento
-python -c "
+poetry run python -c "
 from src.traffic_system.decision.DQN.EntrenamientoDQN import EntrenamientoDQN
 trainer = EntrenamientoDQN()
 trainer.main()

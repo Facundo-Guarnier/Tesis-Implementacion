@@ -105,12 +105,12 @@ ERROR: Field validation failed for services.simulation_port: Puerto debe estar e
 
 ### Creación de Backup
 ```
-INFO: Backup created successfully: manual_20250824_143022.yaml
+INFO: Backup created successfully: manual_YYYYMMDD_HHMMSS.yaml
 ```
 
 ### Restauración de Backup con Problemas
 ```
-WARNING: User attempting to restore backup: manual_20250824_143022.yaml
+WARNING: User attempting to restore backup: manual_YYYYMMDD_HHMMSS.yaml
 ERROR: Restored configuration validation failed
 WARNING: Rolling back to pre-restore backup
 ```

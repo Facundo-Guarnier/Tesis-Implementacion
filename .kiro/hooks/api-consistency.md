@@ -28,7 +28,6 @@ Ensures consistency between API endpoints, DTOs, client implementations, and doc
 - **Error Propagation**: Validate that client errors are properly handled
 
 ### 4. Documentation Alignment
-- **API Reference**: Check that `.github/API_REFERENCE.md` matches actual endpoints
 - **Data Flow**: Verify that `.github/DATA_FLOW.md` reflects current architecture
 - **Response Examples**: Ensure documentation examples match actual DTO structures
 
@@ -77,7 +76,6 @@ Ensures consistency between API endpoints, DTOs, client implementations, and doc
 - Use structured logging with emojis: ✅ ❌ ⚠️ 🧪
 - Reference specific files and line numbers
 - Suggest fixes based on established patterns
-- Link to `.github/API_REFERENCE.md` for examples
 
 ## Project Standards Integration
 - Follow Flask patterns established in the project

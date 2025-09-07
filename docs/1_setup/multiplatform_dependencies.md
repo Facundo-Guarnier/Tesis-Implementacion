@@ -4,10 +4,7 @@ Este documento explica cómo el proyecto maneja automáticamente diferentes vers
 
 ## 📋 Problema Resuelto
 
-El proyecto necesita ejecutarse en diferentes entornos con distintas versiones de Python y dependencias:
-
-- **Windows**: Python 3.11.9 con TensorFlow 2.14.0 + dependencias específicas de Intel
-- **Linux**: Python 3.12.3 con TensorFlow 2.19.0
+El proyecto necesita ejecutarse en diferentes entornos con distintas versiones de Python y dependencias según la plataforma disponible.
 
 ## ✅ Solución Implementada
 
@@ -19,43 +16,35 @@ python = ">=3.11,<3.13"
 
 # TensorFlow con dependencias específicas por plataforma
 tensorflow = [
-    {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"},
-    {version = "==2.19.0", markers = "platform_system == 'Linux' and python_version >= '3.12'"}
+    {version = "==2.19.0", markers = "platform_system == 'Windows'"},
+    {version = "==2.19.0", extras = ["and-cuda"], markers = "platform_system == 'Linux'"}
 ]
-
-# Dependencias específicas de Windows con Python 3.11
-tensorflow-estimator = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
-tensorflow-intel = {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
-tensorflow-io-gcs-filesystem = {version = "==0.31.0", markers = "platform_system == 'Windows' and python_version < '3.12'"}
 ```
 
 ### Markers Utilizados
 
 | Marker                         | Descripción     | Ejemplo                        |
 | ------------------------------ | --------------- | ------------------------------ |
-| `platform_system == 'Windows'` | Solo en Windows | Dependencias Intel-específicas |
-| `platform_system == 'Linux'`   | Solo en Linux   | TensorFlow 2.19.0              |
-| `python_version < '3.12'`      | Python 3.11.x   | Compatibilidad con tf-io-gcs   |
-| `python_version >= '3.12'`     | Python 3.12+    | TensorFlow moderno             |
+| `platform_system == 'Windows'` | Solo en Windows | TensorFlow estándar |
+| `platform_system == 'Linux'`   | Solo en Linux   | TensorFlow con soporte CUDA              |
+| `extras = ["and-cuda"]`      | Extensiones específicas | Soporte GPU en Linux             |
 
 ## 🚀 Funcionamiento Automático
 
-### En Windows (Python 3.11.9)
-
-```bash
-poetry install  # Instala automáticamente:
-# - tensorflow==2.14.0
-# - tensorflow-estimator==2.14.0
-# - tensorflow-intel==2.14.0
-# - tensorflow-io-gcs-filesystem==0.31.0
-```
-
-### En Linux (Python 3.12.3)
+### En Windows
 
 ```bash
 poetry install  # Instala automáticamente:
 # - tensorflow==2.19.0
-# (sin dependencias específicas de Windows)
+# (versión estándar sin GPU)
+```
+
+### En Linux
+
+```bash
+poetry install  # Instala automáticamente:
+# - tensorflow[and-cuda]==2.19.0
+# (con soporte GPU NVIDIA automático)
 ```
 
 ## 🔍 Verificación
@@ -92,13 +81,13 @@ poetry install
 
 ### Agregar Nueva Plataforma
 
-Para agregar soporte para macOS con Python 3.13:
+Para agregar soporte para macOS:
 
 ```toml
 tensorflow = [
-    {version = "==2.14.0", markers = "platform_system == 'Windows' and python_version < '3.12'"},
-    {version = "==2.19.0", markers = "platform_system == 'Linux' and python_version >= '3.12'"},
-    {version = "==2.20.0", markers = "platform_system == 'Darwin' and python_version >= '3.13'"}
+    {version = "==2.19.0", markers = "platform_system == 'Windows'"},
+    {version = "==2.19.0", extras = ["and-cuda"], markers = "platform_system == 'Linux'"},
+    {version = "==2.19.0", markers = "platform_system == 'Darwin'"}
 ]
 ```
 

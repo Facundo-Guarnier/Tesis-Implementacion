@@ -193,7 +193,7 @@ ERROR: Config handler is None - configuration system not properly initialized
 
 ### Ejemplo 2: Backup Corrupto
 ```
-WARNING: Backup file is empty: manual_20250824_143022.yaml
+WARNING: Backup file is empty: manual_YYYYMMDD_HHMMSS.yaml
 ERROR: Backup file does not exist: /path/to/backup.yaml
 ```
 **Acción**: Limpiar backups corruptos

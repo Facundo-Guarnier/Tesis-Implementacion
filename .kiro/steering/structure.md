@@ -185,13 +185,8 @@ The system uses a 12-zone layout (A through L) for traffic monitoring:
 
 ### Test Execution
 ```bash
-# Individual tests
 poetry run python test_sincronizacion_completo.py
 poetry run python test_reinicio_api.py
-
-# All tests require services running:
-# Terminal 1: poetry run python run_simulation_provider.py
-# Terminal 2: poetry run python run_decision_agent.py
 ```
 
 ## Documentation Structure (`docs/`)

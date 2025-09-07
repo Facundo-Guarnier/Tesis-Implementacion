@@ -36,13 +36,13 @@ decision:
 
 ### Paso 1: Iniciar Simulación
 ```bash
-python run_simulation_provider.py
+poetry run python run_simulation_provider.py
 ```
 **Esperar hasta ver:** `Simulaciones con diferencia inicial aceptable`
 
 ### Paso 2: Iniciar Agente DQN
 ```bash
-python run_decision_agent.py
+poetry run python run_decision_agent.py
 ```
 **Esperar hasta que la simulación termine naturalmente** (según `simulation_time_limit`)
 
@@ -104,17 +104,20 @@ python run_decision_agent.py
 
 ---
 
-## 📋 Script de Validación Rápida
+## 📋 Verificación de Configuración
+
+Puedes verificar que todo esté configurado correctamente:
 
 ```bash
-python test_metricas_comparativas.py
-```
+# Verificar configuración actual
+poetry run python -c "from src.traffic_system.core.config_loader import load_app_settings; print('✅ Configuración válida')"
 
-Este script verifica:
-- ✅ Configuración correcta
-- ✅ Modelo DQN disponible
-- ✅ Instrucciones detalladas
-- ✅ Criterios de interpretación
+# Verificar modelo DQN existe
+poetry run python -c "import os; print('✅ Modelo encontrado' if os.path.exists('assets/dqn_models/') else '❌ Directorio de modelos no encontrado')"
+
+# Verificar dependencias
+poetry run python test_verify_dependencies.py
+```
 
 ---
 

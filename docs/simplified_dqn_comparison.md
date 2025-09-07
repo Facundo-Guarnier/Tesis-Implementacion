@@ -166,16 +166,20 @@ El **DQN Simplificado** elimina todas las contradicciones y complejidad excesiva
 
 ### Entrenamiento Simplificado
 ```bash
-python test_simplified_dqn.py
+# Activar configuración simplificada en config.yaml:
+# decision.entrenamiento_simplificado.entrenar: true
+poetry run python run_decision_agent.py
 ```
 
-### Comparar con Original
+### Comparar con Configuración Completa
 ```bash
-# Original (problemático)
-python run_decision_agent.py
+# Configuración completa (más técnicas avanzadas)
+# decision.entrenamiento_completo.entrenar: true
+poetry run python run_decision_agent.py
 
-# Simplificado (estable)
-python test_simplified_dqn.py
+# Configuración simplificada (estable y básica)
+# decision.entrenamiento_simplificado.entrenar: true  
+poetry run python run_decision_agent.py
 ```
 
 ### Análisis de Resultados

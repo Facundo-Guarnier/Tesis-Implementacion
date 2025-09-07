@@ -13,8 +13,8 @@ Esta guía te ayudará a configurar y ejecutar el proyecto de semáforos intelig
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/usuario/sistema-semaforos-inteligentes.git
-cd sistema-semaforos-inteligentes
+git clone <URL_DEL_REPOSITORIO>
+cd Tesis-Implementacion
 ```
 
 ### 2. Instalar Poetry
@@ -76,7 +76,30 @@ poetry run python run_decision_agent.py
 
 # Terminal 3: (Opcional) Iniciar detección de vehículos
 poetry run python run_detection_provider.py
+
+# Terminal 4: (Opcional) Iniciar servicio de reportes
+poetry run python run_reporting_service.py
 ```
+
+### Frontend Web (Opcional)
+
+Para una experiencia de configuración y monitoreo más intuitiva:
+
+```bash
+# Terminal: Iniciar interfaz web de configuración
+poetry run streamlit run run_frontend.py
+```
+
+**🌐 Acceso**: http://localhost:8501
+
+**🎯 Utilidades del Frontend**:
+- ⚙️ **Editor visual** de config.yaml con validación en tiempo real
+- 🔧 **Control de servicios** con logs en vivo
+- 🧪 **Testing de APIs** de microservicios
+- ⚠️ **Visualización de alertas** de congestión
+- 📊 **Comparaciones** de rendimiento de algoritmos
+
+> 💡 **Recomendado** para usuarios que prefieren interfaces gráficas sobre edición manual de archivos
 
 ### Verificar Configuración
 

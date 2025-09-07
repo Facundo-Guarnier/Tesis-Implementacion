@@ -81,31 +81,50 @@ poetry run python run_detection_provider.py
 
 # Terminal 4 (opcional): Iniciar reportes
 poetry run python run_reporting_service.py
+
+# Terminal 5 (opcional): Frontend web de configuración
+poetry run streamlit run run_frontend.py
 ```
 
 #### Frontend de Configuración
 
-El sistema incluye una interfaz web moderna para gestionar la configuración y servicios:
+El sistema incluye una **interfaz web moderna** basada en Streamlit para gestión completa del sistema:
 
 ```bash
 # Iniciar frontend de configuración
 poetry run streamlit run run_frontend.py
 ```
 
-**Accede a la interfaz en:** http://localhost:8501
+**🌐 Accede a la interfaz en:** http://localhost:8501
 
-**Funcionalidades del Frontend:**
-- 🏠 **Dashboard**: Métricas del sistema y estado general
-- ⚙️ **Configuración**: Editor visual con validación en tiempo real
-- 🔧 **Servicios**: Control y monitoreo de microservicios
-- 📦 **Backups**: Gestión de copias de seguridad automáticas
+**🗂️ Pestañas del Frontend:**
+- 🔧 **Servicios**: Control y monitoreo de microservicios en tiempo real
+  - Iniciar/detener servicios individuales
+  - Visualización de logs con auto-refresh configurable
+  - Monitoreo de estado, PID y tiempo de ejecución
+- ⚙️ **Configuración**: Editor visual avanzado de config.yaml
+  - Validación en tiempo real con Pydantic
+  - Widgets inteligentes específicos por tipo de dato
+  - Tooltips explicativos y manejo robusto de errores
+- 🧪 **API Testing**: Interface para probar endpoints REST
+  - Testing de disponibilidad de microservicios
+  - Historial de requests y respuestas formateadas
+  - Configuración de URL base personalizable
+- ⚠️ **Alertas**: Visualización de base de datos de congestión
+  - Análisis de alertas SQLite con filtros avanzados
+  - Gráficos temporales de tiempos de espera y vehículos
+  - Exportación de datos para análisis externo
+- 📊 **Métricas**: Comparaciones de rendimiento del sistema
+  - Análisis comparativo DQN vs tiempo fijo
+  - Métricas de entrenamiento y convergencia
+  - Reportes estadísticos detallados
 
-**Características Avanzadas:**
-- ✅ Validación en tiempo real con Pydantic
-- 🔄 Sistema de backups automáticos antes de cambios
-- 📊 Monitoreo de rendimiento y alertas
-- 🚨 Detección de crashes de servicios
-- 📋 Log de auditoría de cambios
-- 🔒 Validación de seguridad en operaciones de archivos
+**✨ Características Avanzadas:**
+- ✅ **Validación en tiempo real** con modelos Pydantic
+- � **Monitoreo avanzado** de recursos y estado de servicios
+- � **Auto-refresh** configurable para logs y métricas
+- � **Exportación de datos** en formatos CSV y gráficos
+- 🎛️ **Widgets inteligentes** que se adaptan al tipo de configuración
+- � **Detección automática** de errores y problemas de servicios
 
 Para más detalles, consulta la [documentación completa](docs/)
