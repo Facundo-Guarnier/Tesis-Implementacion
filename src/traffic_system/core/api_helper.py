@@ -23,7 +23,7 @@ class APIRequestHelper:
     de forma consistente para todos los clientes API del proyecto.
     """
 
-    DEFAULT_TIMEOUT = 300
+    DEFAULT_TIMEOUT = 30
 
     @staticmethod
     def safe_request(
@@ -82,8 +82,18 @@ class APIRequestHelper:
                     if not infinite_retry:
                         return None
 
-            except requests.RequestException:
-                logger.error(f"Error de conexion al endpoint {endpoint}")
+            except requests.Timeout:
+                #! No loguear timeouts para evitar spam en logs
+                if not infinite_retry:
+                    return None
+
+            except requests.ConnectionError:
+                logger.error(f"Error de conexión al endpoint {endpoint}")
+                if not infinite_retry:
+                    return None
+
+            except requests.RequestException as e:
+                logger.error(f"Error de request al endpoint {endpoint}: {e}")
                 if not infinite_retry:
                     return None
 
