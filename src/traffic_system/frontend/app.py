@@ -3040,8 +3040,8 @@ def render_api_testing_page() -> None:
                 st.error(f"❌ Error: {result.get('error', 'No response')}")
 
     # Tabs principales
-    tab_metricas, tab_multas, tab_historial = st.tabs(
-        ["📊 Métricas", "🚨 Multas", "📜 Historial"]
+    tab_multas, tab_metricas, tab_historial = st.tabs(
+        ["🚨 Multas", "📊 Métricas", "📜 Historial"]
     )
 
     with tab_metricas:
