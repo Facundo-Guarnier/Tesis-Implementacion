@@ -71,6 +71,14 @@ class DetectorService:
         self._fines_folder_created = False
         self.__fines_path = ""  # Se inicializa cuando sea necesario
 
+        # Sistema de histéresis para prevenir ruido en detecciones de líneas
+        self._vehicle_crossing_history: dict[int, dict[str, str | float]] = {}
+        # Tiempo en segundos para ignorar direcciones opuestas
+        self._hysteresis_time_seconds = 2.0
+
+        # Contador para limpieza periódica del historial de cruzamientos
+        self._cleanup_counter: int = 0
+
     def _create_fines_folder(self) -> None:
         """
         Crea la carpeta de multas con el nuevo formato si no existe.
@@ -404,14 +412,27 @@ class DetectorService:
         - Dibuja una box por cada objeto.
         - Las etiquetas de tiempo están deshabilitadas para limpiar la visualización.
         """
-        # Nota: Se eliminó la lógica de etiquetas de tiempo para limpiar la visualización
-        # Solo se mantienen los bounding boxes sin texto arriba
-
         frame = self.bounding_box_annotator.annotate(scene=frame, detections=detections)
-        # frame = self.label_annotator.annotate(
-        #     scene=frame, detections=detections, labels=labels
-        # )
         return frame
+
+    def _draw_line_zones_with_counters(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Dibuja las líneas de multa. Si _show_debug_counters=True muestra contadores,
+        si no, dibuja líneas simples sin contadores.
+
+        Args:
+            frame: Frame donde dibujar las líneas
+
+        Returns:
+            Frame con las líneas de multa dibujadas
+        """
+        frame_with_lines = frame.copy()
+
+        for line_zone in self.line_zones:
+            frame_with_lines = self.line_zone_annotator.annotate(
+                frame=frame_with_lines, line_counter=line_zone
+            )
+        return frame_with_lines
 
     def _draw_line_zones_without_counters(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -442,6 +463,76 @@ class DetectorService:
 
         return frame_with_lines
 
+    def _should_process_line_crossing(self, tracker_id: int, direction: str) -> bool:
+        """
+        Implementa histéresis temporal para prevenir ruido en detecciones de líneas.
+        LÓGICA CORREGIDA: Una vez que un vehículo cruza en CUALQUIER dirección,
+        se ignoran TODOS los cruzamientos de ese vehículo por X segundos.
+
+        Esto previene el problema donde el bbox se achica y causa múltiples
+        cruzamientos del mismo vehículo.
+
+        Args:
+            tracker_id: ID del objeto trackeado
+            direction: 'in' o 'out'
+
+        Returns:
+            True si la detección debe procesarse, False si debe ignorarse por histéresis
+        """
+        current_time = time.time()
+
+        # Si es la primera vez que vemos este tracker_id, permitir la detección
+        if tracker_id not in self._vehicle_crossing_history:
+            self._vehicle_crossing_history[tracker_id] = {
+                "direction": direction,
+                "timestamp": current_time,
+            }
+            return True
+
+        last_crossing = self._vehicle_crossing_history[tracker_id]
+        time_since_last = current_time - float(last_crossing["timestamp"])
+
+        # Si ha pasado suficiente tiempo, permitir la detección
+        if time_since_last >= self._hysteresis_time_seconds:
+            self._vehicle_crossing_history[tracker_id] = {
+                "direction": direction,
+                "timestamp": current_time,
+            }
+            return True
+
+        # LÓGICA CORREGIDA: Si NO ha pasado suficiente tiempo, ignorar CUALQUIER cruzamiento
+        # (sin importar si es la misma dirección o dirección opuesta)
+        self.logger.debug(
+            f"🔇 Ignorando cruzamiento {direction} de tracker {tracker_id} "
+            f"(último cruzamiento {last_crossing['direction']} hace {time_since_last:.2f}s)"
+        )
+        return False
+
+    def _cleanup_old_crossing_history(self) -> None:
+        """
+        Limpia entradas del historial de cruzamientos que son muy antiguas.
+        Evita memory leaks manteniendo solo entradas recientes.
+        """
+        current_time = time.time()
+        cleanup_threshold = (
+            self._hysteresis_time_seconds * 3
+        )  # Mantener 3x el tiempo de histéresis
+
+        # Crear lista de tracker_ids a eliminar para evitar modificar dict durante iteración
+        to_remove = [
+            tracker_id
+            for tracker_id, crossing_data in self._vehicle_crossing_history.items()
+            if current_time - float(crossing_data["timestamp"]) > cleanup_threshold
+        ]
+
+        for tracker_id in to_remove:
+            del self._vehicle_crossing_history[tracker_id]
+
+        if to_remove:
+            self.logger.debug(
+                f"🧹 Limpiados {len(to_remove)} registros antiguos del historial de cruzamientos"
+            )
+
     def _draw_fine_lines_only(self, frame: np.ndarray) -> np.ndarray:
         """
         Dibuja únicamente las líneas de multa en un frame limpio.
@@ -452,6 +543,7 @@ class DetectorService:
         Returns:
             Frame con solo las líneas de multa dibujadas
         """
+        # return self._draw_line_zones_without_counters(frame)
         return self._draw_line_zones_without_counters(frame)
 
     def _process_fines(
@@ -473,7 +565,19 @@ class DetectorService:
             crossed_in, crossed_out = line_zone.trigger(detections)
             if detections.tracker_id is not None:
                 for i, tracker_id in enumerate(detections.tracker_id):
-                    if crossed_out[i]:  #! Verificar si el objeto cruzó la línea
+                    # Aplicar histéresis temporal para prevenir ruido TANTO para "in" como "out"
+                    should_process_out = crossed_out[
+                        i
+                    ] and self._should_process_line_crossing(tracker_id, "out")
+
+                    # IMPORTANTE: También registrar "in" en histéresis (aunque no se procese)
+                    # para prevenir "out" inmediatos después de "in"
+                    if crossed_in[i]:
+                        self._should_process_line_crossing(tracker_id, "in")
+
+                    if (
+                        should_process_out
+                    ):  #! Verificar si el objeto cruzó la línea (con histéresis)
                         idx = np.where(detections.tracker_id == tracker_id)[0][0]
                         bbox = detections.xyxy[idx]
                         # class_id = detections.class_id[idx]  # Variable no utilizada
@@ -502,7 +606,8 @@ class DetectorService:
                             f"🚨 Multa guardada (imagen limpia): {file_name}"
                         )
 
-        # Dibujar líneas sin contadores en el frame de visualización (una sola vez, fuera del bucle)
+        # TODO: TEMPORAL - Para debug de direcciones, cambiar entre estos dos métodos:
+        # frame = self._draw_line_zones_with_counters(frame)
         frame = self._draw_line_zones_without_counters(frame)
 
         return frame
@@ -560,6 +665,12 @@ class DetectorService:
             # Cuando no hay detecciones activas, limpiar métricas
             self.detection_times_fps_normalized.clear()
             self._update_zone_metrics(0, 0)
+
+        # Limpieza periódica del historial de cruzamientos (cada ~100 frames)
+        self._cleanup_counter += 1
+
+        if self._cleanup_counter % 100 == 0:
+            self._cleanup_old_crossing_history()
 
         return frame
 
