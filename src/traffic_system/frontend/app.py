@@ -673,7 +673,10 @@ def render_field_widget(
             )
         elif isinstance(value, float):
             # Determinar precisión basada en el tipo de campo
-            if "learning_rate" in field_path.lower() or "lr" in field_path.lower():
+            if "vehicle_scale" in field_path.lower():
+                step = 0.01
+                format_str = "%.2f"
+            elif "learning_rate" in field_path.lower() or "lr" in field_path.lower():
                 # Learning rates necesitan más precisión
                 step = 0.00001 if value < 0.01 else 0.0001
                 format_str = "%.6f"
@@ -1628,6 +1631,12 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     "sumo.comparar",
                     "Modo Comparación",
                     sumo.get("comparar", False),
+                    config,
+                )
+                render_field_widget(
+                    "sumo.vehicle_scale",
+                    "Escalado de Vehículos",
+                    sumo.get("vehicle_scale", 1.0),
                     config,
                 )
                 render_field_widget(

@@ -124,6 +124,7 @@ CONFIG_TOOLTIPS: dict[str, str] = {
     "sumo.gui": "Interfaz gráfica SUMO: True = mostrar ventana visual de simulación, False = modo headless (más rápido, para servidores)",
     "sumo.comparar": "Modo comparación: contrastar rendimiento del control RL vs detección YOLO vs semáforos fijos para evaluar mejoras",
     "sumo.path_sumo": "Directorio de instalación SUMO: ruta donde está instalado SUMO. Linux: /usr/share/sumo, Windows: C:\\sumo o similar",
+    "sumo.vehicle_scale": "Escalado de vehículos: factor multiplicador aplicado cuando comparar=True y gui=True. 1.0=normal, 1.25=+25% vehículos",
     "sumo.simulation_time_limit": "Límite temporal: duración máxima de simulación en segundos. 19500s ≈ 5.4 horas de simulación virtual",
     "sumo.fixed_seed": "Semilla específica: valor fijo para reproducibilidad exacta. null = usar default SUMO (23423), número = semilla custom",
     "sumo.use_random_seed": "Semilla aleatoria: True = generar semilla basada en tiempo actual, False = usar fixed_seed o default SUMO",

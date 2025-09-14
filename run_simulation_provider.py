@@ -93,6 +93,10 @@ def start_traci_connection(
     sumo_binary = "sumo-gui" if use_gui else "sumo"
     command = [sumo_binary, "-c", config_file, "--no-warnings"]
 
+    if sumo_settings.comparar and sumo_settings.gui:
+        scale_factor = str(sumo_settings.vehicle_scale)
+        command.extend(["--scale", scale_factor])
+
     # PRIORIDAD: Modo comparación requiere semillas deterministas
     if sumo_settings.comparar:
         if sumo_settings.fixed_seed is not None:
@@ -235,6 +239,7 @@ if __name__ == "__main__":
                     load_app_settings().sumo,
                 ),
             )
+
             comparison_logger = ComparisonLogger(
                 interval_seconds=settings.decision.steps
             )

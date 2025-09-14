@@ -271,6 +271,10 @@ class SumoSettings(BaseModel):
         True  # * Si use_random_seed=True: reutilizar misma semilla en reinicios (True) o generar nueva cada vez (False)
     )
 
+    vehicle_scale: float = (
+        1.0  #! Factor de escalado de vehículos para modo comparación con GUI
+    )
+
     # === EXPORTACIÓN DE COMPARACIONES ===
     comparacion_export: ComparacionExportSettings
 
