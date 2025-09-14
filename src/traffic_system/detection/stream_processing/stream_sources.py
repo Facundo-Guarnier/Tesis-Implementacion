@@ -75,6 +75,34 @@ class VideoStreamSource(StreamSource):
         }
 
 
+class LoopingVideoStreamSource(VideoStreamSource):
+    """Fuente de stream para archivos de video con loop infinito"""
+
+    def __init__(self, video_path: str):
+        super().__init__(video_path)
+        self.total_loops = 0
+
+    def read_frame(self) -> tuple[bool, np.ndarray | None]:
+        """Leer frame del video con reinicio automático al final"""
+        if not self.cap:
+            return False, None
+
+        ret, frame = self.cap.read()
+
+        # Si llegamos al final del video, reiniciarlo
+        if not ret:
+            self.total_loops += 1
+            self.logger.info(
+                f"🔄 Reiniciando video (loop #{self.total_loops}): {self.video_path}"
+            )
+
+            # Reiniciar el video al frame 0
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, frame = self.cap.read()
+
+        return ret, frame if ret else None
+
+
 class CameraStreamSource(StreamSource):
     """Fuente de stream para cámara"""
 

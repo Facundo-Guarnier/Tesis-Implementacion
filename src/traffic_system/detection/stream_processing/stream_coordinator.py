@@ -9,7 +9,12 @@ from src.traffic_system.core.types import Resolution
 
 from ..ui import InfoOverlay
 from .output_manager import OutputManager
-from .stream_sources import CameraStreamSource, StreamSource, VideoStreamSource
+from .stream_sources import (
+    CameraStreamSource,
+    LoopingVideoStreamSource,
+    StreamSource,
+    VideoStreamSource,
+)
 from .window_manager import WindowManager
 
 
@@ -51,6 +56,7 @@ class StreamCoordinator:
         output_path: str | None = None,
         display_size: Resolution | None = None,
         scale_factor: float = 1.0,
+        enable_loop: bool = False,
     ) -> None:
         """
         Procesar stream de video o cámara
@@ -63,13 +69,16 @@ class StreamCoordinator:
             output_path: Path del archivo de salida
             display_size: Tamaño de visualización
             scale_factor: Factor de escala para FPS display
+            enable_loop: Si hacer loop infinito del video (solo para archivos de video)
         """
         # Actualizar factor de escala del overlay
         self.info_overlay.scale_factor = scale_factor
         self.info_overlay._setup_style()
 
         # Crear fuente de stream apropiada
-        stream_source = self._create_stream_source(source_input, display_size)
+        stream_source = self._create_stream_source(
+            source_input, display_size, enable_loop
+        )
         if not stream_source.setup():
             self.logger.error("❌ Error configurando fuente de stream")
             return
@@ -117,13 +126,20 @@ class StreamCoordinator:
             output_manager.cleanup()
 
     def _create_stream_source(
-        self, source_input: str | int, display_size: Resolution | None
+        self,
+        source_input: str | int,
+        display_size: Resolution | None,
+        enable_loop: bool = False,
     ) -> StreamSource:
         """Crear la fuente de stream apropiada"""
         if isinstance(source_input, int):
             return CameraStreamSource(source_input, display_size)
         else:
-            return VideoStreamSource(source_input)
+            # Para videos, usar LoopingVideoStreamSource si enable_loop es True
+            if enable_loop:
+                return LoopingVideoStreamSource(source_input)
+            else:
+                return VideoStreamSource(source_input)
 
     def _process_frames(
         self,
@@ -211,6 +227,7 @@ class StreamCoordinator:
         output_path: str | None = None,
         display_size: Resolution | None = None,
         scale_factor: float = 1.0,
+        enable_loop: bool = False,
     ) -> None:
         """
         Versión mejorada que pasa los FPS reales al frame processor
@@ -218,13 +235,16 @@ class StreamCoordinator:
         Args:
             window_name: Nombre de ventana o None para procesamiento sin ventana (headless)
             frame_processor_with_fps: Función que acepta (frame, frame_number, fps_real)
+            enable_loop: Si hacer loop infinito del video (solo para archivos de video)
         """
         # Actualizar factor de escala del overlay
         self.info_overlay.scale_factor = scale_factor
         self.info_overlay._setup_style()
 
         # Crear fuente de stream apropiada
-        stream_source = self._create_stream_source(source_input, display_size)
+        stream_source = self._create_stream_source(
+            source_input, display_size, enable_loop
+        )
         if not stream_source.setup():
             self.logger.error("❌ Error configurando fuente de stream")
             return

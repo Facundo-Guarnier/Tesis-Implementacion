@@ -601,6 +601,7 @@ class DetectorService:
         output_path: str | None = None,
         display_size: Resolution | None = None,
         override_display_size: Resolution | None = None,
+        enable_loop: bool = False,
     ) -> None:
         """
         Método unificado para procesar streams en vivo (video o cámara).
@@ -613,6 +614,7 @@ class DetectorService:
             output_path: Path del archivo de salida (si save_output es True)
             display_size: Resolución forzada (ancho, alto) - solo para cámara
             override_display_size: Tamaño de ventana personalizado que anula la configuración
+            enable_loop: Si hacer loop infinito del video (solo para archivos de video)
         """
         # Configurar resolución si se especifica (solo para cámara)
         if display_size and isinstance(source_input, int):
@@ -652,6 +654,7 @@ class DetectorService:
             output_path=final_output_path,
             display_size=computed_display_size,
             scale_factor=getattr(self.video_processor, "scale_factor", 1.0),
+            enable_loop=enable_loop,
         )
 
     def process_and_save_video(self, video_processor: VideoProcessor) -> None:
@@ -696,12 +699,22 @@ class DetectorService:
         ws = getattr(self.settings, "window_size", [460, 820])
         video_display_size = (int(ws[0]), int(ws[1]))
 
+        # Determinar si hacer loop infinito: cuando procesar=True y guardar=False
+        enable_loop = (
+            self.settings.un_video.procesar and not self.settings.un_video.guardar
+        )
+        if enable_loop:
+            self.logger.info(
+                "🔄 Loop infinito activado para el video (procesar=True, guardar=False)"
+            )
+
         self._process_live_stream(
             source_input=video_processor.origin_path,
             window_name="Detectando en un video",
             save_output=save_output,
             output_path=video_processor.result_path if save_output else None,
             override_display_size=video_display_size,
+            enable_loop=enable_loop,
         )
 
     def process_camera(self, video_processor: VideoProcessor) -> None:
