@@ -20,8 +20,8 @@ class InfoOverlay:
         """Configurar estilos visuales para el overlay"""
         # Configuración de fuente
         self.font = cv2.FONT_HERSHEY_DUPLEX  # Fuente más clara y profesional
-        self.font_scale = max(0.6, 0.6 * self.scale_factor)
-        self.font_thickness = max(1, int(2 * self.scale_factor))
+        self.font_scale = max(0.8, 0.8 * self.scale_factor)
+        self.font_thickness = max(2, int(2 * self.scale_factor))
 
         # Configuración de colores (BGR format)
         self.bg_color = (0, 0, 0, 180)  # Negro semi-transparente
@@ -40,11 +40,9 @@ class InfoOverlay:
         )  # Blanco para información general (fuente, zona)
 
         # Configuración de layout
-        self.padding = max(10, int(10 * self.scale_factor))
-        self.line_height = max(25, int(25 * self.scale_factor))
-        self.section_spacing = max(
-            10, int(10 * self.scale_factor)
-        )  # Espaciado real entre secciones
+        self.padding = max(15, int(15 * self.scale_factor))
+        self.line_height = max(32, int(32 * self.scale_factor))
+        self.section_spacing = max(12, int(12 * self.scale_factor))
 
         # Posición del panel
         self.panel_x = self.padding
@@ -79,7 +77,7 @@ class InfoOverlay:
             (self.panel_x, self.panel_y),
             (self.panel_x + width, self.panel_y + height),
             self.border_color,
-            max(1, int(2 * self.scale_factor)),
+            max(2, int(2 * self.scale_factor)),
         )
 
         # Aplicar transparencia
@@ -95,7 +93,7 @@ class InfoOverlay:
         x: int,
         y: int,
         color: tuple[int, int, int],
-        shadow_offset: int = 2,
+        shadow_offset: int = 3,
     ) -> None:
         """Dibujar texto con sombra para mayor legibilidad"""
         # Dibujar sombra
@@ -175,12 +173,14 @@ class InfoOverlay:
                 total_height += self.section_spacing
             elif line_type == "header":
                 # Para el encabezado, calcular con el factor de escala aumentado
-                font_scale_header = self.font_scale * 1.2
+                font_scale_header = self.font_scale * 1.25  # Reducido de 1.3 a 1.25
                 (text_width, text_height), baseline = cv2.getTextSize(
                     text,
                     self.font,
                     font_scale_header,
-                    max(2, int(self.font_thickness * 1.5)),
+                    max(
+                        2, int(self.font_thickness * 1.5)
+                    ),  # Reducido grosor mínimo de 3 a 2
                 )
                 header_height = text_height + baseline
                 max_width = max(max_width, text_width)
@@ -190,7 +190,7 @@ class InfoOverlay:
                 max_width = max(max_width, text_width)
                 total_height += self.line_height
 
-        panel_width = max_width + (self.padding * 3)  # Más padding horizontal
+        panel_width = max_width + (self.padding * 4)  # Reducido de 5 a 4
 
         # Dibujar panel de fondo
         frame = self._draw_background_panel(frame, panel_width, total_height)
@@ -205,7 +205,7 @@ class InfoOverlay:
                 continue
             elif line_type == "header":
                 # Texto de encabezado más grande
-                font_scale_header = self.font_scale * 1.2
+                font_scale_header = self.font_scale * 1.25  # Reducido de 1.3 a 1.25
                 cv2.putText(
                     frame,
                     text,
@@ -213,7 +213,9 @@ class InfoOverlay:
                     self.font,
                     font_scale_header,
                     color,
-                    max(2, int(self.font_thickness * 1.5)),
+                    max(
+                        2, int(self.font_thickness * 1.5)
+                    ),  # Reducido grosor mínimo de 3 a 2
                     cv2.LINE_AA,
                 )
                 current_y += self.line_height + self.section_spacing
