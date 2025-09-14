@@ -1914,11 +1914,14 @@ def render_database_page() -> None:
             # Configurar columnas para mejor visualización
             display_df = df.copy()
 
+            # Eliminar columna timestamp_simulacion ya que no debe mostrarse al usuario
+            if "timestamp_simulacion" in display_df.columns:
+                display_df = display_df.drop("timestamp_simulacion", axis=1)
+
             # Renombrar columnas para mejor legibilidad
             column_mapping = {
                 "step_simulacion": "Step",
                 "estado_simulacion": "Estado",
-                "timestamp_simulacion": "Timestamp",
                 "total_tiempo_espera": "Tiempo Espera Total",
                 "total_vehiculos": "Vehículos Total",
                 "generado_en": "Generado En",
