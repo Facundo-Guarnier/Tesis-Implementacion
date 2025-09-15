@@ -22,12 +22,13 @@ deteccion:
   un_video:
     procesar: True #! Procesar un video en específico
     guardar: False #! Guardar el video con los resultados
-    zona: "Zona C"
+    zona: "Zona A"
     path_destino: "results/deteccion/"
     # path_origen: "assets/dataset-576x1024-5fps/Zona A/20240102_131846.mp4"
     # path_origen: "assets/dataset-1080x1920-30fps/Zona A/20240102_131846.mp4"
     # path_origen: "assets/dataset-576x1024-5fps/Zona C/20240102_132223.mp4"
-    path_origen: "assets/dataset-1080x1920-30fps/Zona C/20240102_132223.mp4"
+    # path_origen: "assets/dataset-1080x1920-30fps/Zona C/20240102_132223.mp4"
+    path_origen: assets\dataset-nuevos_video_3\Zona A - Alternativo\20250914_122636_Clipchamp.mp4
 
   procesar_camara: False #! Procesar la cámara en tiempo real
 

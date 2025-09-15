@@ -2811,8 +2811,8 @@ def get_multas_images_by_date(date: str) -> dict[str, list[str]]:
                 images.extend(glob.glob(str(zone_dir / ext)))
 
             if images:
-                # Ordenar por nombre de archivo
-                images.sort()
+                # Ordenar por nombre de archivo (más recientes primero)
+                images.sort(reverse=True)
                 images_by_zone[zone_name] = images
 
     return images_by_zone
@@ -2825,11 +2825,6 @@ def render_multas_gallery(date: str) -> None:
     if not images_by_zone:
         st.info(f"📷 No se encontraron imágenes de multas para la fecha {date}")
         return
-
-    st.markdown(f"### 📸 Imágenes de Multas - {date}")
-
-    total_images = sum(len(images) for images in images_by_zone.values())
-    st.markdown(f"**Total:** {total_images} imágenes en {len(images_by_zone)} zonas")
 
     # CSS para imágenes uniformes
     st.markdown(
@@ -2914,6 +2909,7 @@ def render_api_endpoint_card(
     description: str,
     parameters: dict | None = None,
     key_prefix: str = "",
+    hide_success_response: bool = False,
 ) -> None:
     """Renderizar una tarjeta de endpoint estilo Postman."""
     # Color del método HTTP
@@ -3019,16 +3015,18 @@ def render_api_endpoint_card(
             st.markdown(f"**Time:** {result['response_time_ms']} ms")
 
         # Response body ocupando todo el ancho disponible
-        st.markdown("**Response:**")
-        if result["error"]:
-            st.error(f"Error: {result['error']}")
-        elif result["response_data"]:
-            st.code(
-                json.dumps(result["response_data"], indent=2, ensure_ascii=False),
-                language="json",
-            )
-        else:
-            st.info("No response data")
+        # Solo mostrar response body si no se debe ocultar respuestas exitosas o si hay error
+        if not (hide_success_response and result["success"]):
+            st.markdown("**Response:**")
+            if result["error"]:
+                st.error(f"Error: {result['error']}")
+            elif result["response_data"]:
+                st.code(
+                    json.dumps(result["response_data"], indent=2, ensure_ascii=False),
+                    language="json",
+                )
+            else:
+                st.info("No response data")
 
 
 def render_api_testing_page() -> None:
@@ -3144,7 +3142,7 @@ def render_api_testing_page() -> None:
         render_api_endpoint_card(
             method="POST",
             endpoint="/multas/{zona}",
-            description="Reportar una multa detectada en una zona específica",
+            description="Activar la detección de multas en una zona específica",
             parameters={
                 "zona": {
                     "type": "select",
@@ -3166,6 +3164,7 @@ def render_api_testing_page() -> None:
                 }
             },
             key_prefix="multa_zona",
+            hide_success_response=True,
         )
 
         st.markdown("---")
@@ -3186,12 +3185,15 @@ def render_api_testing_page() -> None:
                 # Limpiar cache si existe
                 if "multas_cache" in st.session_state:
                     del st.session_state["multas_cache"]
+                # Limpiar fecha previamente seleccionada para que se actualice al último elemento disponible
+                if "multas_selected_date" in st.session_state:
+                    del st.session_state["multas_selected_date"]
+                if "multas_date_selector" in st.session_state:
+                    del st.session_state["multas_date_selector"]
                 st.session_state["last_multas_refresh"] = (
                     datetime.datetime.now().strftime("%H:%M:%S")
                 )
-                st.rerun()
-
-        # Mostrar última actualización
+                st.rerun()  # Mostrar última actualización
         last_refresh = st.session_state.get("last_multas_refresh", "Nunca")
         st.caption(f"🕒 Última actualización: {last_refresh}")
 

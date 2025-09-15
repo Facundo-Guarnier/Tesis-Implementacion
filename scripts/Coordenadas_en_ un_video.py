@@ -84,7 +84,6 @@ class Coordinates:
                 self.pixel_coordinates_originales.append([x_orig, y_orig])
 
                 print(f"🔄 Coordenadas en frame mostrado (rotado): [{x}, {y}]")
-                print(f"✅ Coordenadas en frame original: [{x_orig}, {y_orig}]")
             else:
                 # Si no hubo rotación, las coordenadas son las mismas
                 self.pixel_coordinates_originales.append([x, y])
@@ -146,7 +145,8 @@ class Coordinates:
 if __name__ == "__main__":
     # v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-1080x1920-30fps\\Zona A\\20250829_131853.mp4"
     # v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-1080x1920-30fps\\Zona G\\20250829_131155.mp4"
-    v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\nuevos_video_2\\Zona C\\20250906_111435.mp4"
+    # v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-nuevos_video_2\\Zona C\\20250906_111435.mp4"
+    v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-nuevos_video_3\\Zona A - Alternativo\\20250914_122636_Clipchamp.mp4"
     c = Coordinates(v)
 
     print("\n" + "=" * 60)
@@ -154,7 +154,6 @@ if __name__ == "__main__":
     print("=" * 60)
     print(f"Coordenadas en frame mostrado: {c.pixel_coordinates}")
     if c.frame_rotado:
-        print(f"✅ Coordenadas en frame original: {c.pixel_coordinates_originales}")
         print(
             "\n💡 Usa 'pixel_coordinates_originales' para el frame original del video"
         )
