@@ -1,0 +1,14 @@
+# Dependencias específicas para el Servicio de Reportes
+# Solo las librerías necesarias para optimizar la imagen Docker
+
+# Cliente HTTP para consumir APIs REST
+requests>=2.31.0
+
+# Parser de configuración YAML
+pyyaml>=6.0
+
+# Validación de datos y modelos
+pydantic>=2.11.7
+
+# Monitoreo de procesos del sistema
+psutil>=7.0.0

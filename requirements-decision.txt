@@ -1,0 +1,27 @@
+# Dependencias específicas para el Servicio de Decisión DQN
+# Solo las librerías necesarias para optimizar la imagen Docker
+
+# Framework de Machine Learning para DQN
+tensorflow[and-cuda]==2.19.0
+
+# Computación científica y arrays NumPy
+numpy>=1.24.0,<2.0
+
+# Análisis de datos y estadísticas
+pandas>=2.3.1
+scipy>=1.16.0
+
+# Visualización de métricas de entrenamiento
+matplotlib>=3.7.0
+
+# Cliente HTTP para consumir APIs REST
+requests>=2.31.0
+
+# Parser de configuración YAML
+pyyaml>=6.0
+
+# Validación de datos y modelos
+pydantic>=2.11.7
+
+# Monitoreo de procesos del sistema (entrenamiento)
+psutil>=7.0.0

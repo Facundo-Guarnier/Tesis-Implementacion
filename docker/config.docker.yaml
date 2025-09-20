@@ -1,0 +1,70 @@
+# Configuración específica para entorno Docker
+# Este archivo sobrescribe config.yaml cuando se ejecuta en contenedores
+
+# URLs base configuradas para comunicación entre contenedores
+base_url: "http://simulation:5000"
+base_ip: "simulation"
+
+services:
+  simulation_port: 5000
+  detection_port: 5000
+  reporting_port: 5001
+
+# Configuración de detección (desactivada en contenedores por defecto)
+deteccion:
+  detectar: false  # Los contenedores consumen APIs, no procesan video
+  modelo: "yolov8n.pt"
+  path_resultados_deteccion: "/app/results/detection_results/"
+
+  # Desactivar procesamiento de video en contenedores
+  carpeta_dataset:
+    procesar: false
+  un_video:
+    procesar: false
+  procesar_camara: false
+
+# Configuración de decisión
+decision:
+  decision: true
+  path_modelo_entrenado: "/app/assets/dqn_models/SimplifiedDQN_2025-08-03_00-04-epoch_27.h5"
+  steps: 10
+
+  # Configuración de entrenamiento (desactivada por defecto en contenedores)
+  entrenamiento_simplificado:
+    entrenar: false
+    path_resultado: "/app/results/training/"
+
+  entrenamiento_completo:
+    entrenar: false
+    path_resultado: "/app/results/training/"
+
+# Configuración de SUMO (para contenedor de simulación)
+sumo:
+  simular: true
+  gui: false  # Desactivar GUI en contenedores
+  comparar: true
+  path_sumo: "/usr/share/sumo"  # Ruta estándar en contenedor Linux
+  path_mapa: "/app/assets/sumo_maps/MapaDe0_semaforos_de_30s/mapa.sumocfg"
+  simulation_time_limit: 19500
+  vehicle_scale: 1.25
+
+  # Semillas para reproducibilidad en contenedores
+  fixed_seed: 23423
+  use_random_seed: false
+  persist_random_seed: false
+
+  # Exportación de comparaciones
+  comparacion_export:
+    enabled: true
+    db_path: "/app/results/comparisons/comparison.db"
+
+# Configuración de reportes
+reporte:
+  generar: true
+  steps: 60
+  tiempo_total_espera_maximo: 700
+  tiempo_zona_espera_maximo: 200
+  total_vehiculos_maximo: 65
+  zona_vehiculos_maximo: 20
+  path_reporte: "/app/results/reportes"
+  db_path_base: "/app/results/reportes/db"
