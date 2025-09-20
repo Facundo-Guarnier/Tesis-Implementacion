@@ -100,7 +100,7 @@ atexit.register(cleanup_on_exit)
 
 def render_navigation() -> str:
     """Renderizar navegación simple con 3 opciones."""
-    st.sidebar.title("🚦 SemaforIA")
+    st.sidebar.image("assets/logo.png", use_container_width=True)
 
     pages = {
         "🔧 Servicios": "services",
@@ -2258,12 +2258,12 @@ def render_comparisons_page() -> None:
                             f"{s2_tiempo_p95:.1f} s",
                             f"{s2_tiempo_std:.1f} s",
                         ],
-                        "📈 Diferencia (S1 - S2)": [
-                            f"{s1_tiempo_promedio - s2_tiempo_promedio:+.1f} s",
-                            f"{s1_tiempo_mediana - s2_tiempo_mediana:+.1f} s",
-                            f"{s1_tiempo_p95 - s2_tiempo_p95:+.1f} s",
-                            f"{s1_tiempo_std - s2_tiempo_std:+.1f} s",
-                        ],
+                        # "📈 Diferencia (S1 - S2)": [
+                        #     f"{s1_tiempo_promedio - s2_tiempo_promedio:+.1f} s",
+                        #     f"{s1_tiempo_mediana - s2_tiempo_mediana:+.1f} s",
+                        #     f"{s1_tiempo_p95 - s2_tiempo_p95:+.1f} s",
+                        #     f"{s1_tiempo_std - s2_tiempo_std:+.1f} s",
+                        # ],
                         "📊 % Mejora": [
                             calcular_mejora_porcentual(
                                 s1_tiempo_promedio, s2_tiempo_promedio
@@ -2315,12 +2315,12 @@ def render_comparisons_page() -> None:
                             f"{s2_vehiculos_p95:.1f}",
                             f"{s2_vehiculos_std:.1f}",
                         ],
-                        "📈 Diferencia (S1 - S2)": [
-                            f"{s1_vehiculos_promedio - s2_vehiculos_promedio:+.1f}",
-                            f"{s1_vehiculos_mediana - s2_vehiculos_mediana:+.1f}",
-                            f"{s1_vehiculos_p95 - s2_vehiculos_p95:+.1f}",
-                            f"{s1_vehiculos_std - s2_vehiculos_std:+.1f}",
-                        ],
+                        # "📈 Diferencia (S1 - S2)": [
+                        #     f"{s1_vehiculos_promedio - s2_vehiculos_promedio:+.1f}",
+                        #     f"{s1_vehiculos_mediana - s2_vehiculos_mediana:+.1f}",
+                        #     f"{s1_vehiculos_p95 - s2_vehiculos_p95:+.1f}",
+                        #     f"{s1_vehiculos_std - s2_vehiculos_std:+.1f}",
+                        # ],
                         "📊 % Mejora": [
                             calcular_mejora_porcentual(
                                 s1_vehiculos_promedio, s2_vehiculos_promedio
