@@ -362,10 +362,133 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.code(f"Métodos disponibles: {available_methods}")
 
 
+def render_local_service(
+    service_name: str, service_info: dict, controller: Any
+) -> None:
+    """Renderizar un servicio local (comportamiento original)."""
+    display_name = service_info["display_name"]
+    is_running = service_info["is_running"]
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        if is_running:
+            st.write(f"🟢 **Local: {display_name}**")
+            if service_info.get("pid"):
+                st.caption(f"PID: {service_info['pid']}")
+        else:
+            st.write(f"🔴 **Local: {display_name}**")
+            st.caption("Detenido")
+
+    with col2:
+        if not is_running:
+            if st.button("▶️ Iniciar", key=f"start_{service_name}"):
+                with st.spinner(f"⚙️ Iniciando {display_name}..."):
+                    success, message = controller.start_service(service_name)
+                    if success:
+                        st.success(f"✅ {message}")
+                        # Limpiar cache para forzar actualización
+                        if "services_summary_cache" in st.session_state:
+                            del st.session_state["services_summary_cache"]
+                    else:
+                        st.error(f"❌ {message}")
+                # Recargar página para actualizar estado
+                st.rerun()
+
+    with col3:
+        if is_running:
+            if st.button("⏹️ Detener", key=f"stop_{service_name}"):
+                with st.spinner(f"🛑 Deteniendo {display_name}..."):
+                    success, message = controller.stop_service_graceful(service_name)
+                    if success:
+                        st.success(f"✅ {message}")
+                        # Limpiar cache para forzar actualización
+                        if "services_summary_cache" in st.session_state:
+                            del st.session_state["services_summary_cache"]
+                    else:
+                        st.error(f"❌ {message}")
+                # Recargar página para actualizar estado
+                st.rerun()
+
+    # Logs solo si el servicio está ejecutándose
+    if is_running:
+        with st.expander(f"📋 Logs de {display_name}", expanded=False):
+            try:
+                log_content = controller.get_service_log_tail(service_name, lines=50)
+                if log_content:
+                    st.code(log_content, language="text")
+                else:
+                    st.info("📝 No hay logs disponibles")
+            except Exception as e:
+                st.warning(f"⚠️ Error obteniendo logs: {e}")
+
+
+def render_remote_service(service_name: str, remote_controller: Any) -> None:
+    """Renderizar un servicio remoto usando health checks."""
+    display_name = remote_controller.get_service_friendly_name(service_name)
+
+    # Obtener estado del servicio remoto
+    status = remote_controller.get_service_status(service_name)
+    status_emoji = remote_controller.get_status_emoji(status)
+    status_text = remote_controller.get_status_text(status)
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        st.write(f"{status_emoji} **Remoto: {display_name}**")
+        st.caption(f"Estado: {status_text}")
+
+        # Información adicional según el estado
+        if status == "connection_error":
+            st.caption("❌ No se puede conectar al servicio")
+        elif status == "timeout":
+            st.caption("⏱️ Tiempo de espera agotado")
+        elif status == "error":
+            st.caption("⚠️ Error en la respuesta del servicio")
+
+    with col2:
+        # Para servicios remotos, solo mostrar botón de verificación
+        if st.button("🔍 Verificar", key=f"check_{service_name}"):
+            with st.spinner(f"🔍 Verificando {display_name}..."):
+                # Forzar refresh del estado
+                remote_controller.clear_cache()
+                new_status = remote_controller.get_service_status(service_name)
+                new_status_text = remote_controller.get_status_text(new_status)
+
+                if new_status == "running":
+                    st.success(f"✅ {display_name} está ejecutándose")
+                else:
+                    st.warning(f"⚠️ {display_name}: {new_status_text}")
+            st.rerun()
+
+    with col3:
+        # Para servicios remotos, mostrar información de configuración
+        if st.button("⚙️ Info", key=f"info_{service_name}"):
+            try:
+                from src.traffic_system.core.config_loader import load_app_settings
+
+                settings = load_app_settings()
+
+                if service_name == "decision":
+                    ip = settings.services.remote.decision.ip
+                    port = settings.services.remote.decision.port
+                elif service_name == "reporting":
+                    ip = settings.services.remote.reporting.ip
+                    port = settings.services.remote.reporting.port
+                else:
+                    ip = "N/A"
+                    port = 0
+
+                st.info(f"🌐 URL: http://{ip}:{port}/health")
+
+            except Exception as e:
+                st.error(f"❌ Error obteniendo configuración: {e}")
+
+
 def render_services_page() -> None:
     """Renderizar página de control de servicios."""
     st.title("🔧 Control de Servicios")
 
+    # Inicializar ServiceController (local)
     if st.session_state.service_controller is None or not hasattr(
         st.session_state.service_controller, "get_service_log_path"
     ):
@@ -375,7 +498,23 @@ def render_services_page() -> None:
         if "service_controller_initialized" not in st.session_state:
             st.session_state.service_controller_initialized = True
 
+    # Inicializar RemoteServiceController
+    if "remote_service_controller" not in st.session_state:
+        from src.traffic_system.frontend.remote_service_controller import (
+            RemoteServiceController,
+        )
+
+        st.session_state.remote_service_controller = RemoteServiceController()
+
+    # Inicializar estados de switches Local/Remoto en memoria
+    if "service_modes" not in st.session_state:
+        st.session_state.service_modes = {
+            "decision": "local",  # "local" o "remote"
+            "reporting": "local",  # "local" o "remote"
+        }
+
     controller = st.session_state.service_controller
+    remote_controller = st.session_state.remote_service_controller
 
     def get_services_summary_manual() -> Any:
         """Obtener resumen de servicios solo cuando se solicite manualmente."""
@@ -438,59 +577,64 @@ def render_services_page() -> None:
 
             for service_name, service_info in summary["services"].items():
                 display_name = service_info["display_name"]
-                is_running = service_info["is_running"]
 
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    if is_running:
-                        st.write(f"🟢 **{display_name}**")
-                        if service_info.get("pid"):
-                            st.caption(f"PID: {service_info['pid']}")
+                # Verificar si es un servicio que puede ser remoto
+                has_remote_option = service_name in ["decision", "reporting"]
+
+                if has_remote_option:
+                    # Header con switch Local/Remoto
+                    col_title, col_switch = st.columns([3, 1])
+
+                    with col_title:
+                        current_mode = st.session_state.service_modes[service_name]
+                        mode_icon = "🐍" if current_mode == "local" else "🌐"
+                        st.write(f"**{display_name}** {mode_icon}")
+
+                    with col_switch:
+                        # Toggle switch entre Local/Remoto
+                        is_remote = st.toggle(
+                            "Remoto",
+                            value=st.session_state.service_modes[service_name]
+                            == "remote",
+                            key=f"toggle_{service_name}",
+                            help="🐍 Local: Proceso local\n🌐 Remoto: Health check HTTP",
+                        )
+
+                        # Actualizar modo en session state
+                        new_mode = "remote" if is_remote else "local"
+                        if st.session_state.service_modes[service_name] != new_mode:
+                            st.session_state.service_modes[service_name] = new_mode
+                            st.rerun()  # Recargar para actualizar la vista
+
+                    # Renderizar según el modo actual
+                    current_mode = st.session_state.service_modes[service_name]
+
+                    if current_mode == "local":
+                        # Renderizar servicio local (comportamiento original)
+                        render_local_service(service_name, service_info, controller)
                     else:
-                        st.write(f"🔴 **{display_name}**")
-                        st.caption("Detenido")
+                        # Renderizar servicio remoto
+                        render_remote_service(service_name, remote_controller)
 
-                with col2:
-                    if not is_running:
-                        if st.button("▶️ Iniciar", key=f"start_{service_name}"):
-                            with st.spinner(f"⚙️ Iniciando {display_name}..."):
-                                success, message = controller.start_service(
-                                    service_name
-                                )
-                                if success:
-                                    st.success(f"✅ {message}")
-                                    update_service_cache_status(service_name, True)
-                                else:
-                                    st.error(f"❌ {message}")
-                                    if "services_summary_cache" in st.session_state:
-                                        del st.session_state["services_summary_cache"]
-                            # Verificar estado automáticamente después de la operación
-                            time.sleep(1)
-                            auto_refresh_services_status()
-                            st.rerun()
+                else:
+                    # Servicios sin opción remota (simulation, detection) - mostrar UI similar pero desactivado
+                    col_title, col_switch = st.columns([3, 1])
 
-                with col3:
-                    if is_running:
-                        if st.button("⏹️ Detener", key=f"stop_{service_name}"):
-                            with st.spinner(f"🛑 Deteniendo {display_name}..."):
-                                success, message = controller.stop_service_graceful(
-                                    service_name
-                                )
-                                if success:
-                                    st.success(f"✅ {message}")
-                                    update_service_cache_status(service_name, False)
-                                else:
-                                    st.error(f"❌ {message}")
-                                    if "services_summary_cache" in st.session_state:
-                                        del st.session_state["services_summary_cache"]
-                            # Verificar estado automáticamente después de la operación
-                            time.sleep(1)
-                            auto_refresh_services_status()
-                            st.rerun()
+                    with col_title:
+                        st.write(f"**{display_name}** 🐍")  # Siempre icono local
 
-                if is_running:
-                    with st.expander(f"📋 Logs de {display_name}", expanded=False):
-                        render_service_logs(service_name, controller)
+                    with col_switch:
+                        # Toggle desactivado para mostrar que está en desarrollo
+                        st.toggle(
+                            "Remoto",
+                            value=False,
+                            key=f"toggle_disabled_{service_name}",
+                            disabled=True,
+                            help="🚧 Funcionalidad remota en desarrollo\n🐍 Solo disponible en modo local",
+                        )
+
+                    # Renderizar servicio local (comportamiento original)
+                    render_local_service(service_name, service_info, controller)
 
                 st.markdown("---")
 
