@@ -43,7 +43,8 @@ RUN groupadd -r reportuser && useradd -r -g reportuser reportuser
 RUN chown -R reportuser:reportuser /app
 USER reportuser
 
-# Sin puertos expuestos - solo cliente
+# Exponer puerto para health endpoint
+EXPOSE 8081
 
 # Comando por defecto
 CMD ["python", "run_reporting_service.py"]

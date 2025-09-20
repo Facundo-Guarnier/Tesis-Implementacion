@@ -4,6 +4,9 @@
 # Cliente HTTP para consumir APIs REST
 requests>=2.31.0
 
+# Framework web ligero para health endpoints
+flask>=2.3.0
+
 # Parser de configuración YAML
 pyyaml>=6.0
 

@@ -44,7 +44,8 @@ RUN groupadd -r dqnuser && useradd -r -g dqnuser dqnuser
 RUN chown -R dqnuser:dqnuser /app
 USER dqnuser
 
-# Sin puertos expuestos - solo cliente
+# Exponer puerto para health endpoint
+EXPOSE 8080
 
 # Comando por defecto
 CMD ["python", "run_decision_agent.py"]

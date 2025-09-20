@@ -35,11 +35,11 @@ class RemoteServiceController:
         """Inicializar el controlador de servicios remotos."""
         self._status_cache: dict[str, dict[str, Any]] = {}
         self._last_check_time: float = 0
-        self._cache_duration = 3  # Cache por 3 segundos
+        self._cache_duration = 3  # Cache por x segundos
 
         # Configuración de requests
-        self.timeout = 5  # 5 segundos timeout
-        self.max_retries = 3  # 3 reintentos
+        self.timeout = 3  # segundos timeout
+        self.max_retries = 2  # reintentos
 
     def _get_service_url(self, service_name: str) -> str | None:
         """
