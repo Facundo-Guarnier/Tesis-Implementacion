@@ -49,11 +49,11 @@ class ConfigManager:
                 "reporting_port": 5001,
                 "remote": {
                     "decision": {
-                        "ip": "10.10.0.200",
+                        "ip": "10.10.1.2",
                         "port": 8080,
                     },
                     "reporting": {
-                        "ip": "10.10.0.200",
+                        "ip": "10.10.1.2",
                         "port": 8081,
                     },
                 },

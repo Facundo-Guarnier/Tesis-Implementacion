@@ -7,10 +7,10 @@ services:
   reporting_port: 5001
   remote:
     decision:
-      ip: "10.10.0.200"  # IP del servidor remoto con Decision Agent
+      ip: "10.10.1.2"  # IP del servidor remoto con Decision Agent
       port: 8080         # Puerto del health check del Decision Agent
     reporting:
-      ip: "10.10.0.200"  # IP del servidor remoto con Reporting Service
+      ip: "10.10.1.2"  # IP del servidor remoto con Reporting Service
       port: 8081         # Puerto del health check del Reporting Service
 
 deteccion:
