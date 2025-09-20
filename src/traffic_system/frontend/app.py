@@ -818,6 +818,8 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
     with st.expander("📡 Servicios", expanded=False):
         if "services" in config:
             services = config["services"]
+
+            st.subheader("🏠 Servicios Locales")
             col1, col2, col3 = st.columns(3)
 
             with col1:
@@ -841,6 +843,46 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     services.get("reporting_port", 5001),
                     config,
                 )
+
+            st.subheader("🌐 Servicios Remotos")
+            if "remote" in services:
+                remote = services["remote"]
+
+                # Decision Agent Remote
+                st.write("**Decision Agent**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    render_field_widget(
+                        "services.remote.decision.ip",
+                        "IP Decision Agent",
+                        remote.get("decision", {}).get("ip", ""),
+                        config,
+                    )
+                with col2:
+                    render_field_widget(
+                        "services.remote.decision.port",
+                        "Puerto Decision Agent",
+                        remote.get("decision", {}).get("port", 8080),
+                        config,
+                    )
+
+                # Reporting Service Remote
+                st.write("**Reporting Service**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    render_field_widget(
+                        "services.remote.reporting.ip",
+                        "IP Reporting Service",
+                        remote.get("reporting", {}).get("ip", ""),
+                        config,
+                    )
+                with col2:
+                    render_field_widget(
+                        "services.remote.reporting.port",
+                        "Puerto Reporting Service",
+                        remote.get("reporting", {}).get("port", 8081),
+                        config,
+                    )
 
     with st.expander("🔍 Detección de Objetos", expanded=False):
         if "deteccion" in config:

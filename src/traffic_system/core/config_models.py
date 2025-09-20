@@ -293,12 +293,27 @@ class ReporteSettings(BaseModel):
     db_path_base: str
 
 
+class RemoteServiceSettings(BaseModel):
+    """Configuración para un servicio remoto."""
+
+    ip: str  #! IP del servicio remoto
+    port: int  #! Puerto del servicio remoto
+
+
+class RemoteServicesSettings(BaseModel):
+    """Configuración de servicios remotos del sistema de tráfico."""
+
+    decision: RemoteServiceSettings
+    reporting: RemoteServiceSettings
+
+
 class ServicesSettings(BaseModel):
     """Configuración de los servicios del sistema de tráfico."""
 
     simulation_port: int = 5000
     detection_port: int = 5000
     reporting_port: int = 5001
+    remote: RemoteServicesSettings
 
 
 # --- La Clase Principal de Configuración ---

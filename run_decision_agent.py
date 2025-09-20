@@ -4,7 +4,10 @@ import logging
 import os
 import signal
 import sys
+import threading
 from typing import Any
+
+from flask import Flask, jsonify
 
 from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.decision.DQN.App import DecisionApp
@@ -14,6 +17,29 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("DecisionAgent")
+
+
+def create_health_server() -> Flask:
+    """Crea un servidor Flask simple para health checks."""
+    app = Flask(__name__)
+
+    @app.route("/health", methods=["GET"])
+    def health_check() -> Any:
+        return jsonify({"status": "ok"})
+
+    return app
+
+
+def start_health_server() -> None:
+    """Inicia el servidor de health check en un hilo separado."""
+    health_app = create_health_server()
+
+    def run_server() -> None:
+        health_app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
+
+    health_thread = threading.Thread(target=run_server, daemon=True)
+    health_thread.start()
+    logger.info("Servidor de health check iniciado en puerto 8080")
 
 
 # def main():
@@ -52,6 +78,9 @@ def main() -> None:
     - Entrenar el modelo.
     - Utilizar un modelo ya entrenado.
     """
+    # Iniciar servidor de health check
+    start_health_server()
+
     settings = load_app_settings()
     app = DecisionApp()
     if settings.decision.entrenamiento_completo.entrenar:

@@ -47,6 +47,16 @@ class ConfigManager:
                 "simulation_port": 5000,
                 "detection_port": 5000,
                 "reporting_port": 5001,
+                "remote": {
+                    "decision": {
+                        "ip": "10.10.0.200",
+                        "port": 8080,
+                    },
+                    "reporting": {
+                        "ip": "10.10.0.200",
+                        "port": 8081,
+                    },
+                },
             },
             "deteccion": {
                 "detectar": True,
@@ -286,6 +296,36 @@ class ConfigManager:
                             errors.append(
                                 f"services.{port_field} debe estar entre 1 y 65535"
                             )
+
+                # Validar servicios remotos
+                if "remote" in services:
+                    remote = services["remote"]
+                    for service_name in ["decision", "reporting"]:
+                        if service_name in remote:
+                            service = remote[service_name]
+
+                            # Validar IP
+                            if "ip" in service:
+                                ip_value = service["ip"]
+                                if (
+                                    not isinstance(ip_value, str)
+                                    or not ip_value.strip()
+                                ):
+                                    errors.append(
+                                        f"services.remote.{service_name}.ip debe ser una IP válida"
+                                    )
+
+                            # Validar puerto remoto
+                            if "port" in service:
+                                port_value = service["port"]
+                                if not isinstance(port_value, int):
+                                    errors.append(
+                                        f"services.remote.{service_name}.port debe ser un número entero"
+                                    )
+                                elif not (1 <= port_value <= 65535):
+                                    errors.append(
+                                        f"services.remote.{service_name}.port debe estar entre 1 y 65535"
+                                    )
 
             # Validar campos booleanos conocidos
             boolean_fields = [
