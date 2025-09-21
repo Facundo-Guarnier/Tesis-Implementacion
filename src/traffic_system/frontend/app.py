@@ -2256,8 +2256,68 @@ def render_database_page() -> None:
             }
             display_df = display_df.rename(columns=existing_mapping)
 
-            # Mostrar tabla interactiva
-            st.dataframe(display_df, use_container_width=True, height=400)
+            # Aplicar resaltado condicional para umbrales superados
+            def highlight_exceeded_thresholds(df_styled: pd.DataFrame) -> pd.DataFrame:
+                """Aplicar estilos para resaltar valores que superan umbrales."""
+                # Estilo que funciona en temas claro y oscuro usando transparencia
+                exceeded_style = "background-color: rgba(255, 0, 0, 0.2); font-weight: bold; border: 1px solid rgba(255, 0, 0, 0.4);"
+
+                # Obtener umbrales de configuración
+                tiempo_total_max = (
+                    config["reporte"]["tiempo_total_espera_maximo"] if config else 700
+                )
+                tiempo_zona_max = (
+                    config["reporte"]["tiempo_zona_espera_maximo"] if config else 200
+                )
+                vehiculos_total_max = (
+                    config["reporte"]["total_vehiculos_maximo"] if config else 65
+                )
+                vehiculos_zona_max = (
+                    config["reporte"]["zona_vehiculos_maximo"] if config else 20
+                )
+
+                # Lista para almacenar estilos por celda
+                styles = pd.DataFrame(
+                    "", index=df_styled.index, columns=df_styled.columns
+                )
+
+                # Resaltar tiempo total de espera
+                if "Tiempo Espera Total" in df_styled.columns:
+                    mask = df_styled["Tiempo Espera Total"] > tiempo_total_max
+                    styles.loc[mask, "Tiempo Espera Total"] = exceeded_style
+
+                # Resaltar vehículos totales
+                if "Vehículos Total" in df_styled.columns:
+                    mask = df_styled["Vehículos Total"] > vehiculos_total_max
+                    styles.loc[mask, "Vehículos Total"] = exceeded_style
+
+                # Resaltar tiempos de espera por zona
+                for col in df_styled.columns:
+                    if "Zona" in col and "Tiempo" in col:
+                        mask = df_styled[col] > tiempo_zona_max
+                        styles.loc[mask, col] = exceeded_style
+                    elif "Zona" in col and "Vehículos" in col:
+                        mask = df_styled[col] > vehiculos_zona_max
+                        styles.loc[mask, col] = exceeded_style
+
+                return styles
+
+            # Aplicar el estilo y mostrar tabla
+            try:
+                styled_df = display_df.style.apply(
+                    highlight_exceeded_thresholds, axis=None
+                )
+                st.dataframe(styled_df, use_container_width=True, height=400)
+
+                # Leyenda explicativa
+                st.info(
+                    "💡 **Leyenda**: Las celdas con fondo rojizo y borde indican valores que superaron los umbrales configurados y activaron la alerta. Este resaltado se adapta automáticamente al tema claro/oscuro."
+                )
+
+            except Exception as e:
+                # Fallback: mostrar tabla normal si hay error con estilos
+                st.warning(f"⚠️ Error aplicando estilos: {e}")
+                st.dataframe(display_df, use_container_width=True, height=400)
 
             # Gráficos de análisis
             st.markdown("---")
