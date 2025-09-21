@@ -289,7 +289,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.info("📭 No hay logs disponibles para este servicio")
         elif logs and logs[0].startswith("No se encontró archivo"):
             st.warning(
-                "⚠️ Archivo de log no encontrado. El servicio puede haber sido iniciado antes de esta sesión."
+                "⚠️ No hay logs disponibles. El servicio podría no haber generado logs aún."
             )
         elif logs and logs[0].startswith("Error"):
             st.error(f"❌ {logs[0]}")
@@ -456,17 +456,9 @@ def render_local_service(
                         time.sleep(0.5)  # Dar tiempo al toast
                         st.rerun()
 
-    # Logs solo si el servicio está ejecutándose
-    if is_running:
-        with st.expander(f"📋 Logs de {display_name}", expanded=False):
-            try:
-                log_content = controller.get_service_log_tail(service_name, lines=50)
-                if log_content:
-                    st.code(log_content, language="text")
-                else:
-                    st.info("📝 No hay logs disponibles")
-            except Exception as e:
-                st.warning(f"⚠️ Error obteniendo logs: {e}")
+    # Logs siempre disponibles para servicios locales (corriendo o detenidos)
+    with st.expander(f"📋 Logs de {display_name}", expanded=False):
+        render_service_logs(service_name, controller)
 
 
 def render_remote_service(
