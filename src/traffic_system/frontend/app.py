@@ -1520,390 +1520,392 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             config,
                         )
 
+            # TODO: El entrenamiento completo está deshabilitado temporalmente
             # === ENTRENAMIENTO COMPLETO ===
-            if "entrenamiento_completo" in decision:
-                with st.expander("⚗️ Entrenamiento Completo DQN", expanded=False):
-                    entrenamiento = decision["entrenamiento_completo"]
+            # if "entrenamiento_completo" in decision:
+            #     with st.expander("⚗️ Entrenamiento Completo DQN", expanded=False):
+            #         entrenamiento = decision["entrenamiento_completo"]
 
-                    st.markdown("**Configuración Básica**")
-                    col1, col2, col3 = st.columns(3)
+            #         st.markdown("**Configuración Básica**")
+            #         col1, col2, col3 = st.columns(3)
 
-                    with col1:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.entrenar",
-                            "Activar Entrenamiento",
-                            entrenamiento.get("entrenar", False),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.path_resultado",
-                            "Path Resultados",
-                            entrenamiento.get("path_resultado", ""),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.num_epocas",
-                            "Número Épocas",
-                            entrenamiento.get("num_epocas", 35),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.batch_size",
-                            "Batch Size",
-                            entrenamiento.get("batch_size", 256),
-                            config,
-                        )
+            #         with col1:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.entrenar",
+            #                 "Activar Entrenamiento",
+            #                 entrenamiento.get("entrenar", False),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.path_resultado",
+            #                 "Path Resultados",
+            #                 entrenamiento.get("path_resultado", ""),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.num_epocas",
+            #                 "Número Épocas",
+            #                 entrenamiento.get("num_epocas", 35),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.batch_size",
+            #                 "Batch Size",
+            #                 entrenamiento.get("batch_size", 256),
+            #                 config,
+            #             )
 
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.steps",
-                            "Steps",
-                            entrenamiento.get("steps", 10),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.memory",
-                            "Memory",
-                            entrenamiento.get("memory", 5000),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.learning_rate",
-                            "Learning Rate",
-                            entrenamiento.get("learning_rate", 0.0005),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.learning_rate_decay",
-                            "LR Decay",
-                            entrenamiento.get("learning_rate_decay", 0.99),
-                            config,
-                        )
+            #         with col2:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.steps",
+            #                 "Steps",
+            #                 entrenamiento.get("steps", 10),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.memory",
+            #                 "Memory",
+            #                 entrenamiento.get("memory", 5000),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.learning_rate",
+            #                 "Learning Rate",
+            #                 entrenamiento.get("learning_rate", 0.0005),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.learning_rate_decay",
+            #                 "LR Decay",
+            #                 entrenamiento.get("learning_rate_decay", 0.99),
+            #                 config,
+            #             )
 
-                    with col3:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.learning_rate_min",
-                            "LR Mínimo",
-                            entrenamiento.get("learning_rate_min", 0.00005),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.epsilon",
-                            "Epsilon",
-                            entrenamiento.get("epsilon", 1.0),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.epsilon_decay",
-                            "Epsilon Decay",
-                            entrenamiento.get("epsilon_decay", 0.99995),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.epsilon_min",
-                            "Epsilon Mín",
-                            entrenamiento.get("epsilon_min", 0.1),
-                            config,
-                        )
+            #         with col3:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.learning_rate_min",
+            #                 "LR Mínimo",
+            #                 entrenamiento.get("learning_rate_min", 0.00005),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.epsilon",
+            #                 "Epsilon",
+            #                 entrenamiento.get("epsilon", 1.0),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.epsilon_decay",
+            #                 "Epsilon Decay",
+            #                 entrenamiento.get("epsilon_decay", 0.99995),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.epsilon_min",
+            #                 "Epsilon Mín",
+            #                 entrenamiento.get("epsilon_min", 0.1),
+            #                 config,
+            #             )
 
-                    st.markdown("**Parámetros Avanzados**")
-                    col1, col2, col3 = st.columns(3)
+            #         st.markdown("**Parámetros Avanzados**")
+            #         col1, col2, col3 = st.columns(3)
 
-                    with col1:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.gamma",
-                            "Gamma",
-                            entrenamiento.get("gamma", 0.85),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.hidden_layers",
-                            "Capas Ocultas",
-                            entrenamiento.get("hidden_layers", [64, 64, 64]),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_double_dqn",
-                            "Double DQN",
-                            entrenamiento.get("use_double_dqn", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_dueling_dqn",
-                            "Dueling DQN",
-                            entrenamiento.get("use_dueling_dqn", True),
-                            config,
-                        )
+            #         with col1:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.gamma",
+            #                 "Gamma",
+            #                 entrenamiento.get("gamma", 0.85),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.hidden_layers",
+            #                 "Capas Ocultas",
+            #                 entrenamiento.get("hidden_layers", [64, 64, 64]),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_double_dqn",
+            #                 "Double DQN",
+            #                 entrenamiento.get("use_double_dqn", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_dueling_dqn",
+            #                 "Dueling DQN",
+            #                 entrenamiento.get("use_dueling_dqn", True),
+            #                 config,
+            #             )
 
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.target_update_frequency",
-                            "Target Update Freq",
-                            entrenamiento.get("target_update_frequency", 100),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_prioritized_replay",
-                            "Prioritized Replay",
-                            entrenamiento.get("use_prioritized_replay", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.per_alpha",
-                            "PER Alpha",
-                            entrenamiento.get("per_alpha", 0.6),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.per_beta_start",
-                            "PER Beta Start",
-                            entrenamiento.get("per_beta_start", 0.4),
-                            config,
-                        )
+            #         with col2:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.target_update_frequency",
+            #                 "Target Update Freq",
+            #                 entrenamiento.get("target_update_frequency", 100),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_prioritized_replay",
+            #                 "Prioritized Replay",
+            #                 entrenamiento.get("use_prioritized_replay", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.per_alpha",
+            #                 "PER Alpha",
+            #                 entrenamiento.get("per_alpha", 0.6),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.per_beta_start",
+            #                 "PER Beta Start",
+            #                 entrenamiento.get("per_beta_start", 0.4),
+            #                 config,
+            #             )
 
-                    with col3:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_noisy_networks",
-                            "Noisy Networks",
-                            entrenamiento.get("use_noisy_networks", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.noise_std",
-                            "Noise STD",
-                            entrenamiento.get("noise_std", 0.3),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_dropout",
-                            "Dropout",
-                            entrenamiento.get("use_dropout", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.dropout_rate",
-                            "Dropout Rate",
-                            entrenamiento.get("dropout_rate", 0.02),
-                            config,
-                        )
+            #         with col3:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_noisy_networks",
+            #                 "Noisy Networks",
+            #                 entrenamiento.get("use_noisy_networks", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.noise_std",
+            #                 "Noise STD",
+            #                 entrenamiento.get("noise_std", 0.3),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_dropout",
+            #                 "Dropout",
+            #                 entrenamiento.get("use_dropout", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.dropout_rate",
+            #                 "Dropout Rate",
+            #                 entrenamiento.get("dropout_rate", 0.02),
+            #                 config,
+            #             )
 
-                    with st.expander("Optimizaciones de Estabilidad", expanded=False):
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.warmup_steps",
-                                "Warmup Steps",
-                                entrenamiento.get("warmup_steps", 250),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.min_replay_size",
-                                "Min Replay Size",
-                                entrenamiento.get("min_replay_size", 32),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_batch_normalization",
-                                "Batch Normalization",
-                                entrenamiento.get("use_batch_normalization", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_he_initialization",
-                                "He Initialization",
-                                entrenamiento.get("use_he_initialization", True),
-                                config,
-                            )
+            #         with st.expander("Optimizaciones de Estabilidad", expanded=False):
+            #             col1, col2, col3 = st.columns(3)
+            #             with col1:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.warmup_steps",
+            #                     "Warmup Steps",
+            #                     entrenamiento.get("warmup_steps", 250),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.min_replay_size",
+            #                     "Min Replay Size",
+            #                     entrenamiento.get("min_replay_size", 32),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_batch_normalization",
+            #                     "Batch Normalization",
+            #                     entrenamiento.get("use_batch_normalization", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_he_initialization",
+            #                     "He Initialization",
+            #                     entrenamiento.get("use_he_initialization", True),
+            #                     config,
+            #                 )
 
-                        with col2:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_residual_connections",
-                                "Residual Connections",
-                                entrenamiento.get("use_residual_connections", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.gradient_clip_norm",
-                                "Gradient Clip Norm",
-                                entrenamiento.get("gradient_clip_norm", 1.0),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_leaky_relu",
-                                "Leaky ReLU",
-                                entrenamiento.get("use_leaky_relu", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_gradient_clipping",
-                                "Gradient Clipping",
-                                entrenamiento.get("use_gradient_clipping", True),
-                                config,
-                            )
+            #             with col2:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_residual_connections",
+            #                     "Residual Connections",
+            #                     entrenamiento.get("use_residual_connections", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.gradient_clip_norm",
+            #                     "Gradient Clip Norm",
+            #                     entrenamiento.get("gradient_clip_norm", 1.0),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_leaky_relu",
+            #                     "Leaky ReLU",
+            #                     entrenamiento.get("use_leaky_relu", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_gradient_clipping",
+            #                     "Gradient Clipping",
+            #                     entrenamiento.get("use_gradient_clipping", True),
+            #                     config,
+            #                 )
 
-                        with col3:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_huber_loss",
-                                "Huber Loss",
-                                entrenamiento.get("use_huber_loss", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.normalize_rewards",
-                                "Normalize Rewards",
-                                entrenamiento.get("normalize_rewards", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_beta_frames",
-                                "PER Beta Frames",
-                                entrenamiento.get("per_beta_frames", 100000),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.adaptive_lr",
-                                "Adaptive LR",
-                                entrenamiento.get("adaptive_lr", True),
-                                config,
-                            )
+            #             with col3:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_huber_loss",
+            #                     "Huber Loss",
+            #                     entrenamiento.get("use_huber_loss", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.normalize_rewards",
+            #                     "Normalize Rewards",
+            #                     entrenamiento.get("normalize_rewards", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_beta_frames",
+            #                     "PER Beta Frames",
+            #                     entrenamiento.get("per_beta_frames", 100000),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.adaptive_lr",
+            #                     "Adaptive LR",
+            #                     entrenamiento.get("adaptive_lr", True),
+            #                     config,
+            #                 )
 
-                    with st.expander("Evaluación y Métricas", expanded=False):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.enable_evaluation",
-                                "Activar Evaluación",
-                                entrenamiento.get("enable_evaluation", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.evaluation_episodes",
-                                "Episodios Evaluación",
-                                entrenamiento.get("evaluation_episodes", 10),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.evaluation_frequency",
-                                "Frecuencia Evaluación",
-                                entrenamiento.get("evaluation_frequency", 10),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.baseline_comparison",
-                                "Comparación Baseline",
-                                entrenamiento.get("baseline_comparison", True),
-                                config,
-                            )
+            #         with st.expander("Evaluación y Métricas", expanded=False):
+            #             col1, col2 = st.columns(2)
+            #             with col1:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.enable_evaluation",
+            #                     "Activar Evaluación",
+            #                     entrenamiento.get("enable_evaluation", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.evaluation_episodes",
+            #                     "Episodios Evaluación",
+            #                     entrenamiento.get("evaluation_episodes", 10),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.evaluation_frequency",
+            #                     "Frecuencia Evaluación",
+            #                     entrenamiento.get("evaluation_frequency", 10),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.baseline_comparison",
+            #                     "Comparación Baseline",
+            #                     entrenamiento.get("baseline_comparison", True),
+            #                     config,
+            #                 )
 
-                        with col2:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.save_evaluation_data",
-                                "Guardar Datos Evaluación",
-                                entrenamiento.get("save_evaluation_data", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.metrics_window_size",
-                                "Ventana Métricas",
-                                entrenamiento.get("metrics_window_size", 100),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.statistical_tests",
-                                "Tests Estadísticos",
-                                entrenamiento.get("statistical_tests", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.generate_plots",
-                                "Generar Gráficos",
-                                entrenamiento.get("generate_plots", True),
-                                config,
-                            )
+            #             with col2:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.save_evaluation_data",
+            #                     "Guardar Datos Evaluación",
+            #                     entrenamiento.get("save_evaluation_data", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.metrics_window_size",
+            #                     "Ventana Métricas",
+            #                     entrenamiento.get("metrics_window_size", 100),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.statistical_tests",
+            #                     "Tests Estadísticos",
+            #                     entrenamiento.get("statistical_tests", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.generate_plots",
+            #                     "Generar Gráficos",
+            #                     entrenamiento.get("generate_plots", True),
+            #                     config,
+            #                 )
 
-                    with st.expander("Optimizaciones de Rendimiento", expanded=False):
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.lr_schedule_type",
-                                "Tipo Schedule LR",
-                                entrenamiento.get("lr_schedule_type", "plateau"),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.enable_jit_compilation",
-                                "JIT Compilation",
-                                entrenamiento.get("enable_jit_compilation", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.dropout_mode",
-                                "Modo Dropout",
-                                entrenamiento.get("dropout_mode", "optimized"),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.dropout_layers",
-                                "Layers Dropout",
-                                entrenamiento.get("dropout_layers", "strategic"),
-                                config,
-                            )
+            #         with st.expander("Optimizaciones de Rendimiento", expanded=False):
+            #             col1, col2, col3 = st.columns(3)
+            #             with col1:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.lr_schedule_type",
+            #                     "Tipo Schedule LR",
+            #                     entrenamiento.get("lr_schedule_type", "plateau"),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.enable_jit_compilation",
+            #                     "JIT Compilation",
+            #                     entrenamiento.get("enable_jit_compilation", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.dropout_mode",
+            #                     "Modo Dropout",
+            #                     entrenamiento.get("dropout_mode", "optimized"),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.dropout_layers",
+            #                     "Layers Dropout",
+            #                     entrenamiento.get("dropout_layers", "strategic"),
+            #                     config,
+            #                 )
 
-                        with col2:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.noisy_implementation",
-                                "Implementación Noisy",
-                                entrenamiento.get("noisy_implementation", "efficient"),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.double_dqn_batch_optimization",
-                                "Double DQN Batch Opt",
-                                entrenamiento.get(
-                                    "double_dqn_batch_optimization", False
-                                ),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.target_update_batch_size",
-                                "Target Update Batch Size",
-                                entrenamiento.get("target_update_batch_size", 1024),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_batch_processing",
-                                "PER Batch Processing",
-                                entrenamiento.get("per_batch_processing", False),
-                                config,
-                            )
+            #             with col2:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.noisy_implementation",
+            #                     "Implementación Noisy",
+            #                     entrenamiento.get("noisy_implementation", "efficient"),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.double_dqn_batch_optimization",
+            #                     "Double DQN Batch Opt",
+            #                     entrenamiento.get(
+            #                         "double_dqn_batch_optimization", False
+            #                     ),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.target_update_batch_size",
+            #                     "Target Update Batch Size",
+            #                     entrenamiento.get("target_update_batch_size", 1024),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_batch_processing",
+            #                     "PER Batch Processing",
+            #                     entrenamiento.get("per_batch_processing", False),
+            #                     config,
+            #                 )
 
-                        with col3:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_update_frequency",
-                                "PER Update Frequency",
-                                entrenamiento.get("per_update_frequency", 4),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_importance_annealing",
-                                "PER Importance Annealing",
-                                entrenamiento.get("per_importance_annealing", False),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.dueling_stream_simplification",
-                                "Dueling Stream Simplification",
-                                entrenamiento.get(
-                                    "dueling_stream_simplification", False
-                                ),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.hidden_layers_optimization",
-                                "Hidden Layers Optimization",
-                                entrenamiento.get("hidden_layers_optimization", False),
-                                config,
-                            )
+            #             with col3:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_update_frequency",
+            #                     "PER Update Frequency",
+            #                     entrenamiento.get("per_update_frequency", 4),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_importance_annealing",
+            #                     "PER Importance Annealing",
+            #                     entrenamiento.get("per_importance_annealing", False),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.dueling_stream_simplification",
+            #                     "Dueling Stream Simplification",
+            #                     entrenamiento.get(
+            #                         "dueling_stream_simplification", False
+            #                     ),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.hidden_layers_optimization",
+            #                     "Hidden Layers Optimization",
+            #                     entrenamiento.get("hidden_layers_optimization", False),
+            #                     config,
+            #                 )
+            # TODO: El entrenamiento completo está deshabilitado temporalmente
 
     with st.expander("🚦 SUMO Simulación", expanded=False):
         if "sumo" in config:
@@ -2311,7 +2313,7 @@ def render_database_page() -> None:
 
                 # Leyenda explicativa
                 st.info(
-                    "💡 **Leyenda**: Las celdas con fondo rojizo y borde indican valores que superaron los umbrales configurados y activaron la alerta. Este resaltado se adapta automáticamente al tema claro/oscuro."
+                    "💡 **Leyenda**: Las celdas con fondo rojizo indican valores que superaron los umbrales configurados y activaron la alerta."
                 )
 
             except Exception as e:
