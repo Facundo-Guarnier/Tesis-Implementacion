@@ -27,7 +27,6 @@ from src.traffic_system.frontend.config import get_tooltip
 from src.traffic_system.frontend.service_status import (
     ServiceDisplayInfo,
     ServiceState,
-    get_toast_icon_for_state,
     get_toast_message_for_operation,
     map_boolean_to_state,
     map_remote_status_to_state,
@@ -388,7 +387,7 @@ def render_local_service(
     # Fila 1: Estado + Switch
     col1_status, col1_switch = st.columns([3, 1])
     with col1_status:
-        st.write(status_text)
+        st.markdown(f"#### {status_text}")
     with col1_switch:
         if has_remote_option:
             # Toggle switch entre Local/Remoto
@@ -505,7 +504,7 @@ def render_remote_service(
     if has_remote_option:
         col1_status, col1_switch = st.columns([3, 1])
         with col1_status:
-            st.write(status_text)
+            st.markdown(f"#### {status_text}")
         with col1_switch:
             # Toggle switch entre Local/Remoto
             is_remote = st.toggle(
@@ -520,7 +519,7 @@ def render_remote_service(
                 st.session_state.service_modes[service_name] = new_mode
                 st.rerun()
     else:
-        st.write(status_text)
+        st.markdown(f"#### {status_text}")
 
     # Fila 2: Caption + Botones de acción
     col2_caption, col2_check, col2_restart = st.columns([2, 1, 1])
@@ -539,54 +538,34 @@ def render_remote_service(
                 toast_message = get_toast_message_for_operation(
                     "check", display_name, new_state == ServiceState.RUNNING
                 )
-                toast_icon = get_toast_icon_for_state(new_state)
-                st.toast(toast_message, icon=toast_icon)
+
+                # Toasts con iconos apropiados
+                if new_state == ServiceState.RUNNING:
+                    st.toast(toast_message, icon="✅")
+                else:
+                    st.toast(toast_message, icon="⚠️")
             # Quitar st.rerun() inmediato para que el toast sea visible
 
     with col2_restart:
         # Botón de reinicio - solo disponible si el servicio está ejecutándose
         if state == ServiceState.RUNNING:
             if st.button("🔄 Reiniciar", key=f"restart_{service_name}"):
-                # Mostrar confirmación usando st.dialog
-                @st.dialog(f"⚠️ Confirmar reinicio - {display_name}")
-                def confirm_restart() -> None:
-                    st.warning(
-                        f"¿Estás seguro de que quieres reiniciar **{display_name}**?"
-                    )
-                    st.write("Esta acción reiniciará el servicio completo.")
+                # Reinicio directo sin modal de confirmación
+                with st.spinner(f"🔄 Reiniciando {display_name}..."):
+                    result = remote_controller.restart_service(service_name)
 
-                    col_cancel, col_confirm = st.columns(2)
-                    with col_cancel:
-                        if st.button(
-                            "❌ Cancelar", key=f"cancel_restart_{service_name}"
-                        ):
-                            st.rerun()
-
-                    with col_confirm:
-                        if st.button(
-                            "✅ Reiniciar",
-                            key=f"confirm_restart_{service_name}",
-                            type="primary",
-                        ):
-                            # Ejecutar reinicio
-                            with st.spinner(f"🔄 Reiniciando {display_name}..."):
-                                result = remote_controller.restart_service(service_name)
-
-                                if result["success"]:
-                                    st.toast(
-                                        f"✅ {display_name} reiniciado correctamente",
-                                        icon="✅",
-                                    )
-                                else:
-                                    error_msg = result.get("error", "Error desconocido")
-                                    st.toast(
-                                        f"❌ Error al reiniciar {display_name}: {error_msg}",
-                                        icon="❌",
-                                    )
-
-                            st.rerun()
-
-                confirm_restart()
+                    if result["success"]:
+                        st.toast(f"{display_name} reiniciado correctamente", icon="✅")
+                        # No hacer rerun inmediato para operaciones exitosas
+                        # Dejar que el usuario vea el toast
+                    else:
+                        error_msg = result.get("error", "Error desconocido")
+                        st.toast(
+                            f"Error al reiniciar {display_name}: {error_msg}",
+                            icon="❌",
+                        )
+                        # Solo hacer rerun en caso de error
+                        st.rerun()
 
 
 def render_services_page() -> None:

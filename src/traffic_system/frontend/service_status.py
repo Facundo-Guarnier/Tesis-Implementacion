@@ -123,10 +123,17 @@ def get_toast_message_for_operation(
     Returns:
         Mensaje formateado sin emojis (el emoji va en el icon del toast)
     """
+    # Para verificación de estado, usamos mensajes más claros
+    if operation == "check":
+        if success:
+            return f"{service_name} está activo"
+        else:
+            return f"{service_name} está desactivado"
+
+    # Para otras operaciones, comportamiento original
     operation_texts = {
         "start": "iniciado",
         "stop": "detenido",
-        "check": "verificado",
     }
 
     op_text = operation_texts.get(operation, operation)
