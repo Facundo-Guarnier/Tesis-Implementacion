@@ -1,3 +1,6 @@
+# docker build -f docker/decision-agent/Dockerfile -t traffic-decision-agent .
+# docker run --rm --name traffic-decision-agent -v ${PWD}/config.yaml:/app/config.yaml -v ${PWD}/assets:/app/assets -v ${PWD}/logs:/app/logs -v ${PWD}/results:/app/results -p 8080:8080 traffic-decision-agent
+
 # Dockerfile para Decision Agent (DQN)
 FROM python:3.11-slim
 

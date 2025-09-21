@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 import threading
+import time
 from typing import Any
 
 from flask import Flask, jsonify
@@ -18,6 +19,77 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 logger = logging.getLogger("DecisionAgent")
 
+# Variables globales para control del servicio
+service_thread: threading.Thread | None = None
+service_stop_event = threading.Event()
+current_app: Any = None
+
+
+def run_service() -> None:
+    """Ejecutar el servicio principal en un thread separado."""
+    global current_app
+    try:
+        settings = load_app_settings()
+        current_app = DecisionApp()
+
+        if settings.decision.entrenamiento_completo.entrenar:
+            current_app.train_model()
+        else:
+            current_app.run_model_inference()
+
+    except Exception as e:
+        logger.error(f"Error en el servicio: {e}", exc_info=True)
+
+
+def start_service() -> None:
+    """Iniciar el servicio en un thread separado."""
+    global service_thread
+
+    if service_thread and service_thread.is_alive():
+        logger.warning("Servicio ya está ejecutándose")
+        return
+
+    service_stop_event.clear()
+    service_thread = threading.Thread(target=run_service, daemon=False)
+    service_thread.start()
+    logger.info("Servicio iniciado en thread separado")
+
+
+def stop_service() -> None:
+    """Detener el servicio de forma graceful."""
+    global service_thread, current_app
+
+    service_stop_event.set()
+
+    # Intentar detener la app si tiene método de stop
+    if current_app and hasattr(current_app, "stop"):
+        try:
+            current_app.stop()
+        except Exception as e:
+            logger.warning(f"Error deteniendo app: {e}")
+
+    # Esperar a que el thread termine
+    if service_thread and service_thread.is_alive():
+        service_thread.join(timeout=5)
+        if service_thread.is_alive():
+            logger.warning("El servicio no se detuvo en el tiempo esperado")
+        else:
+            logger.info("Servicio detenido correctamente")
+
+    current_app = None
+
+
+def restart_service() -> bool:
+    """Reiniciar solo el servicio (no Flask)."""
+    try:
+        logger.info("Reiniciando servicio...")
+        stop_service()
+        start_service()
+        return True
+    except Exception as e:
+        logger.error(f"Error reiniciando servicio: {e}")
+        return False
+
 
 def create_health_server() -> Flask:
     """Crea un servidor Flask simple para health checks."""
@@ -26,6 +98,33 @@ def create_health_server() -> Flask:
     @app.route("/health", methods=["GET"])
     def health_check() -> Any:
         return jsonify({"status": "ok"})
+
+    @app.route("/restart", methods=["POST"])
+    def restart_service_endpoint() -> Any:
+        """Reinicia solo el servicio DQN, mantiene Flask funcionando."""
+        try:
+            logger.info("Solicitud de reinicio de servicio recibida")
+
+            success = restart_service()
+
+            if success:
+                return jsonify(
+                    {
+                        "status": "restarted",
+                        "message": "Servicio reiniciado correctamente",
+                    }
+                )
+            else:
+                return (
+                    jsonify(
+                        {"status": "error", "message": "Error al reiniciar servicio"}
+                    ),
+                    500,
+                )
+
+        except Exception as e:
+            logger.error(f"Error en endpoint restart: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     return app
 
@@ -72,27 +171,28 @@ def start_health_server() -> None:
 
 
 def main() -> None:
-    """
-    Inicial el modelo de toma de decisiones.
-    Puede:
-    - Entrenar el modelo.
-    - Utilizar un modelo ya entrenado.
-    """
-    # Iniciar servidor de health check
+    """Inicializar el servicio con Flask y servicio DQN en threads separados."""
+    logger.info("Iniciando Decision Agent con arquitectura multi-thread")
+
+    # Iniciar servidor Flask de health check
     start_health_server()
 
-    settings = load_app_settings()
-    app = DecisionApp()
-    if settings.decision.entrenamiento_completo.entrenar:
-        app.train_model()
-        shutdown_handler(0, 0)
+    # Iniciar servicio DQN en thread separado
+    start_service()
 
-    else:
-        app.run_model_inference()
+    # Mantener el proceso principal vivo
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Interrupción recibida, cerrando servicios...")
+        stop_service()
+        sys.exit(0)
 
 
 def shutdown_handler(sig_num: int, frame: Any) -> None:
     logger.info("Cerrando el agente de decisión...")
+    stop_service()
     sys.exit(0)
 
 

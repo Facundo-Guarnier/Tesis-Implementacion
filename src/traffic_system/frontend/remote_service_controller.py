@@ -280,3 +280,65 @@ class RemoteServiceController:
         """
         self.clear_cache()
         return self.get_all_services_status()
+
+    def restart_service(self, service_name: str) -> dict[str, Any]:
+        """
+        Reiniciar un servicio remoto usando el endpoint /restart.
+
+        Args:
+            service_name: Nombre del servicio a reiniciar
+
+        Returns:
+            Diccionario con el resultado de la operación
+        """
+        if service_name not in self.REMOTE_SERVICES:
+            error_msg = f"Servicio remoto no soportado: {service_name}"
+            log_error(error_msg)
+            return {"success": False, "error": error_msg}
+
+        # Obtener URL del servicio pero cambiar /health por /restart
+        url = self._get_service_url(service_name)
+        if not url:
+            error_msg = f"No se pudo obtener URL para {service_name}"
+            log_error(error_msg)
+            return {"success": False, "error": error_msg}
+
+        restart_url = url.replace("/health", "/restart")
+
+        try:
+            log_info(f"Iniciando reinicio de {service_name} en {restart_url}")
+
+            # Hacer POST al endpoint /restart
+            response = requests.post(restart_url, timeout=self.timeout)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "restarting":
+                    log_info(f"{service_name}: reinicio iniciado correctamente")
+                    # Limpiar cache para forzar re-verificación
+                    if service_name in self._status_cache:
+                        del self._status_cache[service_name]
+                    return {"success": True, "message": "Reinicio iniciado"}
+                else:
+                    error_msg = f"Respuesta inesperada del servicio: {data}"
+                    log_warning(f"{service_name}: {error_msg}")
+                    return {"success": False, "error": error_msg}
+            else:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                log_error(f"{service_name}: {error_msg}")
+                return {"success": False, "error": error_msg}
+
+        except requests.exceptions.ConnectionError as e:
+            error_msg = f"No se pudo conectar al servicio: {e}"
+            log_error(f"{service_name}: {error_msg}")
+            return {"success": False, "error": error_msg}
+
+        except requests.exceptions.Timeout as e:
+            error_msg = f"Timeout al reiniciar servicio: {e}"
+            log_error(f"{service_name}: {error_msg}")
+            return {"success": False, "error": error_msg}
+
+        except Exception as e:
+            error_msg = f"Error inesperado: {e}"
+            log_error(f"{service_name}: {error_msg}")
+            return {"success": False, "error": error_msg}

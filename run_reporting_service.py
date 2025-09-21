@@ -1,6 +1,7 @@
 import logging
 import os
 import signal
+import subprocess
 import sys
 import threading
 from typing import Any
@@ -25,6 +26,52 @@ def create_health_server() -> Flask:
     @app.route("/health", methods=["GET"])
     def health_check() -> Any:
         return jsonify({"status": "ok"})
+
+    @app.route("/restart", methods=["POST"])
+    def restart_service() -> Any:
+        """Reinicia el servicio usando process spawning."""
+        try:
+            # Obtener información del proceso actual
+            current_pid = os.getpid()
+            python_executable = sys.executable
+            script_args = sys.argv.copy()
+            current_dir = os.getcwd()
+
+            logger.info(f"Iniciando reinicio del servicio (PID: {current_pid})")
+
+            # Crear comando de reinicio que:
+            # 1. Espera 1 segundo
+            # 2. Intenta SIGTERM primero (más graceful)
+            # 3. Si no funciona, usa SIGKILL
+            # 4. Relanza el servicio
+            restart_cmd = [
+                python_executable,
+                "-c",
+                f"import time, os, subprocess, signal; "
+                f"time.sleep(1); "
+                f"try: os.kill({current_pid}, signal.SIGTERM); time.sleep(2); "
+                f"except: pass; "
+                f"try: os.kill({current_pid}, signal.SIGKILL); "
+                f"except: pass; "
+                f"subprocess.run({script_args}, cwd='{current_dir}')",
+            ]
+
+            # Spawn proceso independiente para reinicio
+            subprocess.Popen(
+                restart_cmd,
+                cwd=current_dir,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            logger.info(
+                "Proceso de reinicio iniciado - servicio se reiniciará en 1 segundo"
+            )
+            return jsonify({"status": "restarting"})
+
+        except Exception as e:
+            logger.error(f"Error durante reinicio: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     return app
 

@@ -25,6 +25,8 @@ WORKDIR /app
 
 # Copiar archivos de dependencias
 COPY requirements-reporting.txt ./
+# docker build -f docker/reporting-service/Dockerfile -t traffic-reporting-service .
+# docker run --rm --name traffic-reporting-service -v ${PWD}/config.yaml:/app/config.yaml -v ${PWD}/results:/app/results -v ${PWD}/logs:/app/logs -p 8081:8081 traffic-reporting-service
 
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements-reporting.txt

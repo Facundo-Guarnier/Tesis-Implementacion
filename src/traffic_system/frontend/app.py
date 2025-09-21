@@ -476,6 +476,25 @@ def render_remote_service(
     """Renderizar un servicio remoto usando health checks."""
     display_name = remote_controller.get_service_friendly_name(service_name)
 
+    # Verificar si hay reinicio pendiente de verificación
+    restart_check_key = f"restart_check_{service_name}"
+    if (
+        restart_check_key in st.session_state
+        and st.session_state[restart_check_key]["started"]
+    ):
+        # Verificar estado después del reinicio
+        remote_controller.clear_cache()
+        new_status_raw = remote_controller.get_service_status(service_name)
+        new_state = map_remote_status_to_state(new_status_raw)
+
+        if new_state == ServiceState.RUNNING:
+            st.toast(f"✅ {display_name} reiniciado correctamente", icon="✅")
+        else:
+            st.toast(f"⚠️ {display_name} aún reiniciando...", icon="⚠️")
+
+        # Limpiar flag de verificación
+        del st.session_state[restart_check_key]
+
     # Obtener estado del servicio remoto y usar enums estandarizados
     status_raw = remote_controller.get_service_status(service_name)
     state = map_remote_status_to_state(status_raw)
@@ -503,8 +522,8 @@ def render_remote_service(
     else:
         st.write(status_text)
 
-    # Fila 2: Caption + Botón de verificación
-    col2_caption, col2_check, col2_info = st.columns([2, 1, 1])
+    # Fila 2: Caption + Botones de acción
+    col2_caption, col2_check, col2_restart = st.columns([2, 1, 1])
     with col2_caption:
         st.caption(caption_text)
 
@@ -524,28 +543,50 @@ def render_remote_service(
                 st.toast(toast_message, icon=toast_icon)
             # Quitar st.rerun() inmediato para que el toast sea visible
 
-    with col2_info:
-        # Para servicios remotos, mostrar información de configuración
-        if st.button("⚙️ Info", key=f"info_{service_name}"):
-            try:
-                from src.traffic_system.core.config_loader import load_app_settings
+    with col2_restart:
+        # Botón de reinicio - solo disponible si el servicio está ejecutándose
+        if state == ServiceState.RUNNING:
+            if st.button("🔄 Reiniciar", key=f"restart_{service_name}"):
+                # Mostrar confirmación usando st.dialog
+                @st.dialog(f"⚠️ Confirmar reinicio - {display_name}")
+                def confirm_restart() -> None:
+                    st.warning(
+                        f"¿Estás seguro de que quieres reiniciar **{display_name}**?"
+                    )
+                    st.write("Esta acción reiniciará el servicio completo.")
 
-                settings = load_app_settings()
+                    col_cancel, col_confirm = st.columns(2)
+                    with col_cancel:
+                        if st.button(
+                            "❌ Cancelar", key=f"cancel_restart_{service_name}"
+                        ):
+                            st.rerun()
 
-                if service_name == "decision":
-                    ip = settings.services.remote.decision.ip
-                    port = settings.services.remote.decision.port
-                elif service_name == "reporting":
-                    ip = settings.services.remote.reporting.ip
-                    port = settings.services.remote.reporting.port
-                else:
-                    ip = "N/A"
-                    port = 0
+                    with col_confirm:
+                        if st.button(
+                            "✅ Reiniciar",
+                            key=f"confirm_restart_{service_name}",
+                            type="primary",
+                        ):
+                            # Ejecutar reinicio
+                            with st.spinner(f"🔄 Reiniciando {display_name}..."):
+                                result = remote_controller.restart_service(service_name)
 
-                st.info(f"🌐 URL: http://{ip}:{port}/health")
+                                if result["success"]:
+                                    st.toast(
+                                        f"✅ {display_name} reiniciado correctamente",
+                                        icon="✅",
+                                    )
+                                else:
+                                    error_msg = result.get("error", "Error desconocido")
+                                    st.toast(
+                                        f"❌ Error al reiniciar {display_name}: {error_msg}",
+                                        icon="❌",
+                                    )
 
-            except Exception as e:
-                st.error(f"❌ Error obteniendo configuración: {e}")
+                            st.rerun()
+
+                confirm_restart()
 
 
 def render_services_page() -> None:
