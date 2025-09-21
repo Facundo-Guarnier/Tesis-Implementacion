@@ -2044,23 +2044,84 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
 
 def render_database_page() -> None:
     """Renderizar página de visualización de alertas de congestión."""
-    st.title("⚠️ Alertas de Congestión")
 
-    if st.button(
-        "🔄 Refrescar Datos",
-        help="Actualizar lista de archivos de alertas",
-        key="refresh_alerts",
-    ):
-        # Limpiar cache si existe
-        if "last_alerts_refresh" in st.session_state:
-            del st.session_state["last_alerts_refresh"]
-        st.session_state["last_alerts_refresh"] = datetime.datetime.now().strftime(
-            "%H:%M:%S"
-        )
-        st.rerun()
+    # Título con botón de refrescar y última actualización
+    col_titulo, col_refresh = st.columns([4, 2])
 
-    last_refresh = st.session_state.get("last_alerts_refresh", "Nunca")
-    st.caption(f"🕒 Última actualización: {last_refresh}")
+    with col_titulo:
+        st.title("⚠️ Alertas de Congestión")
+
+    with col_refresh:
+        st.write("")  # Espaciado vertical
+        if st.button(
+            "🔄 Refrescar Datos",
+            help="Actualizar lista de archivos de alertas",
+            key="refresh_alerts",
+        ):
+            # Limpiar cache si existe
+            if "last_alerts_refresh" in st.session_state:
+                del st.session_state["last_alerts_refresh"]
+            st.session_state["last_alerts_refresh"] = datetime.datetime.now().strftime(
+                "%H:%M:%S"
+            )
+            st.rerun()
+
+        # Última actualización debajo del botón
+        last_refresh = st.session_state.get("last_alerts_refresh", "Nunca")
+        st.caption(
+            f"🕒 Última actualización: {last_refresh}"
+        )  # Mostrar umbrales configurados
+    st.subheader("📊 Umbrales de Alertas Configurados")
+
+    try:
+        # Cargar configuración actual para obtener umbrales
+        from src.traffic_system.frontend.config_manager import ConfigManager
+
+        config_manager = ConfigManager()
+        config = config_manager.load_config()
+
+        if config:
+            # Mostrar umbrales en columnas
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric(
+                    "⏱️ Tiempo Total Máximo",
+                    f"{config['reporte']['tiempo_total_espera_maximo']}s",
+                    help="Tiempo de espera total que activa alertas de congestión",
+                )
+
+            with col2:
+                st.metric(
+                    "⚡ Tiempo por Zona Máximo",
+                    f"{config['reporte']['tiempo_zona_espera_maximo']}s",
+                    help="Tiempo de espera por zona que activa alertas",
+                )
+
+            with col3:
+                st.metric(
+                    "🚗 Vehículos Totales Máximo",
+                    f"{config['reporte']['total_vehiculos_maximo']}",
+                    help="Número total de vehículos que activa alertas",
+                )
+
+            with col4:
+                st.metric(
+                    "🚙 Vehículos por Zona Máximo",
+                    f"{config['reporte']['zona_vehiculos_maximo']}",
+                    help="Número de vehículos por zona que activa alertas",
+                )
+
+            st.info(
+                "💡 Las alertas se generan cuando cualquiera de estos umbrales es superado"
+            )
+        else:
+            st.warning("⚠️ No se pudo cargar la configuración")
+
+        st.markdown("---")
+
+    except Exception as e:
+        st.warning(f"⚠️ Error cargando umbrales de configuración: {e}")
 
     try:
         # Buscar archivos de base de datos
@@ -2137,68 +2198,22 @@ def render_database_page() -> None:
             cursor.execute("SELECT COUNT(*) FROM reporte")
             total_records = cursor.fetchone()[0]
 
-            cursor.execute(
-                "SELECT MIN(step_simulacion), MAX(step_simulacion) FROM reporte"
-            )
-            min_step, max_step = cursor.fetchone()
-
-            # Mostrar estadísticas básicas
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("⚠️ Total Alertas", total_records)
-            with col2:
-                st.metric("⏮️ Step Mínimo", min_step if min_step else 0)
-            with col3:
-                st.metric("⏭️ Step Máximo", max_step if max_step else 0)
-
-            st.markdown("---")
-
-            # Opciones de visualización
-            st.subheader("🔍 Opciones de Visualización")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Filtro por rango de steps
-                use_step_filter = st.checkbox("📈 Filtrar por rango de steps")
-                if use_step_filter and min_step is not None and max_step is not None:
-                    step_range = st.slider(
-                        "Rango de steps:",
-                        min_value=int(min_step),
-                        max_value=int(max_step),
-                        value=(int(min_step), int(max_step)),
-                        step=1,
-                    )
-                else:
-                    step_range = None
-
-            with col2:
-                # Límite de registros
-                limit_records = st.number_input(
-                    "📝 Límite de registros a mostrar:",
-                    min_value=10,
-                    max_value=10000,
-                    value=500,
-                    step=50,
+            # Si no hay registros, mostrar mensaje informativo
+            if total_records == 0:
+                st.warning("⚠️ No se encontraron registros de alertas de congestión")
+                st.info(
+                    "💡 Estos datos representan momentos donde se superaron umbrales críticos de tiempo de espera o cantidad de vehículos"
                 )
+                return
 
-                # Orden de resultados
-                order_desc = st.checkbox("📅 Más recientes primero", value=True)
+            # st.markdown("---")
 
-            # Construir consulta SQL
-            query = "SELECT * FROM reporte"
-            params = []
-
-            if use_step_filter and step_range:
-                query += " WHERE step_simulacion BETWEEN ? AND ?"
-                params.extend([step_range[0], step_range[1]])
-
-            query += f" ORDER BY step_simulacion {'DESC' if order_desc else 'ASC'}"
-            query += f" LIMIT {limit_records}"
+            # Cargar todos los datos, ordenados por más recientes primero
+            query = "SELECT * FROM reporte ORDER BY step_simulacion DESC"
 
             # Cargar datos
             with st.spinner("📊 Cargando datos..."):
-                df = pd.read_sql_query(query, conn, params=params)
+                df = pd.read_sql_query(query, conn)
 
             if df.empty:
                 st.warning("⚠️ No se encontraron datos con los filtros aplicados")
@@ -2206,10 +2221,6 @@ def render_database_page() -> None:
 
             # Mostrar tabla de datos
             st.subheader(f"⚠️ Alertas de Congestión ({len(df)} registros)")
-
-            st.info(
-                "💡 Estos datos representan momentos donde se superaron umbrales críticos de tiempo de espera o cantidad de vehículos"
-            )
 
             # Configurar columnas para mejor visualización
             display_df = df.copy()
@@ -2302,23 +2313,14 @@ def render_database_page() -> None:
             st.markdown("---")
             st.subheader("💾 Exportar Alertas")
 
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Descargar CSV
-                csv_data = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Descargar alertas como CSV",
-                    data=csv_data,
-                    file_name=f"alertas_congestion_{db_names[selected_idx]}.csv",
-                    mime="text/csv",
-                )
-
-            with col2:
-                # Información del archivo
-                st.info(f"📍 Ubicación: `{selected_db}`")
-                file_size = os.path.getsize(selected_db)
-                st.caption(f"💿 Tamaño: {file_size / 1024:.1f} KB")
+            # Descargar CSV
+            csv_data = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Descargar alertas como CSV",
+                data=csv_data,
+                file_name=f"alertas_congestion_{db_names[selected_idx]}.csv",
+                mime="text/csv",
+            )
 
             conn.close()
 
