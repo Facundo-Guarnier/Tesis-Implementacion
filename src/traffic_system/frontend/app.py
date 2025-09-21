@@ -493,7 +493,7 @@ def render_remote_service(
                 "Remoto",
                 value=st.session_state.service_modes[service_name] == "remote",
                 key=f"toggle_{service_name}",
-                help="🐍 Local: Proceso local\n🌐 Remoto: Health check HTTP",
+                help="🐍 Local: Proceso local\n🌐 Remoto: Verificación HTTP",
             )
             # Actualizar modo en session state
             new_mode = "remote" if is_remote else "local"
@@ -600,6 +600,41 @@ def render_services_page() -> None:
             # Limpiar cache de servicios remotos para forzar re-verificación
             remote_controller.clear_cache()
 
+            # Calcular conteo híbrido que incluye servicios remotos cuando están en modo remoto
+            total_services = len(summary["services"])
+            running_services = 0
+
+            for service_name, service_info in summary["services"].items():
+                has_remote_option = service_name in ["decision", "reporting"]
+
+                if has_remote_option:
+                    current_mode = st.session_state.service_modes[service_name]
+                    if current_mode == "remote":
+                        # Para servicios remotos, verificar su estado
+                        remote_status = remote_controller.get_service_status(
+                            service_name
+                        )
+                        is_remote_running = remote_status == "running"
+                        if is_remote_running:
+                            running_services += 1
+                    else:
+                        # Para servicios locales, usar el estado original
+                        if service_info["is_running"]:
+                            running_services += 1
+                else:
+                    # Para servicios sin opción remota, usar el estado original
+                    if service_info["is_running"]:
+                        running_services += 1
+
+            # Actualizar los conteos en el summary
+            summary["running_services"] = running_services
+            summary["stopped_services"] = total_services - running_services
+            summary["status_text"] = (
+                f"{running_services}/{total_services} servicios activos"
+            )
+            summary["all_running"] = running_services == total_services
+            summary["all_stopped"] = running_services == 0
+
         st.session_state[cache_key] = summary
         st.session_state[cache_time_key] = time.time()
 
@@ -612,6 +647,40 @@ def render_services_page() -> None:
 
         # Actualizar cache silenciosamente sin spinner
         summary = controller.get_services_summary()
+
+        # Calcular conteo híbrido que incluye servicios remotos cuando están en modo remoto
+        total_services = len(summary["services"])
+        running_services = 0
+
+        for service_name, service_info in summary["services"].items():
+            has_remote_option = service_name in ["decision", "reporting"]
+
+            if has_remote_option:
+                current_mode = st.session_state.service_modes[service_name]
+                if current_mode == "remote":
+                    # Para servicios remotos, verificar su estado
+                    remote_status = remote_controller.get_service_status(service_name)
+                    is_remote_running = remote_status == "running"
+                    if is_remote_running:
+                        running_services += 1
+                else:
+                    # Para servicios locales, usar el estado original
+                    if service_info["is_running"]:
+                        running_services += 1
+            else:
+                # Para servicios sin opción remota, usar el estado original
+                if service_info["is_running"]:
+                    running_services += 1
+
+        # Actualizar los conteos en el summary
+        summary["running_services"] = running_services
+        summary["stopped_services"] = total_services - running_services
+        summary["status_text"] = (
+            f"{running_services}/{total_services} servicios activos"
+        )
+        summary["all_running"] = running_services == total_services
+        summary["all_stopped"] = running_services == 0
+
         st.session_state[cache_key] = summary
         st.session_state[cache_time_key] = time.time()
 
@@ -1027,38 +1096,37 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
             if "remote" in services:
                 remote = services["remote"]
 
-                # Decision Agent Remote
-                st.write("**Decision Agent**")
+                st.write("**Decisión**")
                 col1, col2 = st.columns(2)
                 with col1:
                     render_field_widget(
                         "services.remote.decision.ip",
-                        "IP Decision Agent",
+                        "IP Decisión",
                         remote.get("decision", {}).get("ip", ""),
                         config,
                     )
                 with col2:
                     render_field_widget(
                         "services.remote.decision.port",
-                        "Puerto Decision Agent",
+                        "Puerto Decisión",
                         remote.get("decision", {}).get("port", 8080),
                         config,
                     )
 
-                # Reporting Service Remote
-                st.write("**Reporting Service**")
+                # Servicio de Reportes Remoto
+                st.write("**Reportes**")
                 col1, col2 = st.columns(2)
                 with col1:
                     render_field_widget(
                         "services.remote.reporting.ip",
-                        "IP Reporting Service",
+                        "IP Reportes",
                         remote.get("reporting", {}).get("ip", ""),
                         config,
                     )
                 with col2:
                     render_field_widget(
                         "services.remote.reporting.port",
-                        "Puerto Reporting Service",
+                        "Puerto Reportes",
                         remote.get("reporting", {}).get("port", 8081),
                         config,
                     )

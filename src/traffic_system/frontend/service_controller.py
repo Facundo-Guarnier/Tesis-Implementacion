@@ -32,10 +32,10 @@ class ServiceController:
 
     # Nombres amigables para mostrar en UI
     SERVICE_NAMES = {
-        "simulation": "Simulation Provider",
-        "decision": "Decision Agent",
-        "detection": "Detection Provider",
-        "reporting": "Reporting Service",
+        "simulation": "Simulación",
+        "decision": "Decisión",
+        "detection": "Detección",
+        "reporting": "Reportes",
     }
 
     def __init__(self) -> None:

@@ -27,7 +27,7 @@ class ServiceDisplayInfo:
         ServiceState.STOPPED: "🔴",
         ServiceState.TIMEOUT: "⏱️",
         ServiceState.ERROR: "⚠️",
-        ServiceState.CONNECTION_ERROR: "❌",
+        ServiceState.CONNECTION_ERROR: "🔴",
         ServiceState.UNKNOWN: "❓",
     }
 

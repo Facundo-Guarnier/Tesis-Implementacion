@@ -27,8 +27,8 @@ class RemoteServiceController:
 
     # Nombres amigables para mostrar en UI
     SERVICE_NAMES = {
-        "decision": "Decision Agent (Remote)",
-        "reporting": "Reporting Service (Remote)",
+        "decision": "Decisión",
+        "reporting": "Reportes",
     }
 
     def __init__(self) -> None:
@@ -38,8 +38,8 @@ class RemoteServiceController:
         self._cache_duration = 3  # Cache por x segundos
 
         # Configuración de requests
-        self.timeout = 3  # segundos timeout
-        self.max_retries = 2  # reintentos
+        self.timeout = 2  # segundos timeout (aumentado para evitar timeouts prematuros)
+        self.max_retries = 2  # reducido para respuesta más rápida
 
     def _get_service_url(self, service_name: str) -> str | None:
         """
