@@ -949,16 +949,6 @@ def render_field_widget(
 def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
     """Renderizar configuración completa de config.yaml."""
 
-    with st.expander("🌐 Configuración Global", expanded=False):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            render_field_widget(
-                "base_url", "URL Base", config.get("base_url", ""), config
-            )
-        with col2:
-            render_field_widget("base_ip", "IP Base", config.get("base_ip", ""), config)
-
     with st.expander("📡 Servicios", expanded=False):
         if "services" in config:
             services = config["services"]
@@ -968,12 +958,19 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
 
             with col1:
                 render_field_widget(
+                    "base_url", "URL Base", config.get("base_url", ""), config
+                )
+                render_field_widget(
                     "services.simulation_port",
                     "Puerto Simulación",
                     services.get("simulation_port", 5000),
                     config,
                 )
             with col2:
+                render_field_widget(
+                    "base_ip", "IP Base", config.get("base_ip", ""), config
+                )
+
                 render_field_widget(
                     "services.detection_port",
                     "Puerto Detección",
@@ -2001,7 +1998,6 @@ def render_database_page() -> None:
         )
 
         selected_db = db_files[selected_idx]
-        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
 
         # Mostrar información adicional de la sesión seleccionada
         try:
@@ -2303,7 +2299,6 @@ def render_comparisons_page() -> None:
         )
 
         selected_db = db_files[selected_idx]
-        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
 
         # Mostrar información adicional de la sesión seleccionada
         try:
@@ -2369,7 +2364,7 @@ def render_comparisons_page() -> None:
                     st.plotly_chart(fig_wait, use_container_width=True, height=500)
 
                 # Gráfico de vehículos - PANTALLA COMPLETA
-                st.markdown("#### 🚗 Número de Vehículos Esperando")
+                st.markdown("#### 🚗 Número de Vehículos")
                 if (
                     "s1_vehiculos_actual" in metrics_df.columns
                     and "s2_vehiculos_actual" in metrics_df.columns
