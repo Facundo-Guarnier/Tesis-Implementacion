@@ -1193,6 +1193,30 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
 
             st.markdown("---")
 
+            # Opciones de Debug
+            if "debug" in deteccion:
+                debug_config = deteccion["debug"]
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    render_field_widget(
+                        "deteccion.debug.show_object_ids",
+                        "Mostrar IDs de Objetos",
+                        debug_config.get("show_object_ids", False),
+                        config,
+                    )
+
+                with col2:
+                    render_field_widget(
+                        "deteccion.debug.show_multas_counter",
+                        "Mostrar Contador de Multas",
+                        debug_config.get("show_multas_counter", False),
+                        config,
+                    )
+
+            st.markdown("---")
+
             if "carpeta_dataset" in deteccion:
                 st.subheader("Procesamiento Carpeta Dataset")
                 col1, col2 = st.columns(2)
@@ -3337,9 +3361,16 @@ def render_api_endpoint_card(
             if parameters:
                 for param_name, param_config in parameters.items():
                     if param_config["type"] == "select":
+                        options = param_config["options"]
+                        default_value = param_config.get("default")
+                        default_index = 0
+                        if default_value and default_value in options:
+                            default_index = options.index(default_value)
+
                         param_values[param_name] = st.selectbox(
                             param_config["label"],
-                            param_config["options"],
+                            options,
+                            index=default_index,
                             key=f"{key_prefix}_{param_name}",
                         )
                     elif param_config["type"] == "text":
@@ -3369,6 +3400,12 @@ def render_api_endpoint_card(
         # Ejecutar request
         result = execute_api_request(method, final_endpoint)
         add_to_history(result)
+
+        # Si es una request de multas exitosa, activar auto-refresh de galería
+        if "/multas/" in final_endpoint and result["success"]:
+            # Programar refresh de galería con delay de 200ms
+            st.session_state["refresh_multas_scheduled"] = True
+            st.session_state["refresh_multas_time"] = datetime.datetime.now()
 
         # Mostrar respuesta con ancho completo
         st.markdown("---")
@@ -3402,6 +3439,17 @@ def render_api_endpoint_card(
 def render_api_testing_page() -> None:
     """Renderizar la página de testing de APIs."""
     st.title("🧪 APIs")
+
+    # Cargar configuración para obtener zona por defecto
+    default_zone = "Zona A"  # Valor por defecto fallback
+    try:
+        from src.traffic_system.core.config_loader import load_app_settings
+
+        config = load_app_settings()
+        if hasattr(config, "deteccion") and hasattr(config.deteccion, "un_video"):
+            default_zone = config.deteccion.un_video.zona
+    except Exception:
+        pass  # Usar zona por defecto si hay error
 
     # Configuración de API
     with st.sidebar:
@@ -3531,6 +3579,7 @@ def render_api_testing_page() -> None:
                         "Zona K",
                         "Zona L",
                     ],
+                    "default": default_zone,
                 }
             },
             key_prefix="multa_zona",
@@ -3546,29 +3595,62 @@ def render_api_testing_page() -> None:
             st.subheader("📸 Galería de Multas Detectadas")
 
         with col2:
-            if st.button(
+            refresh_button_clicked = st.button(
                 "🔄 Refrescar",
                 help="Actualizar lista de fechas e imágenes de multas",
                 key="refresh_multas",
                 use_container_width=True,
+            )
+
+        # Auto-refresh después de activar multas (200ms delay)
+        refresh_from_send = False
+        if st.session_state.get("refresh_multas_scheduled", False):
+            request_time = st.session_state.get("refresh_multas_time")
+            if (
+                request_time
+                and (datetime.datetime.now() - request_time).total_seconds() >= 0.2
             ):
-                # Limpiar cache si existe
-                if "multas_cache" in st.session_state:
-                    del st.session_state["multas_cache"]
-                # Limpiar fecha previamente seleccionada para que se actualice al último elemento disponible
-                if "multas_selected_date" in st.session_state:
-                    del st.session_state["multas_selected_date"]
-                if "multas_date_selector" in st.session_state:
-                    del st.session_state["multas_date_selector"]
-                st.session_state["last_multas_refresh"] = (
-                    datetime.datetime.now().strftime("%H:%M:%S")
-                )
-                st.rerun()  # Mostrar última actualización
+                refresh_from_send = True
+                st.session_state["refresh_multas_scheduled"] = False
+                if "refresh_multas_time" in st.session_state:
+                    del st.session_state["refresh_multas_time"]
+
+        # Ejecutar refresh manual o tras Send
+        if refresh_button_clicked or refresh_from_send:
+            # Limpiar cache si existe
+            if "multas_cache" in st.session_state:
+                del st.session_state["multas_cache"]
+
+            # Limpiar selección para forzar selección de fecha más reciente
+            if "multas_selected_date" in st.session_state:
+                del st.session_state["multas_selected_date"]
+            if "multas_date_selector" in st.session_state:
+                del st.session_state["multas_date_selector"]
+
+            st.session_state["last_multas_refresh"] = datetime.datetime.now().strftime(
+                "%H:%M:%S"
+            )
+
+            # Forzar rerun para actualizar contenido
+            st.rerun()
         last_refresh = st.session_state.get("last_multas_refresh", "Nunca")
-        st.caption(f"🕒 Última actualización: {last_refresh}")
+        st.caption(
+            f"🕒 Última actualización: {last_refresh} • 🔄 Auto-refresh: Activo (cada 1s)"
+        )
 
         # Obtener fechas disponibles
         available_dates = get_multas_dates()
+
+        # Si hay auto-refresh activo y hay nuevas fechas, limpiar selección para mostrar la más reciente
+        current_dates_count = len(available_dates)
+        last_dates_count = st.session_state.get("last_dates_count", 0)
+        if current_dates_count > last_dates_count:
+            # Nueva carpeta detectada - limpiar selección para mostrar la más reciente
+            if "multas_selected_date" in st.session_state:
+                del st.session_state["multas_selected_date"]
+            if "multas_date_selector" in st.session_state:
+                del st.session_state["multas_date_selector"]
+        st.session_state["last_dates_count"] = current_dates_count
 
         if not available_dates:
             st.info(
@@ -3582,10 +3664,18 @@ def render_api_testing_page() -> None:
             # Obtener la fecha previamente seleccionada para mantenerla
             previous_selected = st.session_state.get("multas_selected_date", None)
 
-            # Si la fecha previamente seleccionada ya no existe, usar la primera disponible
-            default_index = 0
-            if previous_selected and previous_selected in available_dates:
+            # Si no hay selección previa o se hizo refresh, usar la más reciente (primera en lista)
+            # Si hay selección previa Y existe en la lista actual, mantenerla
+            default_index = 0  # Por defecto, la más reciente
+            if (
+                previous_selected
+                and previous_selected in available_dates
+                and not refresh_from_send
+            ):
                 default_index = available_dates.index(previous_selected)
+            else:
+                # Nueva carpeta detectada o refresh tras Send - usar la más reciente
+                default_index = 0
 
             selected_date = st.selectbox(
                 "📅 Fecha:",
@@ -3665,6 +3755,17 @@ def render_api_testing_page() -> None:
                             ),
                             language="json",
                         )
+
+    # Auto-refresh cada 1 segundo usando streamlit_autorefresh (mismo patrón que logs)
+    auto_refresh_count = st_autorefresh(
+        interval=1000,  # 1 segundo = 1000ms
+        key="autorefresh_multas",
+    )
+
+    if auto_refresh_count > 0:
+        # Limpiar cache para forzar actualización de datos
+        if "multas_cache" in st.session_state:
+            del st.session_state["multas_cache"]
 
 
 def main() -> None:

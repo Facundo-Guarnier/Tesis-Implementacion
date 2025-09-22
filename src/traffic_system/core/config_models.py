@@ -76,6 +76,15 @@ class DeteccionUnVideoSettings(BaseModel):
     path_destino: str  #! Carpeta donde se guardará el video con los resultados
 
 
+class DeteccionDebugSettings(BaseModel):
+    """Configuración de opciones de debug para detección."""
+
+    show_object_ids: bool = False  #! Mostrar IDs de tracking de objetos para debugging
+    show_multas_counter: bool = (
+        False  #! Mostrar contador de multas y direcciones de cruzamiento
+    )
+
+
 class DeteccionSettings(BaseModel):
     detectar: bool  # * Iniciar la detección de objetos
     modelo: str  #! Modelo de detección de objetos
@@ -89,6 +98,8 @@ class DeteccionSettings(BaseModel):
     forced_rotation_degrees: int = 0  # 0, 90, 180, 270
     window_fixed: bool = True
     window_size: list[int] = [460, 820]  # [ancho, alto]
+    # Opciones de debug (valores por defecto para no romper config existente)
+    debug: DeteccionDebugSettings = DeteccionDebugSettings()
 
 
 # --- Modelos para la sección 'decision' ---

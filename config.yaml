@@ -21,6 +21,10 @@ deteccion:
   window_fixed: true #! Ventana fija (no se redimensiona automáticamente)
   window_size: [460, 820] #! Tamaño de ventana fija [ancho, alto]
 
+  debug:
+    show_object_ids: false #! Mostrar IDs de tracking de objetos para debugging
+    show_multas_counter: false #! Mostrar contador de multas y direcciones de cruzamiento
+
   carpeta_dataset:
     procesar: false #! Procesar todos los videos de la carpeta del dataset
     path_origen: "assets/dataset-1080x1920-30fps/" #! Carpeta con los videos a procesar
@@ -32,7 +36,7 @@ deteccion:
     zona: "Zona B"
     path_destino: "results/deteccion/"
     # path_origen: assets\dataset-nuevos_video_3\Zona A - Alternativo\20250914_122636_Clipchamp.mp4
-    path_origen: assets\dataset-nuevos_video_3\Zona B\20250914_122919.mp4
+    path_origen: assets\dataset-nuevos_video_3\Zona B\20250914_122919 - Clipchamp.mp4
 
   procesar_camara: false #! Procesar la cámara en tiempo real
 

@@ -549,12 +549,12 @@ class DetectorService:
                     scene=frame, detections=outside_detections
                 )
 
-        # TODO: Agregar etiquetas con IDs de tracking (comentado temporalmente)
-        # if detections.tracker_id is not None:
-        #     labels = [f"ID: {tracker_id}" for tracker_id in detections.tracker_id]
-        #     frame = self.label_annotator.annotate(
-        #         scene=frame, detections=detections, labels=labels
-        #     )
+        # Mostrar IDs de tracking si está activado en debug
+        if self.settings.debug.show_object_ids and detections.tracker_id is not None:
+            labels = [f"ID: {tracker_id}" for tracker_id in detections.tracker_id]
+            frame = self.label_annotator.annotate(
+                scene=frame, detections=detections, labels=labels
+            )
 
         return frame
 
@@ -686,8 +686,11 @@ class DetectorService:
         Returns:
             Frame con solo las líneas de multa dibujadas
         """
-        # return self._draw_line_zones_without_counters(frame)
-        return self._draw_line_zones_without_counters(frame)
+        # Dibujar líneas de multa con o sin contadores según configuración de debug
+        if self.settings.debug.show_multas_counter:
+            return self._draw_line_zones_with_counters(frame)
+        else:
+            return self._draw_line_zones_without_counters(frame)
 
     def _process_fines(
         self, frame: np.ndarray, detections: sv.Detections, clean_frame: np.ndarray
@@ -740,18 +743,24 @@ class DetectorService:
                         if not self._fines_folder_created:
                             self._create_fines_folder()
 
-                        #! Guardar la imagen recortada limpia
+                        #! Guardar la imagen recortada limpia con timestamp único
+                        current_time = time.time()
+                        timestamp = time.strftime(
+                            "%H-%M-%S", time.localtime(current_time)
+                        )
+                        milliseconds = int((current_time % 1) * 1000)
+
                         file_name = os.path.join(
-                            self.__fines_path, f"multa_{time.strftime('%H-%M-%S')}.jpg"
+                            self.__fines_path,
+                            f"multa_{timestamp}-{milliseconds:03d}.jpg",
                         )
                         cv2.imwrite(file_name, cropped_image)
                         self.logger.info(
                             f"🚨 Multa guardada (imagen limpia): {file_name}"
                         )
 
-        # TODO: TEMPORAL - Para debug de direcciones, cambiar entre estos dos métodos:
-        # frame = self._draw_line_zones_with_counters(frame)
-        frame = self._draw_line_zones_without_counters(frame)
+        # Las líneas de multa se dibujan siempre en _process_frame_base cuando están activadas
+        # No es necesario dibujarlas aquí para evitar duplicados
 
         return frame
 
@@ -808,6 +817,17 @@ class DetectorService:
             # Cuando no hay detecciones activas, limpiar métricas
             self.detection_times_fps_normalized.clear()
             self._update_zone_metrics(0, 0)
+
+        # Dibujar líneas de multa SIEMPRE que estén activadas (independiente de si hay detecciones)
+        if self.video_processor.zone.fines_activated:
+            # Crear carpeta de multas automáticamente al estar activadas
+            if not self._fines_folder_created:
+                self._create_fines_folder()
+            # Dibujar líneas con o sin contadores según configuración de debug
+            if self.settings.debug.show_multas_counter:
+                frame = self._draw_line_zones_with_counters(frame)
+            else:
+                frame = self._draw_line_zones_without_counters(frame)
 
         # Limpieza periódica del historial de cruzamientos (cada ~100 frames)
         self._cleanup_counter += 1
