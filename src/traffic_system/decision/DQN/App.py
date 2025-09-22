@@ -89,7 +89,6 @@ class DecisionApp:
             model_path = os.path.abspath(model_path)
 
         dqn_model = None
-        is_connected = False
 
         try:
             logger.info(f"Intentando cargar modelo desde: {model_path}")
@@ -100,20 +99,23 @@ class DecisionApp:
             logger.error("No se puede continuar sin el modelo. Terminando...")
             return
 
-        is_connected = False
+        # Bucle continuo para manejar múltiples ciclos de simulación
+        logger.info("🔄 Iniciando bucle continuo de decisiones...")
 
-        while not is_connected:
+        while True:
             try:
+                logger.info("🚀 Esperando nueva simulación...")
                 dqn_model.run_inference()
-                is_connected = True
+                logger.info("✅ Ciclo de simulación completado. Esperando siguiente...")
 
             except requests.exceptions.ConnectionError:
-                logger.info("Reintentando conexión...")
-                time.sleep(1)
+                logger.info("🔄 Reintentando conexión con simulación...")
+                time.sleep(2)
 
             except Exception as e:
-                logger.error(e)
-                break
+                logger.error(f"❌ Error durante inferencia: {e}")
+                logger.info("⏳ Esperando antes de reintentar...")
+                time.sleep(5)
 
     # * Usar el modelo entrenado (método original)
     def run_model_inference_original(self) -> None:
@@ -132,7 +134,6 @@ class DecisionApp:
             model_path = os.path.abspath(model_path)
 
         dqn_model = None
-        is_connected = False
 
         try:
             logger.info(f"Intentando cargar modelo desde: {model_path}")
@@ -143,17 +144,20 @@ class DecisionApp:
             logger.error("No se puede continuar sin el modelo. Terminando...")
             return
 
-        is_connected = False
+        # Bucle continuo para manejar múltiples ciclos de simulación
+        logger.info("🔄 Iniciando bucle continuo de decisiones...")
 
-        while not is_connected:
+        while True:
             try:
+                logger.info("🚀 Esperando nueva simulación...")
                 dqn_model.run_inference()
-                is_connected = True
+                logger.info("✅ Ciclo de simulación completado. Esperando siguiente...")
 
             except requests.exceptions.ConnectionError:
-                logger.info("Reintentando conexión...")
-                time.sleep(1)
+                logger.info("🔄 Reintentando conexión con simulación...")
+                time.sleep(2)
 
             except Exception as e:
-                logger.error(e)
-                break
+                logger.error(f"❌ Error durante inferencia: {e}")
+                logger.info("⏳ Esperando antes de reintentar...")
+                time.sleep(5)
