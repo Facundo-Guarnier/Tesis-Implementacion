@@ -79,6 +79,15 @@ class DetectorService:
         # Contador para limpieza periódica del historial de cruzamientos
         self._cleanup_counter: int = 0
 
+        # Sistema de memoria temporal para preservar tiempos durante oclusiones
+        self._temporary_time_memory: dict[int, float] = {}  # ID -> tiempo_acumulado
+        self._time_memory_timeout = (
+            3.0  # Segundos para mantener memoria de IDs perdidos
+        )
+        self._last_seen_timestamp: dict[int, float] = (
+            {}
+        )  # ID -> timestamp_ultima_vez_visto
+
     def _create_fines_folder(self) -> None:
         """
         Crea la carpeta de multas con el nuevo formato si no existe.
@@ -110,18 +119,19 @@ class DetectorService:
         self.info_overlay.scale_factor = self.video_processor.scale_factor
         self.info_overlay._setup_style()
 
-        #! Seguidor de los objetos.
+        #! Seguidor de los objetos - Configuración optimizada para persistencia
         self.byte_tracker = sv.ByteTrack(
-            # track_thresh=0.25,
-            # match_thresh=0.8,
-            # track_buffer=self.video.fps+25,    #! Cantidad de frames que se mantiene el seguimiento de un objeto (1 segundo)
-            # frame_rate=self.video.fps,
+            track_activation_threshold=0.3,
+            minimum_matching_threshold=0.8,
+            lost_track_buffer=int(self.video_processor.fps * 2),
+            frame_rate=int(self.video_processor.fps),
+            minimum_consecutive_frames=1,
         )
 
         #! Diseñador de lineas de seguimiento
         self.trace_annotator = sv.TraceAnnotator()
 
-        #! Dibujador de box en los objetos.
+        #! Dibujador de box en los objetos (sin color fijo - será dinámico)
         self.bounding_box_annotator = sv.BoxAnnotator(
             thickness=max(1, int(3 * self.video_processor.scale_factor)),
         )
@@ -129,6 +139,10 @@ class DetectorService:
             text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
+
+        # Colores pasteles para objetos dentro y fuera de zona
+        self.color_inside_zone = (144, 238, 144)  # Verde pastel claro (Light Green)
+        self.color_outside_zone = (255, 182, 193)  # Rosa pastel claro (Light Pink)
 
         #! Escalar puntos de zona y línea de multas
         self.video_processor.zone.scale_points(self.video_processor.resolution)
@@ -312,14 +326,29 @@ class DetectorService:
 
             if is_in_zone:
                 vehicles_in_zone += 1
-                color = [255, 80, 0]  # Naranja para objetos en zona
+                center_color = (144, 238, 144)  # Verde pastel - mismo color que borde
 
                 # CORRECCIÓN: Normalizar conteo de frames por FPS del video
                 # para mantener consistencia temporal entre videos de diferentes FPS
                 fps_normalization_factor = max(1.0, self.video_processor.fps / 30.0)
 
-                # Contar frames de detección normalizados
+                # Sistema mejorado: preservar tiempo acumulado durante oclusiones
                 if tracker_id is not None:
+                    current_time = time.time()
+                    self._last_seen_timestamp[tracker_id] = current_time
+
+                    # CASO 1: Retorno DENTRO del polígono tras oclusión
+                    if tracker_id in self._temporary_time_memory:
+                        # Restaurar tiempo desde memoria temporal
+                        restored_time = self._temporary_time_memory[tracker_id]
+                        self.detection_times_fps_normalized[tracker_id] = restored_time
+                        # Limpiar de memoria temporal ya que está activo
+                        del self._temporary_time_memory[tracker_id]
+                        self.logger.debug(
+                            f"🔄 ID {tracker_id}: Retornó DENTRO del polígono, tiempo restaurado: {restored_time:.1f}"
+                        )
+
+                    # Continuar acumulando tiempo normalmente
                     if tracker_id in self.detection_times_fps_normalized:
                         self.detection_times_fps_normalized[
                             tracker_id
@@ -329,18 +358,46 @@ class DetectorService:
                             fps_normalization_factor
                         )
             else:
-                color = [0, 0, 255]  # Rojo para objetos fuera de zona
-                # Reiniciar contador si sale de la zona
-                if tracker_id is not None:
-                    self.detection_times_fps_normalized[tracker_id] = 0.0
+                center_color = (255, 182, 193)  # Rosa pastel - mismo color que borde
 
-            # Dibujar centro
+                # CASO 2: Retorno FUERA del polígono tras oclusión
+                if tracker_id is not None and tracker_id in self._temporary_time_memory:
+                    # El vehículo reapareció pero FUERA del polígono → descartar tiempo
+                    lost_time = self._temporary_time_memory[tracker_id]
+                    del self._temporary_time_memory[tracker_id]
+                    if tracker_id in self._last_seen_timestamp:
+                        del self._last_seen_timestamp[tracker_id]
+                    self.logger.debug(
+                        f"❌ ID {tracker_id}: Retornó FUERA del polígono, tiempo descartado: {lost_time:.1f}"
+                    )
+
+                # CASO 3: Salida física visible (cuando estaba dentro y ahora sale)
+                elif (
+                    tracker_id is not None
+                    and tracker_id in self.detection_times_fps_normalized
+                ):
+                    current_time = time.time()
+                    accumulated_time = self.detection_times_fps_normalized[tracker_id]
+
+                    if accumulated_time > 0:
+                        self._temporary_time_memory[tracker_id] = accumulated_time
+                        self._last_seen_timestamp[tracker_id] = current_time
+                        self.logger.debug(
+                            f"↗️ ID {tracker_id}: Salió FÍSICAMENTE del polígono, tiempo guardado en memoria: {accumulated_time:.1f}"
+                        )
+
+                    # Limpiar del contador activo
+                    del self.detection_times_fps_normalized[tracker_id]
+
+            # Dibujar punto relleno pequeño en el centro del objeto (mismo color que borde)
             cv2.circle(
                 img=frame,
                 center=(center_x, center_y),
-                radius=max(1, int(10 * self.video_processor.scale_factor)),
-                color=color,
-                thickness=max(1, int(10 * self.video_processor.scale_factor)),
+                radius=max(
+                    1, int(10 * self.video_processor.scale_factor)
+                ),  # Punto pequeño
+                color=center_color,  # Mismo color que el borde del rectángulo
+                thickness=-1,  # -1 significa relleno completo
             )
 
         return frame, vehicles_in_zone
@@ -356,21 +413,54 @@ class DetectorService:
             detections: Detecciones de objetos
             fps_real: FPS reales de procesamiento (para cálculo correcto de tiempo en streaming)
         """
-        # Limpiar IDs de objetos que ya no están en la imagen
+        # Gestión inteligente de IDs que desaparecen: mover a memoria temporal en lugar de eliminar
         if detections.tracker_id is not None:
+            current_time = time.time()
+
+            # Encontrar IDs que ya no están presentes en las detecciones actuales
             expired_tracker_ids = [
                 tracker_id
                 for tracker_id in self.detection_times_fps_normalized
                 if tracker_id not in detections.tracker_id
             ]
+
+            # Mover IDs expirados a memoria temporal en lugar de eliminarlos
             for tracker_id in expired_tracker_ids:
+                # Solo mover a memoria temporal si tenía tiempo acumulado significativo
+                accumulated_time = self.detection_times_fps_normalized[tracker_id]
+                if accumulated_time > 0:
+                    self._temporary_time_memory[tracker_id] = accumulated_time
+                    self.logger.debug(
+                        f"💾 ID {tracker_id}: Movido a memoria temporal ({accumulated_time:.1f} frames)"
+                    )
+
+                # Remover de contador activo
                 del self.detection_times_fps_normalized[tracker_id]
+
+            # Limpiar memoria temporal de IDs muy antiguos (que exceden el timeout)
+            expired_memory_ids = [
+                tracker_id
+                for tracker_id, last_seen in self._last_seen_timestamp.items()
+                if current_time - last_seen > self._time_memory_timeout
+                and tracker_id in self._temporary_time_memory
+            ]
+
+            for tracker_id in expired_memory_ids:
+                lost_time = self._temporary_time_memory[tracker_id]
+                del self._temporary_time_memory[tracker_id]
+                if tracker_id in self._last_seen_timestamp:
+                    del self._last_seen_timestamp[tracker_id]
+                self.logger.debug(
+                    f"🗑️ ID {tracker_id}: Memoria temporal expirada ({lost_time:.1f} frames perdidos)"
+                )
+
+        # Incluir tiempo de memoria temporal en el cálculo total
+        total_frames_active = sum(self.detection_times_fps_normalized.values())
+        total_frames_in_memory = sum(self._temporary_time_memory.values())
+        total_frames_in_zone = total_frames_active + total_frames_in_memory
 
         # Dibujar centros y contar vehículos en zona
         frame, vehicles_in_zone = self._draw_detection_centers(frame, detections)
-
-        # Calcular métricas de tiempo
-        total_frames_in_zone = sum(self.detection_times_fps_normalized.values())
         wait_time_seconds = self._calculate_wait_time(total_frames_in_zone, fps_real)
 
         # Actualizar métricas del sistema
@@ -409,10 +499,63 @@ class DetectorService:
         self, frame: np.ndarray, detections: sv.Detections
     ) -> np.ndarray:
         """
-        - Dibuja una box por cada objeto.
-        - Las etiquetas de tiempo están deshabilitadas para limpiar la visualización.
+        - Dibuja una box por cada objeto con colores pasteles.
+        - Verde pastel para objetos dentro de la zona, rosa pastel para objetos fuera.
         """
-        frame = self.bounding_box_annotator.annotate(scene=frame, detections=detections)
+        # Crear anotadores separados para cada tipo de objeto
+        box_annotator_inside = sv.BoxAnnotator(
+            color=sv.Color(r=144, g=238, b=144),  # Verde pastel
+            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+        )
+        box_annotator_outside = sv.BoxAnnotator(
+            color=sv.Color(r=255, g=182, b=193),  # Rosa pastel
+            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+        )
+
+        # Separar detecciones por ubicación
+        inside_masks = []
+        outside_masks = []
+
+        for box, _mask, _confidence, _class_id, _tracker_id, _data in detections:
+            # Calcular centro del objeto
+            center_x = int((box[0] + box[2]) // 2)
+            center_y = int((box[1] + box[3]) // 2)
+
+            # Verificar si está dentro del polígono de la zona
+            is_in_zone = mplPath.Path(
+                self.video_processor.zone.rescaled_points
+            ).contains_point((center_x, center_y))
+
+            if is_in_zone:
+                inside_masks.append(True)
+                outside_masks.append(False)
+            else:
+                inside_masks.append(False)
+                outside_masks.append(True)
+
+        # Crear detecciones filtradas
+        if len(inside_masks) > 0:
+            inside_filter = np.array(inside_masks)
+            if np.any(inside_filter):
+                inside_detections = detections[inside_filter]
+                frame = box_annotator_inside.annotate(
+                    scene=frame, detections=inside_detections
+                )
+
+            outside_filter = np.array(outside_masks)
+            if np.any(outside_filter):
+                outside_detections = detections[outside_filter]
+                frame = box_annotator_outside.annotate(
+                    scene=frame, detections=outside_detections
+                )
+
+        # TODO: Agregar etiquetas con IDs de tracking (comentado temporalmente)
+        # if detections.tracker_id is not None:
+        #     labels = [f"ID: {tracker_id}" for tracker_id in detections.tracker_id]
+        #     frame = self.label_annotator.annotate(
+        #         scene=frame, detections=detections, labels=labels
+        #     )
+
         return frame
 
     def _draw_line_zones_with_counters(self, frame: np.ndarray) -> np.ndarray:
