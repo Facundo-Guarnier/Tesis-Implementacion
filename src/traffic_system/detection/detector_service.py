@@ -491,6 +491,7 @@ class DetectorService:
             vehicle_count=vehicle_count,
             wait_time_seconds=wait_time_seconds,
             zone_name=zone_name,
+            show_fps=self.settings.debug.show_fps,
         )
 
         return frame

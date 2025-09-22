@@ -83,6 +83,7 @@ class DeteccionDebugSettings(BaseModel):
     show_multas_counter: bool = (
         False  #! Mostrar contador de multas y direcciones de cruzamiento
     )
+    show_fps: bool = True  #! Mostrar información de FPS en el overlay de información
 
 
 class DeteccionSettings(BaseModel):

@@ -24,6 +24,7 @@ deteccion:
   debug:
     show_object_ids: false #! Mostrar IDs de tracking de objetos para debugging
     show_multas_counter: false #! Mostrar contador de multas y direcciones de cruzamiento
+    show_fps: false #! Mostrar información de FPS en el overlay de información
 
   carpeta_dataset:
     procesar: false #! Procesar todos los videos de la carpeta del dataset

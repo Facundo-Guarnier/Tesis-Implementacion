@@ -1197,7 +1197,7 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
             if "debug" in deteccion:
                 debug_config = deteccion["debug"]
 
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
 
                 with col1:
                     render_field_widget(
@@ -1212,6 +1212,14 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                         "deteccion.debug.show_multas_counter",
                         "Mostrar Contador de Multas",
                         debug_config.get("show_multas_counter", False),
+                        config,
+                    )
+
+                with col3:
+                    render_field_widget(
+                        "deteccion.debug.show_fps",
+                        "Mostrar FPS",
+                        debug_config.get("show_fps", True),
                         config,
                     )
 
