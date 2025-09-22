@@ -160,6 +160,65 @@ def render_navigation() -> str:
     return current_page
 
 
+def calculate_services_count() -> tuple[int, int, str]:
+    """
+    Calcular el conteo de servicios corriendo/total considerando servicios locales y remotos.
+    Retorna: (running_count, total_count, status_text)
+    """
+    if "services_summary_cache" not in st.session_state:
+        return 0, 0, "0/0 servicios activos"
+
+    cache = st.session_state["services_summary_cache"]
+    total_services = len(cache["services"])
+    running_services = 0
+
+    # Obtener el controlador remoto correctamente
+    remote_controller = getattr(st.session_state, "remote_service_controller", None)
+
+    for svc_name, svc_info in cache["services"].items():
+        is_service_running = False
+
+        # Verificar si el servicio tiene opción remota
+        has_remote_option = svc_name in ["decision", "reporting"]
+
+        if has_remote_option and hasattr(st.session_state, "service_modes"):
+            current_mode = st.session_state.service_modes.get(svc_name, "local")
+
+            if current_mode == "remote":
+                # Para servicios remotos, verificar estado remoto real
+                try:
+                    if remote_controller:
+                        # Limpiar caché para obtener estado actualizado
+                        remote_controller.clear_cache()
+                        remote_status_raw = remote_controller.get_service_status(
+                            svc_name
+                        )
+                        # El estado puede venir como dict con "running" o como string
+                        if isinstance(remote_status_raw, dict):
+                            is_service_running = remote_status_raw.get("running", False)
+                        else:
+                            is_service_running = remote_status_raw == "running"
+                    else:
+                        # Si no hay controlador remoto, considerar como detenido
+                        is_service_running = False
+                except Exception as e:
+                    # Si hay error verificando remoto, considerar como detenido
+                    print(f"Error verificando servicio remoto {svc_name}: {e}")
+                    is_service_running = False
+            else:
+                # Para servicios en modo local, usar estado local
+                is_service_running = svc_info["is_running"]
+        else:
+            # Para servicios sin opción remota (simulation, detection), usar estado local
+            is_service_running = svc_info["is_running"]
+
+        if is_service_running:
+            running_services += 1
+
+    status_text = f"{running_services}/{total_services} servicios activos"
+    return running_services, total_services, status_text
+
+
 def update_service_cache_status(service_name: str, is_running: bool) -> None:
     """Actualizar estado de un servicio en el caché sin verificación completa."""
     if "services_summary_cache" not in st.session_state:
@@ -171,35 +230,12 @@ def update_service_cache_status(service_name: str, is_running: bool) -> None:
         if service_name in cache["services"]:
             cache["services"][service_name]["is_running"] = is_running
 
-            # Usar función centralizada para recalcular conteos híbridos
-            # Temporalmente usar la lógica inline hasta mover la función global
-            total_services = len(cache["services"])
-            running_services = 0
-
-            for svc_name, svc_info in cache["services"].items():
-                has_remote_option = svc_name in ["decision", "reporting"]
-
-                if has_remote_option and hasattr(st.session_state, "service_modes"):
-                    current_mode = st.session_state.service_modes.get(svc_name, "local")
-                    if current_mode == "remote":
-                        # Para servicios remotos, necesitaríamos verificar estado remoto
-                        # Por ahora, usar estado local como fallback
-                        if svc_info["is_running"]:
-                            running_services += 1
-                    else:
-                        # Para servicios locales, usar el estado original
-                        if svc_info["is_running"]:
-                            running_services += 1
-                else:
-                    # Para servicios sin opción remota, usar el estado original
-                    if svc_info["is_running"]:
-                        running_services += 1
+            # Usar función centralizada para calcular el contador de servicios
+            running_services, total_services, status_text = calculate_services_count()
 
             cache["running_services"] = running_services
             cache["stopped_services"] = total_services - running_services
-            cache["status_text"] = (
-                f"{running_services}/{total_services} servicios activos"
-            )
+            cache["status_text"] = status_text
             cache["all_running"] = running_services == total_services
             cache["all_stopped"] = running_services == 0
 
@@ -546,6 +582,28 @@ def render_remote_service(
                 new_status_raw = remote_controller.get_service_status(service_name)
                 new_state = map_remote_status_to_state(new_status_raw)
 
+                # CRÍTICO: Actualizar contador después de verificar servicio remoto
+                if "services_summary_cache" in st.session_state:
+                    cache = st.session_state["services_summary_cache"]
+                    # Actualizar estado del servicio en el cache
+                    if service_name in cache["services"]:
+                        cache["services"][service_name]["is_running"] = (
+                            new_state == ServiceState.RUNNING
+                        )
+
+                    # Recalcular contador usando función centralizada
+                    running_services, total_services, status_text = (
+                        calculate_services_count()
+                    )
+                    cache["running_services"] = running_services
+                    cache["stopped_services"] = total_services - running_services
+                    cache["status_text"] = status_text
+                    cache["all_running"] = running_services == total_services
+                    cache["all_stopped"] = running_services == 0
+
+                    # Actualizar timestamp del cache
+                    st.session_state["services_summary_cache_time"] = time.time()
+
                 toast_message = get_toast_message_for_operation(
                     "check", display_name, new_state == ServiceState.RUNNING
                 )
@@ -555,7 +613,9 @@ def render_remote_service(
                     st.toast(toast_message, icon="✅")
                 else:
                     st.toast(toast_message, icon="⚠️")
-            # Quitar st.rerun() inmediato para que el toast sea visible
+
+                # CRÍTICO: Forzar re-render para mostrar contador actualizado
+                st.rerun()
 
     with col2_restart:
         # Botón de reinicio - solo disponible si el servicio está ejecutándose
@@ -565,18 +625,44 @@ def render_remote_service(
                 with st.spinner(f"🔄 Reiniciando {display_name}..."):
                     result = remote_controller.restart_service(service_name)
 
+                    # CRÍTICO: Actualizar contador después de reiniciar servicio remoto
+                    if "services_summary_cache" in st.session_state:
+                        cache = st.session_state["services_summary_cache"]
+                        # Después de reiniciar, verificar el estado real
+                        remote_controller.clear_cache()
+                        status_raw = remote_controller.get_service_status(service_name)
+                        new_state = map_remote_status_to_state(status_raw)
+
+                        # Actualizar estado del servicio en el cache
+                        if service_name in cache["services"]:
+                            cache["services"][service_name]["is_running"] = (
+                                new_state == ServiceState.RUNNING
+                            )
+
+                        # Recalcular contador usando función centralizada
+                        running_services, total_services, status_text = (
+                            calculate_services_count()
+                        )
+                        cache["running_services"] = running_services
+                        cache["stopped_services"] = total_services - running_services
+                        cache["status_text"] = status_text
+                        cache["all_running"] = running_services == total_services
+                        cache["all_stopped"] = running_services == 0
+
+                        # Actualizar timestamp del cache
+                        st.session_state["services_summary_cache_time"] = time.time()
+
                     if result["success"]:
                         st.toast(f"{display_name} reiniciado correctamente", icon="✅")
-                        # No hacer rerun inmediato para operaciones exitosas
-                        # Dejar que el usuario vea el toast
                     else:
                         error_msg = result.get("error", "Error desconocido")
                         st.toast(
                             f"Error al reiniciar {display_name}: {error_msg}",
                             icon="❌",
                         )
-                        # Solo hacer rerun en caso de error
-                        st.rerun()
+
+                    # CRÍTICO: Forzar re-render para mostrar contador actualizado
+                    st.rerun()
 
 
 def render_services_page() -> None:
@@ -630,41 +716,13 @@ def render_services_page() -> None:
         Returns:
             Resumen actualizado con conteos híbridos
         """
-        total_services = len(summary["services"])
-        running_services = 0
-
-        for service_name, service_info in summary["services"].items():
-            has_remote_option = service_name in ["decision", "reporting"]
-
-            if has_remote_option:
-                current_mode = st.session_state.service_modes[service_name]
-                if current_mode == "remote":
-                    # Para servicios remotos, verificar su estado
-                    try:
-                        remote_status = remote_controller.get_service_status(
-                            service_name
-                        )
-                        is_remote_running = remote_status == "running"
-                        if is_remote_running:
-                            running_services += 1
-                    except Exception:
-                        # Si falla la verificación remota, contar como parado
-                        pass
-                else:
-                    # Para servicios locales, usar el estado original
-                    if service_info["is_running"]:
-                        running_services += 1
-            else:
-                # Para servicios sin opción remota, usar el estado original
-                if service_info["is_running"]:
-                    running_services += 1
+        # Usar función centralizada para calcular el contador de servicios
+        running_services, total_services, status_text = calculate_services_count()
 
         # Actualizar los conteos en el summary
         summary["running_services"] = running_services
         summary["stopped_services"] = total_services - running_services
-        summary["status_text"] = (
-            f"{running_services}/{total_services} servicios activos"
-        )
+        summary["status_text"] = status_text
         summary["all_running"] = running_services == total_services
         summary["all_stopped"] = running_services == 0
 
@@ -681,9 +739,14 @@ def render_services_page() -> None:
             # Limpiar cache de servicios remotos para forzar re-verificación
             remote_controller.clear_cache()
 
-            # Usar función centralizada para cálculo híbrido
+            # CRÍTICO: Actualizar el cache PRIMERO para que calculate_services_count() tenga datos frescos
+            st.session_state[cache_key] = summary
+            st.session_state[cache_time_key] = time.time()
+
+            # Ahora usar función centralizada para cálculo híbrido
             summary = calculate_hybrid_service_count(summary)
 
+        # Actualizar el cache con los conteos híbridos finales
         st.session_state[cache_key] = summary
         st.session_state[cache_time_key] = time.time()
 
