@@ -128,3 +128,52 @@ poetry run streamlit run run_frontend.py
 - � **Detección automática** de errores y problemas de servicios
 
 Para más detalles, consulta la [documentación completa](docs/)
+
+## 📦 Gestión de Dependencias
+
+### Poetry (Desarrollo Local)
+
+```bash
+# Añadir nueva dependencia
+poetry add <package_name>
+
+# Añadir dependencia de desarrollo
+poetry add --group dev <package_name>
+
+# Actualizar todas las dependencias
+poetry update
+
+# Instalar dependencias exactas del proyecto
+poetry install
+```
+
+### Docker (Servicios Específicos)
+
+Para optimizar las imágenes Docker, cada servicio tiene su archivo de dependencias específico:
+
+- **`requirements-docker.txt`**: Dependencias completas para servicios que requieren ML/CV (legacy)
+- **`requirements-decision.txt`**: Dependencias específicas para el agente de decisión DQN
+- **`requirements-reporting.txt`**: Dependencias mínimas para el servicio de reportes
+
+**Agregar dependencia a un servicio Docker:**
+
+1. **Editar el archivo de requirements correspondiente**:
+   ```bash
+   # Para decision service (DQN)
+   echo "nueva_libreria>=1.0.0" >> requirements-decision.txt
+
+   # Para reporting service
+   echo "nueva_libreria>=1.0.0" >> requirements-reporting.txt
+
+   # Para servicios con ML/CV completos (legacy)
+   echo "nueva_libreria>=1.0.0" >> requirements-docker.txt
+   ```
+
+2. **Reconstruir la imagen Docker**:
+   ```bash
+   # Decision Agent
+   docker build -t traffic-decision-agent docker/decision-agent/
+
+   # Reporting Service
+   docker build -t traffic-reporting-service docker/reporting-service/
+   ```Para más detalles sobre gestión de dependencias, consulta [`docs/dependency-management.md`](docs/dependency-management.md)

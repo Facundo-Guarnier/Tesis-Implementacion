@@ -76,6 +76,16 @@ class DeteccionUnVideoSettings(BaseModel):
     path_destino: str  #! Carpeta donde se guardará el video con los resultados
 
 
+class DeteccionDebugSettings(BaseModel):
+    """Configuración de opciones de debug para detección."""
+
+    show_object_ids: bool = False  #! Mostrar IDs de tracking de objetos para debugging
+    show_multas_counter: bool = (
+        False  #! Mostrar contador de multas y direcciones de cruzamiento
+    )
+    show_fps: bool = True  #! Mostrar información de FPS en el overlay de información
+
+
 class DeteccionSettings(BaseModel):
     detectar: bool  # * Iniciar la detección de objetos
     modelo: str  #! Modelo de detección de objetos
@@ -89,6 +99,8 @@ class DeteccionSettings(BaseModel):
     forced_rotation_degrees: int = 0  # 0, 90, 180, 270
     window_fixed: bool = True
     window_size: list[int] = [460, 820]  # [ancho, alto]
+    # Opciones de debug (valores por defecto para no romper config existente)
+    debug: DeteccionDebugSettings = DeteccionDebugSettings()
 
 
 # --- Modelos para la sección 'decision' ---
@@ -293,12 +305,27 @@ class ReporteSettings(BaseModel):
     db_path_base: str
 
 
+class RemoteServiceSettings(BaseModel):
+    """Configuración para un servicio remoto."""
+
+    ip: str  #! IP del servicio remoto
+    port: int  #! Puerto del servicio remoto
+
+
+class RemoteServicesSettings(BaseModel):
+    """Configuración de servicios remotos del sistema de tráfico."""
+
+    decision: RemoteServiceSettings
+    reporting: RemoteServiceSettings
+
+
 class ServicesSettings(BaseModel):
     """Configuración de los servicios del sistema de tráfico."""
 
     simulation_port: int = 5000
     detection_port: int = 5000
     reporting_port: int = 5001
+    remote: RemoteServicesSettings
 
 
 # --- La Clase Principal de Configuración ---

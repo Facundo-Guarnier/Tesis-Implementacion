@@ -32,10 +32,10 @@ class ServiceController:
 
     # Nombres amigables para mostrar en UI
     SERVICE_NAMES = {
-        "simulation": "Simulation Provider",
-        "decision": "Decision Agent",
-        "detection": "Detection Provider",
-        "reporting": "Reporting Service",
+        "simulation": "Simulación",
+        "decision": "Decisión",
+        "detection": "Detección",
+        "reporting": "Reportes",
     }
 
     def __init__(self) -> None:
@@ -263,11 +263,9 @@ class ServiceController:
                 log_success(success_msg)
                 return True, success_msg
             else:
-                warning_msg = (
-                    f"No se encontraron procesos ejecutándose para {service_name}"
-                )
-                log_warning(warning_msg)
-                return False, warning_msg
+                success_msg = f"No se encontraron procesos para {service_name} - servicio ya detenido"
+                log_info(success_msg)
+                return True, success_msg
 
         except Exception as e:
             error_msg = f"Error deteniendo servicio {service_name}: {e}"
@@ -380,9 +378,9 @@ class ServiceController:
                     continue
 
             if not processes_found:
-                warning_msg = f"No se encontraron procesos para {service_name}"
-                log_warning(warning_msg)
-                return False, warning_msg
+                success_msg = f"No se encontraron procesos para {service_name} - servicio ya detenido"
+                log_info(success_msg)
+                return True, success_msg
 
             # Terminar procesos gracefully
             for proc in processes_found:

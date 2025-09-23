@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from src.traffic_system.core.config_loader import load_app_settings
 from src.traffic_system.core.types import Resolution
 
 from ..ui import InfoOverlay
@@ -25,6 +26,9 @@ class StreamCoordinator:
         self.shutdown_event = shutdown_event
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
         self.info_overlay = InfoOverlay()  # Inicializar overlay de información
+
+        # Cargar configuración
+        self.settings = load_app_settings().deteccion
 
     def _compute_display_size(
         self, width: int, height: int, max_long_side: int = 820
@@ -216,6 +220,7 @@ class StreamCoordinator:
             fps_real=real_fps,
             fps_original=original_fps,
             source_type=source_type,
+            show_fps=self.settings.debug.show_fps,
         )
 
     def process_stream_with_fps_callback(

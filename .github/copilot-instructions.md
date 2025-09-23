@@ -73,3 +73,7 @@ poetry run python test_verificar_gpu.py
 ## 🎨 Código
 - **Python**: Black, type hints obligatorios
 - **APIs**: Flask-RESTful + JSON validation
+
+## 📢 Comunicación
+- **OBLIGATORIO**: Terminar SIEMPRE las respuestas con `run_in_terminal` usando `echo` para confirmar finalización
+- **Ejemplo**: `echo "✅ Configuración de debug implementada correctamente"`

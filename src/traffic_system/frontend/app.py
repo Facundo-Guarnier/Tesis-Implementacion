@@ -24,6 +24,13 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from src.traffic_system.frontend.config import get_tooltip
+from src.traffic_system.frontend.service_status import (
+    ServiceDisplayInfo,
+    ServiceState,
+    get_toast_message_for_operation,
+    map_boolean_to_state,
+    map_remote_status_to_state,
+)
 from src.traffic_system.frontend.utils import (
     log_error,
     set_nested_value,
@@ -131,7 +138,7 @@ def render_navigation() -> str:
     if st.session_state.get("current_page") == "services":
         st.sidebar.markdown("---")
         if st.session_state.get("controller_just_reset", False):
-            st.toast("🔄 ServiceController reinicializado exitosamente", icon="✅")
+            st.toast("ServiceController reinicializado exitosamente", icon="✅")
             st.session_state.controller_just_reset = False
 
         if st.sidebar.button(
@@ -153,6 +160,65 @@ def render_navigation() -> str:
     return current_page
 
 
+def calculate_services_count() -> tuple[int, int, str]:
+    """
+    Calcular el conteo de servicios corriendo/total considerando servicios locales y remotos.
+    Retorna: (running_count, total_count, status_text)
+    """
+    if "services_summary_cache" not in st.session_state:
+        return 0, 0, "0/0 servicios activos"
+
+    cache = st.session_state["services_summary_cache"]
+    total_services = len(cache["services"])
+    running_services = 0
+
+    # Obtener el controlador remoto correctamente
+    remote_controller = getattr(st.session_state, "remote_service_controller", None)
+
+    for svc_name, svc_info in cache["services"].items():
+        is_service_running = False
+
+        # Verificar si el servicio tiene opción remota
+        has_remote_option = svc_name in ["decision", "reporting"]
+
+        if has_remote_option and hasattr(st.session_state, "service_modes"):
+            current_mode = st.session_state.service_modes.get(svc_name, "local")
+
+            if current_mode == "remote":
+                # Para servicios remotos, verificar estado remoto real
+                try:
+                    if remote_controller:
+                        # Limpiar caché para obtener estado actualizado
+                        remote_controller.clear_cache()
+                        remote_status_raw = remote_controller.get_service_status(
+                            svc_name
+                        )
+                        # El estado puede venir como dict con "running" o como string
+                        if isinstance(remote_status_raw, dict):
+                            is_service_running = remote_status_raw.get("running", False)
+                        else:
+                            is_service_running = remote_status_raw == "running"
+                    else:
+                        # Si no hay controlador remoto, considerar como detenido
+                        is_service_running = False
+                except Exception as e:
+                    # Si hay error verificando remoto, considerar como detenido
+                    print(f"Error verificando servicio remoto {svc_name}: {e}")
+                    is_service_running = False
+            else:
+                # Para servicios en modo local, usar estado local
+                is_service_running = svc_info["is_running"]
+        else:
+            # Para servicios sin opción remota (simulation, detection), usar estado local
+            is_service_running = svc_info["is_running"]
+
+        if is_service_running:
+            running_services += 1
+
+    status_text = f"{running_services}/{total_services} servicios activos"
+    return running_services, total_services, status_text
+
+
 def update_service_cache_status(service_name: str, is_running: bool) -> None:
     """Actualizar estado de un servicio en el caché sin verificación completa."""
     if "services_summary_cache" not in st.session_state:
@@ -164,18 +230,14 @@ def update_service_cache_status(service_name: str, is_running: bool) -> None:
         if service_name in cache["services"]:
             cache["services"][service_name]["is_running"] = is_running
 
-            running_count = sum(
-                1
-                for service_info in cache["services"].values()
-                if service_info["is_running"]
-            )
-            total_count = len(cache["services"])
+            # Usar función centralizada para calcular el contador de servicios
+            running_services, total_services, status_text = calculate_services_count()
 
-            cache["running_services"] = running_count
-            cache["stopped_services"] = total_count - running_count
-            cache["status_text"] = f"{running_count}/{total_count} servicios activos"
-            cache["all_running"] = running_count == total_count
-            cache["all_stopped"] = running_count == 0
+            cache["running_services"] = running_services
+            cache["stopped_services"] = total_services - running_services
+            cache["status_text"] = status_text
+            cache["all_running"] = running_services == total_services
+            cache["all_stopped"] = running_services == 0
 
             st.session_state["services_summary_cache_time"] = time.time()
 
@@ -282,7 +344,7 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.info("📭 No hay logs disponibles para este servicio")
         elif logs and logs[0].startswith("No se encontró archivo"):
             st.warning(
-                "⚠️ Archivo de log no encontrado. El servicio puede haber sido iniciado antes de esta sesión."
+                "⚠️ No hay logs disponibles. El servicio podría no haber generado logs aún."
             )
         elif logs and logs[0].startswith("Error"):
             st.error(f"❌ {logs[0]}")
@@ -362,10 +424,252 @@ def render_service_logs(service_name: str, controller: Any) -> None:
             st.code(f"Métodos disponibles: {available_methods}")
 
 
+def render_local_service(
+    service_name: str,
+    service_info: dict,
+    controller: Any,
+    has_remote_option: bool = False,
+) -> None:
+    """Renderizar un servicio local (comportamiento original)."""
+    display_name = service_info["display_name"]
+    is_running = service_info["is_running"]
+
+    # Usar enums estandarizados
+    state = map_boolean_to_state(is_running)
+    status_text = ServiceDisplayInfo.format_local_status(state, display_name)
+    caption_text = ServiceDisplayInfo.get_caption_text(state, is_remote=False)
+
+    # Fila 1: Estado + Switch
+    col1_status, col1_switch = st.columns([3, 1])
+    with col1_status:
+        st.markdown(f"#### {status_text}")
+    with col1_switch:
+        if has_remote_option:
+            # Toggle switch entre Local/Remoto
+            is_remote = st.toggle(
+                "Remoto",
+                value=st.session_state.service_modes[service_name] == "remote",
+                key=f"toggle_{service_name}",
+                help="🐍 Local: Proceso local\n🌐 Remoto: Health check HTTP",
+            )
+            # Actualizar modo en session state
+            new_mode = "remote" if is_remote else "local"
+            if st.session_state.service_modes[service_name] != new_mode:
+                st.session_state.service_modes[service_name] = new_mode
+                st.rerun()
+        else:
+            # Toggle desactivado para servicios sin opción remota
+            st.toggle(
+                "Remoto",
+                value=False,
+                key=f"toggle_disabled_{service_name}",
+                disabled=True,
+                help="🚧 Funcionalidad remota en desarrollo\n🐍 Solo disponible en modo local",
+            )
+
+    # Fila 2: Caption/PID + Botones
+    col2_caption, col2_start, col2_stop = st.columns([2, 1, 1])
+    with col2_caption:
+        if state == ServiceState.RUNNING and service_info.get("pid"):
+            st.caption(f"PID: {service_info['pid']}")
+        else:
+            st.caption(caption_text)
+
+    with col2_start:
+        if not is_running:
+            if st.button("▶️ Iniciar", key=f"start_{service_name}"):
+                with st.spinner(f"⚙️ Iniciando {display_name}..."):
+                    success, message = controller.start_service(service_name)
+                    toast_message = get_toast_message_for_operation(
+                        "start", display_name, success, message
+                    )
+                    toast_icon = "✅" if success else "❌"
+                    st.toast(toast_message, icon=toast_icon)
+
+                    if success:
+                        # Actualizar cache inteligentemente sin recargar página
+                        update_service_cache_status(service_name, True)
+                        # Forzar actualización visual después del toast
+                        time.sleep(0.5)  # Dar tiempo al toast
+                        st.rerun()
+
+    with col2_stop:
+        if is_running:
+            if st.button("⏹️ Detener", key=f"stop_{service_name}"):
+                with st.spinner(f"🛑 Deteniendo {display_name}..."):
+                    success, message = controller.stop_service_graceful(service_name)
+                    toast_message = get_toast_message_for_operation(
+                        "stop", display_name, success, message
+                    )
+                    toast_icon = "✅" if success else "❌"
+                    st.toast(toast_message, icon=toast_icon)
+
+                    if success:
+                        # Actualizar cache inteligentemente sin recargar página
+                        update_service_cache_status(service_name, False)
+                        # Forzar actualización visual después del toast
+                        time.sleep(0.5)  # Dar tiempo al toast
+                        st.rerun()
+
+    # Logs siempre disponibles para servicios locales (corriendo o detenidos)
+    with st.expander(f"📋 Logs de {display_name}", expanded=False):
+        render_service_logs(service_name, controller)
+
+
+def render_remote_service(
+    service_name: str, remote_controller: Any, has_remote_option: bool = True
+) -> None:
+    """Renderizar un servicio remoto usando health checks."""
+    display_name = remote_controller.get_service_friendly_name(service_name)
+
+    # Verificar si hay reinicio pendiente de verificación
+    restart_check_key = f"restart_check_{service_name}"
+    if (
+        restart_check_key in st.session_state
+        and st.session_state[restart_check_key]["started"]
+    ):
+        # Verificar estado después del reinicio
+        remote_controller.clear_cache()
+        new_status_raw = remote_controller.get_service_status(service_name)
+        new_state = map_remote_status_to_state(new_status_raw)
+
+        if new_state == ServiceState.RUNNING:
+            st.toast(f"✅ {display_name} reiniciado correctamente", icon="✅")
+        else:
+            st.toast(f"⚠️ {display_name} aún reiniciando...", icon="⚠️")
+
+        # Limpiar flag de verificación
+        del st.session_state[restart_check_key]
+
+    # Obtener estado del servicio remoto y usar enums estandarizados
+    status_raw = remote_controller.get_service_status(service_name)
+    state = map_remote_status_to_state(status_raw)
+    status_text = ServiceDisplayInfo.format_remote_status(state, display_name)
+    caption_text = ServiceDisplayInfo.get_caption_text(state, is_remote=True)
+
+    # Fila 1: Estado + Switch
+    if has_remote_option:
+        col1_status, col1_switch = st.columns([3, 1])
+        with col1_status:
+            st.markdown(f"#### {status_text}")
+        with col1_switch:
+            # Toggle switch entre Local/Remoto
+            is_remote = st.toggle(
+                "Remoto",
+                value=st.session_state.service_modes[service_name] == "remote",
+                key=f"toggle_{service_name}",
+                help="🐍 Local: Proceso local\n🌐 Remoto: Verificación HTTP",
+            )
+            # Actualizar modo en session state
+            new_mode = "remote" if is_remote else "local"
+            if st.session_state.service_modes[service_name] != new_mode:
+                st.session_state.service_modes[service_name] = new_mode
+                st.rerun()
+    else:
+        st.markdown(f"#### {status_text}")
+
+    # Fila 2: Caption + Botones de acción
+    col2_caption, col2_check, col2_restart = st.columns([2, 1, 1])
+    with col2_caption:
+        st.caption(caption_text)
+
+    with col2_check:
+        # Para servicios remotos, solo mostrar botón de verificación
+        if st.button("🔍 Verificar", key=f"check_{service_name}"):
+            with st.spinner(f"🔍 Verificando {display_name}..."):
+                # Forzar refresh del estado
+                remote_controller.clear_cache()
+                new_status_raw = remote_controller.get_service_status(service_name)
+                new_state = map_remote_status_to_state(new_status_raw)
+
+                # CRÍTICO: Actualizar contador después de verificar servicio remoto
+                if "services_summary_cache" in st.session_state:
+                    cache = st.session_state["services_summary_cache"]
+                    # Actualizar estado del servicio en el cache
+                    if service_name in cache["services"]:
+                        cache["services"][service_name]["is_running"] = (
+                            new_state == ServiceState.RUNNING
+                        )
+
+                    # Recalcular contador usando función centralizada
+                    running_services, total_services, status_text = (
+                        calculate_services_count()
+                    )
+                    cache["running_services"] = running_services
+                    cache["stopped_services"] = total_services - running_services
+                    cache["status_text"] = status_text
+                    cache["all_running"] = running_services == total_services
+                    cache["all_stopped"] = running_services == 0
+
+                    # Actualizar timestamp del cache
+                    st.session_state["services_summary_cache_time"] = time.time()
+
+                toast_message = get_toast_message_for_operation(
+                    "check", display_name, new_state == ServiceState.RUNNING
+                )
+
+                # Toasts con iconos apropiados
+                if new_state == ServiceState.RUNNING:
+                    st.toast(toast_message, icon="✅")
+                else:
+                    st.toast(toast_message, icon="⚠️")
+
+                # CRÍTICO: Forzar re-render para mostrar contador actualizado
+                st.rerun()
+
+    with col2_restart:
+        # Botón de reinicio - solo disponible si el servicio está ejecutándose
+        if state == ServiceState.RUNNING:
+            if st.button("🔄 Reiniciar", key=f"restart_{service_name}"):
+                # Reinicio directo sin modal de confirmación
+                with st.spinner(f"🔄 Reiniciando {display_name}..."):
+                    result = remote_controller.restart_service(service_name)
+
+                    # CRÍTICO: Actualizar contador después de reiniciar servicio remoto
+                    if "services_summary_cache" in st.session_state:
+                        cache = st.session_state["services_summary_cache"]
+                        # Después de reiniciar, verificar el estado real
+                        remote_controller.clear_cache()
+                        status_raw = remote_controller.get_service_status(service_name)
+                        new_state = map_remote_status_to_state(status_raw)
+
+                        # Actualizar estado del servicio en el cache
+                        if service_name in cache["services"]:
+                            cache["services"][service_name]["is_running"] = (
+                                new_state == ServiceState.RUNNING
+                            )
+
+                        # Recalcular contador usando función centralizada
+                        running_services, total_services, status_text = (
+                            calculate_services_count()
+                        )
+                        cache["running_services"] = running_services
+                        cache["stopped_services"] = total_services - running_services
+                        cache["status_text"] = status_text
+                        cache["all_running"] = running_services == total_services
+                        cache["all_stopped"] = running_services == 0
+
+                        # Actualizar timestamp del cache
+                        st.session_state["services_summary_cache_time"] = time.time()
+
+                    if result["success"]:
+                        st.toast(f"{display_name} reiniciado correctamente", icon="✅")
+                    else:
+                        error_msg = result.get("error", "Error desconocido")
+                        st.toast(
+                            f"Error al reiniciar {display_name}: {error_msg}",
+                            icon="❌",
+                        )
+
+                    # CRÍTICO: Forzar re-render para mostrar contador actualizado
+                    st.rerun()
+
+
 def render_services_page() -> None:
     """Renderizar página de control de servicios."""
     st.title("🔧 Control de Servicios")
 
+    # Inicializar ServiceController (local)
     if st.session_state.service_controller is None or not hasattr(
         st.session_state.service_controller, "get_service_log_path"
     ):
@@ -375,7 +679,23 @@ def render_services_page() -> None:
         if "service_controller_initialized" not in st.session_state:
             st.session_state.service_controller_initialized = True
 
+    # Inicializar RemoteServiceController
+    if "remote_service_controller" not in st.session_state:
+        from src.traffic_system.frontend.remote_service_controller import (
+            RemoteServiceController,
+        )
+
+        st.session_state.remote_service_controller = RemoteServiceController()
+
+    # Inicializar estados de switches Local/Remoto en memoria
+    if "service_modes" not in st.session_state:
+        st.session_state.service_modes = {
+            "decision": "remote",  # "local" o "remote"
+            "reporting": "remote",  # "local" o "remote"
+        }
+
     controller = st.session_state.service_controller
+    remote_controller = st.session_state.remote_service_controller
 
     def get_services_summary_manual() -> Any:
         """Obtener resumen de servicios solo cuando se solicite manualmente."""
@@ -386,14 +706,47 @@ def render_services_page() -> None:
 
         return None
 
+    def calculate_hybrid_service_count(summary: dict) -> dict:
+        """
+        Calcular conteo híbrido que incluye servicios remotos según su modo actual.
+
+        Args:
+            summary: Resumen básico de servicios del controller local
+
+        Returns:
+            Resumen actualizado con conteos híbridos
+        """
+        # Usar función centralizada para calcular el contador de servicios
+        running_services, total_services, status_text = calculate_services_count()
+
+        # Actualizar los conteos en el summary
+        summary["running_services"] = running_services
+        summary["stopped_services"] = total_services - running_services
+        summary["status_text"] = status_text
+        summary["all_running"] = running_services == total_services
+        summary["all_stopped"] = running_services == 0
+
+        return summary
+
     def force_services_check() -> Any:
         """Forzar verificación manual de servicios."""
         cache_key = "services_summary_cache"
         cache_time_key = "services_summary_cache_time"
 
         with st.spinner("🔍 Verificando estado de servicios..."):
+            # Actualizar servicios locales
             summary = controller.get_services_summary()
+            # Limpiar cache de servicios remotos para forzar re-verificación
+            remote_controller.clear_cache()
 
+            # CRÍTICO: Actualizar el cache PRIMERO para que calculate_services_count() tenga datos frescos
+            st.session_state[cache_key] = summary
+            st.session_state[cache_time_key] = time.time()
+
+            # Ahora usar función centralizada para cálculo híbrido
+            summary = calculate_hybrid_service_count(summary)
+
+        # Actualizar el cache con los conteos híbridos finales
         st.session_state[cache_key] = summary
         st.session_state[cache_time_key] = time.time()
 
@@ -406,6 +759,10 @@ def render_services_page() -> None:
 
         # Actualizar cache silenciosamente sin spinner
         summary = controller.get_services_summary()
+
+        # Usar función centralizada para cálculo híbrido
+        summary = calculate_hybrid_service_count(summary)
+
         st.session_state[cache_key] = summary
         st.session_state[cache_time_key] = time.time()
 
@@ -432,65 +789,41 @@ def render_services_page() -> None:
                     help="Verificar estado real de todos los servicios",
                 ):
                     summary = force_services_check()
+                    # Actualizar timestamp para forzar re-evaluación de componentes remotos
+                    st.session_state["remote_services_update_time"] = time.time()
+                    st.toast("Estado de servicios actualizado", icon="🔄")
+                    # Usar experimental_rerun para minimizar el impacto en el estado
                     st.rerun()
 
             st.markdown("---")
 
             for service_name, service_info in summary["services"].items():
-                display_name = service_info["display_name"]
-                is_running = service_info["is_running"]
+                # Verificar si es un servicio que puede ser remoto
+                has_remote_option = service_name in ["decision", "reporting"]
 
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    if is_running:
-                        st.write(f"🟢 **{display_name}**")
-                        if service_info.get("pid"):
-                            st.caption(f"PID: {service_info['pid']}")
+                if has_remote_option:
+                    # Renderizar según el modo actual
+                    current_mode = st.session_state.service_modes[service_name]
+
+                    if current_mode == "local":
+                        # Renderizar servicio local con switch integrado
+                        render_local_service(
+                            service_name,
+                            service_info,
+                            controller,
+                            has_remote_option=True,
+                        )
                     else:
-                        st.write(f"🔴 **{display_name}**")
-                        st.caption("Detenido")
+                        # Renderizar servicio remoto con switch integrado
+                        render_remote_service(
+                            service_name, remote_controller, has_remote_option=True
+                        )
 
-                with col2:
-                    if not is_running:
-                        if st.button("▶️ Iniciar", key=f"start_{service_name}"):
-                            with st.spinner(f"⚙️ Iniciando {display_name}..."):
-                                success, message = controller.start_service(
-                                    service_name
-                                )
-                                if success:
-                                    st.success(f"✅ {message}")
-                                    update_service_cache_status(service_name, True)
-                                else:
-                                    st.error(f"❌ {message}")
-                                    if "services_summary_cache" in st.session_state:
-                                        del st.session_state["services_summary_cache"]
-                            # Verificar estado automáticamente después de la operación
-                            time.sleep(1)
-                            auto_refresh_services_status()
-                            st.rerun()
-
-                with col3:
-                    if is_running:
-                        if st.button("⏹️ Detener", key=f"stop_{service_name}"):
-                            with st.spinner(f"🛑 Deteniendo {display_name}..."):
-                                success, message = controller.stop_service_graceful(
-                                    service_name
-                                )
-                                if success:
-                                    st.success(f"✅ {message}")
-                                    update_service_cache_status(service_name, False)
-                                else:
-                                    st.error(f"❌ {message}")
-                                    if "services_summary_cache" in st.session_state:
-                                        del st.session_state["services_summary_cache"]
-                            # Verificar estado automáticamente después de la operación
-                            time.sleep(1)
-                            auto_refresh_services_status()
-                            st.rerun()
-
-                if is_running:
-                    with st.expander(f"📋 Logs de {display_name}", expanded=False):
-                        render_service_logs(service_name, controller)
+                else:
+                    # Servicios sin opción remota (simulation, detection)
+                    render_local_service(
+                        service_name, service_info, controller, has_remote_option=False
+                    )
 
                 st.markdown("---")
 
@@ -805,22 +1138,17 @@ def render_field_widget(
 def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
     """Renderizar configuración completa de config.yaml."""
 
-    with st.expander("🌐 Configuración Global", expanded=False):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            render_field_widget(
-                "base_url", "URL Base", config.get("base_url", ""), config
-            )
-        with col2:
-            render_field_widget("base_ip", "IP Base", config.get("base_ip", ""), config)
-
     with st.expander("📡 Servicios", expanded=False):
         if "services" in config:
             services = config["services"]
+
+            st.subheader("🏠 Servicios Locales")
             col1, col2, col3 = st.columns(3)
 
             with col1:
+                render_field_widget(
+                    "base_url", "URL Base", config.get("base_url", ""), config
+                )
                 render_field_widget(
                     "services.simulation_port",
                     "Puerto Simulación",
@@ -828,6 +1156,10 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     config,
                 )
             with col2:
+                render_field_widget(
+                    "base_ip", "IP Base", config.get("base_ip", ""), config
+                )
+
                 render_field_widget(
                     "services.detection_port",
                     "Puerto Detección",
@@ -841,6 +1173,45 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     services.get("reporting_port", 5001),
                     config,
                 )
+
+            st.subheader("🌐 Servicios Remotos")
+            if "remote" in services:
+                remote = services["remote"]
+
+                st.write("**Decisión**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    render_field_widget(
+                        "services.remote.decision.ip",
+                        "IP Decisión",
+                        remote.get("decision", {}).get("ip", ""),
+                        config,
+                    )
+                with col2:
+                    render_field_widget(
+                        "services.remote.decision.port",
+                        "Puerto Decisión",
+                        remote.get("decision", {}).get("port", 8080),
+                        config,
+                    )
+
+                # Servicio de Reportes Remoto
+                st.write("**Reportes**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    render_field_widget(
+                        "services.remote.reporting.ip",
+                        "IP Reportes",
+                        remote.get("reporting", {}).get("ip", ""),
+                        config,
+                    )
+                with col2:
+                    render_field_widget(
+                        "services.remote.reporting.port",
+                        "Puerto Reportes",
+                        remote.get("reporting", {}).get("port", 8081),
+                        config,
+                    )
 
     with st.expander("🔍 Detección de Objetos", expanded=False):
         if "deteccion" in config:
@@ -882,6 +1253,38 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                     deteccion.get("window_size", [460, 820]),
                     config,
                 )
+
+            st.markdown("---")
+
+            # Opciones de Debug
+            if "debug" in deteccion:
+                debug_config = deteccion["debug"]
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    render_field_widget(
+                        "deteccion.debug.show_object_ids",
+                        "Mostrar IDs de Objetos",
+                        debug_config.get("show_object_ids", False),
+                        config,
+                    )
+
+                with col2:
+                    render_field_widget(
+                        "deteccion.debug.show_multas_counter",
+                        "Mostrar Contador de Multas",
+                        debug_config.get("show_multas_counter", False),
+                        config,
+                    )
+
+                with col3:
+                    render_field_widget(
+                        "deteccion.debug.show_fps",
+                        "Mostrar FPS",
+                        debug_config.get("show_fps", True),
+                        config,
+                    )
 
             st.markdown("---")
 
@@ -1219,390 +1622,392 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             config,
                         )
 
+            # TODO: El entrenamiento completo está deshabilitado temporalmente
             # === ENTRENAMIENTO COMPLETO ===
-            if "entrenamiento_completo" in decision:
-                with st.expander("⚗️ Entrenamiento Completo DQN", expanded=False):
-                    entrenamiento = decision["entrenamiento_completo"]
+            # if "entrenamiento_completo" in decision:
+            #     with st.expander("⚗️ Entrenamiento Completo DQN", expanded=False):
+            #         entrenamiento = decision["entrenamiento_completo"]
 
-                    st.markdown("**Configuración Básica**")
-                    col1, col2, col3 = st.columns(3)
+            #         st.markdown("**Configuración Básica**")
+            #         col1, col2, col3 = st.columns(3)
 
-                    with col1:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.entrenar",
-                            "Activar Entrenamiento",
-                            entrenamiento.get("entrenar", False),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.path_resultado",
-                            "Path Resultados",
-                            entrenamiento.get("path_resultado", ""),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.num_epocas",
-                            "Número Épocas",
-                            entrenamiento.get("num_epocas", 35),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.batch_size",
-                            "Batch Size",
-                            entrenamiento.get("batch_size", 256),
-                            config,
-                        )
+            #         with col1:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.entrenar",
+            #                 "Activar Entrenamiento",
+            #                 entrenamiento.get("entrenar", False),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.path_resultado",
+            #                 "Path Resultados",
+            #                 entrenamiento.get("path_resultado", ""),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.num_epocas",
+            #                 "Número Épocas",
+            #                 entrenamiento.get("num_epocas", 35),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.batch_size",
+            #                 "Batch Size",
+            #                 entrenamiento.get("batch_size", 256),
+            #                 config,
+            #             )
 
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.steps",
-                            "Steps",
-                            entrenamiento.get("steps", 10),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.memory",
-                            "Memory",
-                            entrenamiento.get("memory", 5000),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.learning_rate",
-                            "Learning Rate",
-                            entrenamiento.get("learning_rate", 0.0005),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.learning_rate_decay",
-                            "LR Decay",
-                            entrenamiento.get("learning_rate_decay", 0.99),
-                            config,
-                        )
+            #         with col2:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.steps",
+            #                 "Steps",
+            #                 entrenamiento.get("steps", 10),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.memory",
+            #                 "Memory",
+            #                 entrenamiento.get("memory", 5000),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.learning_rate",
+            #                 "Learning Rate",
+            #                 entrenamiento.get("learning_rate", 0.0005),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.learning_rate_decay",
+            #                 "LR Decay",
+            #                 entrenamiento.get("learning_rate_decay", 0.99),
+            #                 config,
+            #             )
 
-                    with col3:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.learning_rate_min",
-                            "LR Mínimo",
-                            entrenamiento.get("learning_rate_min", 0.00005),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.epsilon",
-                            "Epsilon",
-                            entrenamiento.get("epsilon", 1.0),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.epsilon_decay",
-                            "Epsilon Decay",
-                            entrenamiento.get("epsilon_decay", 0.99995),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.epsilon_min",
-                            "Epsilon Mín",
-                            entrenamiento.get("epsilon_min", 0.1),
-                            config,
-                        )
+            #         with col3:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.learning_rate_min",
+            #                 "LR Mínimo",
+            #                 entrenamiento.get("learning_rate_min", 0.00005),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.epsilon",
+            #                 "Epsilon",
+            #                 entrenamiento.get("epsilon", 1.0),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.epsilon_decay",
+            #                 "Epsilon Decay",
+            #                 entrenamiento.get("epsilon_decay", 0.99995),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.epsilon_min",
+            #                 "Epsilon Mín",
+            #                 entrenamiento.get("epsilon_min", 0.1),
+            #                 config,
+            #             )
 
-                    st.markdown("**Parámetros Avanzados**")
-                    col1, col2, col3 = st.columns(3)
+            #         st.markdown("**Parámetros Avanzados**")
+            #         col1, col2, col3 = st.columns(3)
 
-                    with col1:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.gamma",
-                            "Gamma",
-                            entrenamiento.get("gamma", 0.85),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.hidden_layers",
-                            "Capas Ocultas",
-                            entrenamiento.get("hidden_layers", [64, 64, 64]),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_double_dqn",
-                            "Double DQN",
-                            entrenamiento.get("use_double_dqn", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_dueling_dqn",
-                            "Dueling DQN",
-                            entrenamiento.get("use_dueling_dqn", True),
-                            config,
-                        )
+            #         with col1:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.gamma",
+            #                 "Gamma",
+            #                 entrenamiento.get("gamma", 0.85),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.hidden_layers",
+            #                 "Capas Ocultas",
+            #                 entrenamiento.get("hidden_layers", [64, 64, 64]),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_double_dqn",
+            #                 "Double DQN",
+            #                 entrenamiento.get("use_double_dqn", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_dueling_dqn",
+            #                 "Dueling DQN",
+            #                 entrenamiento.get("use_dueling_dqn", True),
+            #                 config,
+            #             )
 
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.target_update_frequency",
-                            "Target Update Freq",
-                            entrenamiento.get("target_update_frequency", 100),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_prioritized_replay",
-                            "Prioritized Replay",
-                            entrenamiento.get("use_prioritized_replay", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.per_alpha",
-                            "PER Alpha",
-                            entrenamiento.get("per_alpha", 0.6),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.per_beta_start",
-                            "PER Beta Start",
-                            entrenamiento.get("per_beta_start", 0.4),
-                            config,
-                        )
+            #         with col2:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.target_update_frequency",
+            #                 "Target Update Freq",
+            #                 entrenamiento.get("target_update_frequency", 100),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_prioritized_replay",
+            #                 "Prioritized Replay",
+            #                 entrenamiento.get("use_prioritized_replay", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.per_alpha",
+            #                 "PER Alpha",
+            #                 entrenamiento.get("per_alpha", 0.6),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.per_beta_start",
+            #                 "PER Beta Start",
+            #                 entrenamiento.get("per_beta_start", 0.4),
+            #                 config,
+            #             )
 
-                    with col3:
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_noisy_networks",
-                            "Noisy Networks",
-                            entrenamiento.get("use_noisy_networks", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.noise_std",
-                            "Noise STD",
-                            entrenamiento.get("noise_std", 0.3),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.use_dropout",
-                            "Dropout",
-                            entrenamiento.get("use_dropout", True),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_completo.dropout_rate",
-                            "Dropout Rate",
-                            entrenamiento.get("dropout_rate", 0.02),
-                            config,
-                        )
+            #         with col3:
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_noisy_networks",
+            #                 "Noisy Networks",
+            #                 entrenamiento.get("use_noisy_networks", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.noise_std",
+            #                 "Noise STD",
+            #                 entrenamiento.get("noise_std", 0.3),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.use_dropout",
+            #                 "Dropout",
+            #                 entrenamiento.get("use_dropout", True),
+            #                 config,
+            #             )
+            #             render_field_widget(
+            #                 "decision.entrenamiento_completo.dropout_rate",
+            #                 "Dropout Rate",
+            #                 entrenamiento.get("dropout_rate", 0.02),
+            #                 config,
+            #             )
 
-                    with st.expander("Optimizaciones de Estabilidad", expanded=False):
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.warmup_steps",
-                                "Warmup Steps",
-                                entrenamiento.get("warmup_steps", 250),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.min_replay_size",
-                                "Min Replay Size",
-                                entrenamiento.get("min_replay_size", 32),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_batch_normalization",
-                                "Batch Normalization",
-                                entrenamiento.get("use_batch_normalization", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_he_initialization",
-                                "He Initialization",
-                                entrenamiento.get("use_he_initialization", True),
-                                config,
-                            )
+            #         with st.expander("Optimizaciones de Estabilidad", expanded=False):
+            #             col1, col2, col3 = st.columns(3)
+            #             with col1:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.warmup_steps",
+            #                     "Warmup Steps",
+            #                     entrenamiento.get("warmup_steps", 250),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.min_replay_size",
+            #                     "Min Replay Size",
+            #                     entrenamiento.get("min_replay_size", 32),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_batch_normalization",
+            #                     "Batch Normalization",
+            #                     entrenamiento.get("use_batch_normalization", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_he_initialization",
+            #                     "He Initialization",
+            #                     entrenamiento.get("use_he_initialization", True),
+            #                     config,
+            #                 )
 
-                        with col2:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_residual_connections",
-                                "Residual Connections",
-                                entrenamiento.get("use_residual_connections", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.gradient_clip_norm",
-                                "Gradient Clip Norm",
-                                entrenamiento.get("gradient_clip_norm", 1.0),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_leaky_relu",
-                                "Leaky ReLU",
-                                entrenamiento.get("use_leaky_relu", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_gradient_clipping",
-                                "Gradient Clipping",
-                                entrenamiento.get("use_gradient_clipping", True),
-                                config,
-                            )
+            #             with col2:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_residual_connections",
+            #                     "Residual Connections",
+            #                     entrenamiento.get("use_residual_connections", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.gradient_clip_norm",
+            #                     "Gradient Clip Norm",
+            #                     entrenamiento.get("gradient_clip_norm", 1.0),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_leaky_relu",
+            #                     "Leaky ReLU",
+            #                     entrenamiento.get("use_leaky_relu", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_gradient_clipping",
+            #                     "Gradient Clipping",
+            #                     entrenamiento.get("use_gradient_clipping", True),
+            #                     config,
+            #                 )
 
-                        with col3:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.use_huber_loss",
-                                "Huber Loss",
-                                entrenamiento.get("use_huber_loss", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.normalize_rewards",
-                                "Normalize Rewards",
-                                entrenamiento.get("normalize_rewards", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_beta_frames",
-                                "PER Beta Frames",
-                                entrenamiento.get("per_beta_frames", 100000),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.adaptive_lr",
-                                "Adaptive LR",
-                                entrenamiento.get("adaptive_lr", True),
-                                config,
-                            )
+            #             with col3:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.use_huber_loss",
+            #                     "Huber Loss",
+            #                     entrenamiento.get("use_huber_loss", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.normalize_rewards",
+            #                     "Normalize Rewards",
+            #                     entrenamiento.get("normalize_rewards", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_beta_frames",
+            #                     "PER Beta Frames",
+            #                     entrenamiento.get("per_beta_frames", 100000),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.adaptive_lr",
+            #                     "Adaptive LR",
+            #                     entrenamiento.get("adaptive_lr", True),
+            #                     config,
+            #                 )
 
-                    with st.expander("Evaluación y Métricas", expanded=False):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.enable_evaluation",
-                                "Activar Evaluación",
-                                entrenamiento.get("enable_evaluation", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.evaluation_episodes",
-                                "Episodios Evaluación",
-                                entrenamiento.get("evaluation_episodes", 10),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.evaluation_frequency",
-                                "Frecuencia Evaluación",
-                                entrenamiento.get("evaluation_frequency", 10),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.baseline_comparison",
-                                "Comparación Baseline",
-                                entrenamiento.get("baseline_comparison", True),
-                                config,
-                            )
+            #         with st.expander("Evaluación y Métricas", expanded=False):
+            #             col1, col2 = st.columns(2)
+            #             with col1:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.enable_evaluation",
+            #                     "Activar Evaluación",
+            #                     entrenamiento.get("enable_evaluation", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.evaluation_episodes",
+            #                     "Episodios Evaluación",
+            #                     entrenamiento.get("evaluation_episodes", 10),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.evaluation_frequency",
+            #                     "Frecuencia Evaluación",
+            #                     entrenamiento.get("evaluation_frequency", 10),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.baseline_comparison",
+            #                     "Comparación Baseline",
+            #                     entrenamiento.get("baseline_comparison", True),
+            #                     config,
+            #                 )
 
-                        with col2:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.save_evaluation_data",
-                                "Guardar Datos Evaluación",
-                                entrenamiento.get("save_evaluation_data", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.metrics_window_size",
-                                "Ventana Métricas",
-                                entrenamiento.get("metrics_window_size", 100),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.statistical_tests",
-                                "Tests Estadísticos",
-                                entrenamiento.get("statistical_tests", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.generate_plots",
-                                "Generar Gráficos",
-                                entrenamiento.get("generate_plots", True),
-                                config,
-                            )
+            #             with col2:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.save_evaluation_data",
+            #                     "Guardar Datos Evaluación",
+            #                     entrenamiento.get("save_evaluation_data", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.metrics_window_size",
+            #                     "Ventana Métricas",
+            #                     entrenamiento.get("metrics_window_size", 100),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.statistical_tests",
+            #                     "Tests Estadísticos",
+            #                     entrenamiento.get("statistical_tests", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.generate_plots",
+            #                     "Generar Gráficos",
+            #                     entrenamiento.get("generate_plots", True),
+            #                     config,
+            #                 )
 
-                    with st.expander("Optimizaciones de Rendimiento", expanded=False):
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.lr_schedule_type",
-                                "Tipo Schedule LR",
-                                entrenamiento.get("lr_schedule_type", "plateau"),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.enable_jit_compilation",
-                                "JIT Compilation",
-                                entrenamiento.get("enable_jit_compilation", True),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.dropout_mode",
-                                "Modo Dropout",
-                                entrenamiento.get("dropout_mode", "optimized"),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.dropout_layers",
-                                "Layers Dropout",
-                                entrenamiento.get("dropout_layers", "strategic"),
-                                config,
-                            )
+            #         with st.expander("Optimizaciones de Rendimiento", expanded=False):
+            #             col1, col2, col3 = st.columns(3)
+            #             with col1:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.lr_schedule_type",
+            #                     "Tipo Schedule LR",
+            #                     entrenamiento.get("lr_schedule_type", "plateau"),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.enable_jit_compilation",
+            #                     "JIT Compilation",
+            #                     entrenamiento.get("enable_jit_compilation", True),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.dropout_mode",
+            #                     "Modo Dropout",
+            #                     entrenamiento.get("dropout_mode", "optimized"),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.dropout_layers",
+            #                     "Layers Dropout",
+            #                     entrenamiento.get("dropout_layers", "strategic"),
+            #                     config,
+            #                 )
 
-                        with col2:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.noisy_implementation",
-                                "Implementación Noisy",
-                                entrenamiento.get("noisy_implementation", "efficient"),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.double_dqn_batch_optimization",
-                                "Double DQN Batch Opt",
-                                entrenamiento.get(
-                                    "double_dqn_batch_optimization", False
-                                ),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.target_update_batch_size",
-                                "Target Update Batch Size",
-                                entrenamiento.get("target_update_batch_size", 1024),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_batch_processing",
-                                "PER Batch Processing",
-                                entrenamiento.get("per_batch_processing", False),
-                                config,
-                            )
+            #             with col2:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.noisy_implementation",
+            #                     "Implementación Noisy",
+            #                     entrenamiento.get("noisy_implementation", "efficient"),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.double_dqn_batch_optimization",
+            #                     "Double DQN Batch Opt",
+            #                     entrenamiento.get(
+            #                         "double_dqn_batch_optimization", False
+            #                     ),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.target_update_batch_size",
+            #                     "Target Update Batch Size",
+            #                     entrenamiento.get("target_update_batch_size", 1024),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_batch_processing",
+            #                     "PER Batch Processing",
+            #                     entrenamiento.get("per_batch_processing", False),
+            #                     config,
+            #                 )
 
-                        with col3:
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_update_frequency",
-                                "PER Update Frequency",
-                                entrenamiento.get("per_update_frequency", 4),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.per_importance_annealing",
-                                "PER Importance Annealing",
-                                entrenamiento.get("per_importance_annealing", False),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.dueling_stream_simplification",
-                                "Dueling Stream Simplification",
-                                entrenamiento.get(
-                                    "dueling_stream_simplification", False
-                                ),
-                                config,
-                            )
-                            render_field_widget(
-                                "decision.entrenamiento_completo.hidden_layers_optimization",
-                                "Hidden Layers Optimization",
-                                entrenamiento.get("hidden_layers_optimization", False),
-                                config,
-                            )
+            #             with col3:
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_update_frequency",
+            #                     "PER Update Frequency",
+            #                     entrenamiento.get("per_update_frequency", 4),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.per_importance_annealing",
+            #                     "PER Importance Annealing",
+            #                     entrenamiento.get("per_importance_annealing", False),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.dueling_stream_simplification",
+            #                     "Dueling Stream Simplification",
+            #                     entrenamiento.get(
+            #                         "dueling_stream_simplification", False
+            #                     ),
+            #                     config,
+            #                 )
+            #                 render_field_widget(
+            #                     "decision.entrenamiento_completo.hidden_layers_optimization",
+            #                     "Hidden Layers Optimization",
+            #                     entrenamiento.get("hidden_layers_optimization", False),
+            #                     config,
+            #                 )
+            # TODO: El entrenamiento completo está deshabilitado temporalmente
 
     with st.expander("🚦 SUMO Simulación", expanded=False):
         if "sumo" in config:
@@ -1743,23 +2148,84 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
 
 def render_database_page() -> None:
     """Renderizar página de visualización de alertas de congestión."""
-    st.title("⚠️ Alertas de Congestión")
 
-    if st.button(
-        "🔄 Refrescar Datos",
-        help="Actualizar lista de archivos de alertas",
-        key="refresh_alerts",
-    ):
-        # Limpiar cache si existe
-        if "last_alerts_refresh" in st.session_state:
-            del st.session_state["last_alerts_refresh"]
-        st.session_state["last_alerts_refresh"] = datetime.datetime.now().strftime(
-            "%H:%M:%S"
-        )
-        st.rerun()
+    # Título con botón de refrescar y última actualización
+    col_titulo, col_refresh = st.columns([4, 2])
 
-    last_refresh = st.session_state.get("last_alerts_refresh", "Nunca")
-    st.caption(f"🕒 Última actualización: {last_refresh}")
+    with col_titulo:
+        st.title("⚠️ Alertas de Congestión")
+
+    with col_refresh:
+        st.write("")  # Espaciado vertical
+        if st.button(
+            "🔄 Refrescar Datos",
+            help="Actualizar lista de archivos de alertas",
+            key="refresh_alerts",
+        ):
+            # Limpiar cache si existe
+            if "last_alerts_refresh" in st.session_state:
+                del st.session_state["last_alerts_refresh"]
+            st.session_state["last_alerts_refresh"] = datetime.datetime.now().strftime(
+                "%H:%M:%S"
+            )
+            st.rerun()
+
+        # Última actualización debajo del botón
+        last_refresh = st.session_state.get("last_alerts_refresh", "Nunca")
+        st.caption(
+            f"🕒 Última actualización: {last_refresh}"
+        )  # Mostrar umbrales configurados
+    st.subheader("📊 Umbrales de Alertas Configurados")
+
+    try:
+        # Cargar configuración actual para obtener umbrales
+        from src.traffic_system.frontend.config_manager import ConfigManager
+
+        config_manager = ConfigManager()
+        config = config_manager.load_config()
+
+        if config:
+            # Mostrar umbrales en columnas
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric(
+                    "⏱️ Tiempo Total Máximo",
+                    f"{config['reporte']['tiempo_total_espera_maximo']}s",
+                    help="Tiempo de espera total que activa alertas de congestión",
+                )
+
+            with col2:
+                st.metric(
+                    "⚡ Tiempo por Zona Máximo",
+                    f"{config['reporte']['tiempo_zona_espera_maximo']}s",
+                    help="Tiempo de espera por zona que activa alertas",
+                )
+
+            with col3:
+                st.metric(
+                    "🚗 Vehículos Totales Máximo",
+                    f"{config['reporte']['total_vehiculos_maximo']}",
+                    help="Número total de vehículos que activa alertas",
+                )
+
+            with col4:
+                st.metric(
+                    "🚙 Vehículos por Zona Máximo",
+                    f"{config['reporte']['zona_vehiculos_maximo']}",
+                    help="Número de vehículos por zona que activa alertas",
+                )
+
+            st.info(
+                "💡 Las alertas se generan cuando cualquiera de estos umbrales es superado"
+            )
+        else:
+            st.warning("⚠️ No se pudo cargar la configuración")
+
+        st.markdown("---")
+
+    except Exception as e:
+        st.warning(f"⚠️ Error cargando umbrales de configuración: {e}")
 
     try:
         # Buscar archivos de base de datos
@@ -1815,7 +2281,6 @@ def render_database_page() -> None:
         )
 
         selected_db = db_files[selected_idx]
-        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
 
         # Mostrar información adicional de la sesión seleccionada
         try:
@@ -1837,68 +2302,22 @@ def render_database_page() -> None:
             cursor.execute("SELECT COUNT(*) FROM reporte")
             total_records = cursor.fetchone()[0]
 
-            cursor.execute(
-                "SELECT MIN(step_simulacion), MAX(step_simulacion) FROM reporte"
-            )
-            min_step, max_step = cursor.fetchone()
-
-            # Mostrar estadísticas básicas
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("⚠️ Total Alertas", total_records)
-            with col2:
-                st.metric("⏮️ Step Mínimo", min_step if min_step else 0)
-            with col3:
-                st.metric("⏭️ Step Máximo", max_step if max_step else 0)
-
-            st.markdown("---")
-
-            # Opciones de visualización
-            st.subheader("🔍 Opciones de Visualización")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Filtro por rango de steps
-                use_step_filter = st.checkbox("📈 Filtrar por rango de steps")
-                if use_step_filter and min_step is not None and max_step is not None:
-                    step_range = st.slider(
-                        "Rango de steps:",
-                        min_value=int(min_step),
-                        max_value=int(max_step),
-                        value=(int(min_step), int(max_step)),
-                        step=1,
-                    )
-                else:
-                    step_range = None
-
-            with col2:
-                # Límite de registros
-                limit_records = st.number_input(
-                    "📝 Límite de registros a mostrar:",
-                    min_value=10,
-                    max_value=10000,
-                    value=500,
-                    step=50,
+            # Si no hay registros, mostrar mensaje informativo
+            if total_records == 0:
+                st.warning("⚠️ No se encontraron registros de alertas de congestión")
+                st.info(
+                    "💡 Estos datos representan momentos donde se superaron umbrales críticos de tiempo de espera o cantidad de vehículos"
                 )
+                return
 
-                # Orden de resultados
-                order_desc = st.checkbox("📅 Más recientes primero", value=True)
+            # st.markdown("---")
 
-            # Construir consulta SQL
-            query = "SELECT * FROM reporte"
-            params = []
-
-            if use_step_filter and step_range:
-                query += " WHERE step_simulacion BETWEEN ? AND ?"
-                params.extend([step_range[0], step_range[1]])
-
-            query += f" ORDER BY step_simulacion {'DESC' if order_desc else 'ASC'}"
-            query += f" LIMIT {limit_records}"
+            # Cargar todos los datos, ordenados por más recientes primero
+            query = "SELECT * FROM reporte ORDER BY step_simulacion DESC"
 
             # Cargar datos
             with st.spinner("📊 Cargando datos..."):
-                df = pd.read_sql_query(query, conn, params=params)
+                df = pd.read_sql_query(query, conn)
 
             if df.empty:
                 st.warning("⚠️ No se encontraron datos con los filtros aplicados")
@@ -1906,10 +2325,6 @@ def render_database_page() -> None:
 
             # Mostrar tabla de datos
             st.subheader(f"⚠️ Alertas de Congestión ({len(df)} registros)")
-
-            st.info(
-                "💡 Estos datos representan momentos donde se superaron umbrales críticos de tiempo de espera o cantidad de vehículos"
-            )
 
             # Configurar columnas para mejor visualización
             display_df = df.copy()
@@ -1945,8 +2360,68 @@ def render_database_page() -> None:
             }
             display_df = display_df.rename(columns=existing_mapping)
 
-            # Mostrar tabla interactiva
-            st.dataframe(display_df, use_container_width=True, height=400)
+            # Aplicar resaltado condicional para umbrales superados
+            def highlight_exceeded_thresholds(df_styled: pd.DataFrame) -> pd.DataFrame:
+                """Aplicar estilos para resaltar valores que superan umbrales."""
+                # Estilo que funciona en temas claro y oscuro usando transparencia
+                exceeded_style = "background-color: rgba(255, 0, 0, 0.2); font-weight: bold; border: 1px solid rgba(255, 0, 0, 0.4);"
+
+                # Obtener umbrales de configuración
+                tiempo_total_max = (
+                    config["reporte"]["tiempo_total_espera_maximo"] if config else 700
+                )
+                tiempo_zona_max = (
+                    config["reporte"]["tiempo_zona_espera_maximo"] if config else 200
+                )
+                vehiculos_total_max = (
+                    config["reporte"]["total_vehiculos_maximo"] if config else 65
+                )
+                vehiculos_zona_max = (
+                    config["reporte"]["zona_vehiculos_maximo"] if config else 20
+                )
+
+                # Lista para almacenar estilos por celda
+                styles = pd.DataFrame(
+                    "", index=df_styled.index, columns=df_styled.columns
+                )
+
+                # Resaltar tiempo total de espera
+                if "Tiempo Espera Total" in df_styled.columns:
+                    mask = df_styled["Tiempo Espera Total"] > tiempo_total_max
+                    styles.loc[mask, "Tiempo Espera Total"] = exceeded_style
+
+                # Resaltar vehículos totales
+                if "Vehículos Total" in df_styled.columns:
+                    mask = df_styled["Vehículos Total"] > vehiculos_total_max
+                    styles.loc[mask, "Vehículos Total"] = exceeded_style
+
+                # Resaltar tiempos de espera por zona
+                for col in df_styled.columns:
+                    if "Zona" in col and "Tiempo" in col:
+                        mask = df_styled[col] > tiempo_zona_max
+                        styles.loc[mask, col] = exceeded_style
+                    elif "Zona" in col and "Vehículos" in col:
+                        mask = df_styled[col] > vehiculos_zona_max
+                        styles.loc[mask, col] = exceeded_style
+
+                return styles
+
+            # Aplicar el estilo y mostrar tabla
+            try:
+                styled_df = display_df.style.apply(
+                    highlight_exceeded_thresholds, axis=None
+                )
+                st.dataframe(styled_df, use_container_width=True, height=400)
+
+                # Leyenda explicativa
+                st.info(
+                    "💡 **Leyenda**: Las celdas con fondo rojizo indican valores que superaron los umbrales configurados y activaron la alerta."
+                )
+
+            except Exception as e:
+                # Fallback: mostrar tabla normal si hay error con estilos
+                st.warning(f"⚠️ Error aplicando estilos: {e}")
+                st.dataframe(display_df, use_container_width=True, height=400)
 
             # Gráficos de análisis
             st.markdown("---")
@@ -2002,23 +2477,14 @@ def render_database_page() -> None:
             st.markdown("---")
             st.subheader("💾 Exportar Alertas")
 
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Descargar CSV
-                csv_data = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Descargar alertas como CSV",
-                    data=csv_data,
-                    file_name=f"alertas_congestion_{db_names[selected_idx]}.csv",
-                    mime="text/csv",
-                )
-
-            with col2:
-                # Información del archivo
-                st.info(f"📍 Ubicación: `{selected_db}`")
-                file_size = os.path.getsize(selected_db)
-                st.caption(f"💿 Tamaño: {file_size / 1024:.1f} KB")
+            # Descargar CSV
+            csv_data = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Descargar alertas como CSV",
+                data=csv_data,
+                file_name=f"alertas_congestion_{db_names[selected_idx]}.csv",
+                mime="text/csv",
+            )
 
             conn.close()
 
@@ -2117,7 +2583,6 @@ def render_comparisons_page() -> None:
         )
 
         selected_db = db_files[selected_idx]
-        st.sidebar.info(f"📄 Archivo: `{os.path.basename(selected_db)}`")
 
         # Mostrar información adicional de la sesión seleccionada
         try:
@@ -2183,7 +2648,7 @@ def render_comparisons_page() -> None:
                     st.plotly_chart(fig_wait, use_container_width=True, height=500)
 
                 # Gráfico de vehículos - PANTALLA COMPLETA
-                st.markdown("#### 🚗 Número de Vehículos Esperando")
+                st.markdown("#### 🚗 Número de Vehículos")
                 if (
                     "s1_vehiculos_actual" in metrics_df.columns
                     and "s2_vehiculos_actual" in metrics_df.columns
@@ -2967,9 +3432,16 @@ def render_api_endpoint_card(
             if parameters:
                 for param_name, param_config in parameters.items():
                     if param_config["type"] == "select":
+                        options = param_config["options"]
+                        default_value = param_config.get("default")
+                        default_index = 0
+                        if default_value and default_value in options:
+                            default_index = options.index(default_value)
+
                         param_values[param_name] = st.selectbox(
                             param_config["label"],
-                            param_config["options"],
+                            options,
+                            index=default_index,
                             key=f"{key_prefix}_{param_name}",
                         )
                     elif param_config["type"] == "text":
@@ -2999,6 +3471,12 @@ def render_api_endpoint_card(
         # Ejecutar request
         result = execute_api_request(method, final_endpoint)
         add_to_history(result)
+
+        # Si es una request de multas exitosa, activar auto-refresh de galería
+        if "/multas/" in final_endpoint and result["success"]:
+            # Programar refresh de galería con delay de 200ms
+            st.session_state["refresh_multas_scheduled"] = True
+            st.session_state["refresh_multas_time"] = datetime.datetime.now()
 
         # Mostrar respuesta con ancho completo
         st.markdown("---")
@@ -3032,6 +3510,17 @@ def render_api_endpoint_card(
 def render_api_testing_page() -> None:
     """Renderizar la página de testing de APIs."""
     st.title("🧪 APIs")
+
+    # Cargar configuración para obtener zona por defecto
+    default_zone = "Zona A"  # Valor por defecto fallback
+    try:
+        from src.traffic_system.core.config_loader import load_app_settings
+
+        config = load_app_settings()
+        if hasattr(config, "deteccion") and hasattr(config.deteccion, "un_video"):
+            default_zone = config.deteccion.un_video.zona
+    except Exception:
+        pass  # Usar zona por defecto si hay error
 
     # Configuración de API
     with st.sidebar:
@@ -3161,6 +3650,7 @@ def render_api_testing_page() -> None:
                         "Zona K",
                         "Zona L",
                     ],
+                    "default": default_zone,
                 }
             },
             key_prefix="multa_zona",
@@ -3176,29 +3666,62 @@ def render_api_testing_page() -> None:
             st.subheader("📸 Galería de Multas Detectadas")
 
         with col2:
-            if st.button(
+            refresh_button_clicked = st.button(
                 "🔄 Refrescar",
                 help="Actualizar lista de fechas e imágenes de multas",
                 key="refresh_multas",
                 use_container_width=True,
+            )
+
+        # Auto-refresh después de activar multas (200ms delay)
+        refresh_from_send = False
+        if st.session_state.get("refresh_multas_scheduled", False):
+            request_time = st.session_state.get("refresh_multas_time")
+            if (
+                request_time
+                and (datetime.datetime.now() - request_time).total_seconds() >= 0.2
             ):
-                # Limpiar cache si existe
-                if "multas_cache" in st.session_state:
-                    del st.session_state["multas_cache"]
-                # Limpiar fecha previamente seleccionada para que se actualice al último elemento disponible
-                if "multas_selected_date" in st.session_state:
-                    del st.session_state["multas_selected_date"]
-                if "multas_date_selector" in st.session_state:
-                    del st.session_state["multas_date_selector"]
-                st.session_state["last_multas_refresh"] = (
-                    datetime.datetime.now().strftime("%H:%M:%S")
-                )
-                st.rerun()  # Mostrar última actualización
+                refresh_from_send = True
+                st.session_state["refresh_multas_scheduled"] = False
+                if "refresh_multas_time" in st.session_state:
+                    del st.session_state["refresh_multas_time"]
+
+        # Ejecutar refresh manual o tras Send
+        if refresh_button_clicked or refresh_from_send:
+            # Limpiar cache si existe
+            if "multas_cache" in st.session_state:
+                del st.session_state["multas_cache"]
+
+            # Limpiar selección para forzar selección de fecha más reciente
+            if "multas_selected_date" in st.session_state:
+                del st.session_state["multas_selected_date"]
+            if "multas_date_selector" in st.session_state:
+                del st.session_state["multas_date_selector"]
+
+            st.session_state["last_multas_refresh"] = datetime.datetime.now().strftime(
+                "%H:%M:%S"
+            )
+
+            # Forzar rerun para actualizar contenido
+            st.rerun()
         last_refresh = st.session_state.get("last_multas_refresh", "Nunca")
-        st.caption(f"🕒 Última actualización: {last_refresh}")
+        st.caption(
+            f"🕒 Última actualización: {last_refresh} • 🔄 Auto-refresh: Activo (cada 1s)"
+        )
 
         # Obtener fechas disponibles
         available_dates = get_multas_dates()
+
+        # Si hay auto-refresh activo y hay nuevas fechas, limpiar selección para mostrar la más reciente
+        current_dates_count = len(available_dates)
+        last_dates_count = st.session_state.get("last_dates_count", 0)
+        if current_dates_count > last_dates_count:
+            # Nueva carpeta detectada - limpiar selección para mostrar la más reciente
+            if "multas_selected_date" in st.session_state:
+                del st.session_state["multas_selected_date"]
+            if "multas_date_selector" in st.session_state:
+                del st.session_state["multas_date_selector"]
+        st.session_state["last_dates_count"] = current_dates_count
 
         if not available_dates:
             st.info(
@@ -3212,10 +3735,18 @@ def render_api_testing_page() -> None:
             # Obtener la fecha previamente seleccionada para mantenerla
             previous_selected = st.session_state.get("multas_selected_date", None)
 
-            # Si la fecha previamente seleccionada ya no existe, usar la primera disponible
-            default_index = 0
-            if previous_selected and previous_selected in available_dates:
+            # Si no hay selección previa o se hizo refresh, usar la más reciente (primera en lista)
+            # Si hay selección previa Y existe en la lista actual, mantenerla
+            default_index = 0  # Por defecto, la más reciente
+            if (
+                previous_selected
+                and previous_selected in available_dates
+                and not refresh_from_send
+            ):
                 default_index = available_dates.index(previous_selected)
+            else:
+                # Nueva carpeta detectada o refresh tras Send - usar la más reciente
+                default_index = 0
 
             selected_date = st.selectbox(
                 "📅 Fecha:",
@@ -3295,6 +3826,17 @@ def render_api_testing_page() -> None:
                             ),
                             language="json",
                         )
+
+    # Auto-refresh cada 1 segundo usando streamlit_autorefresh (mismo patrón que logs)
+    auto_refresh_count = st_autorefresh(
+        interval=1000,  # 1 segundo = 1000ms
+        key="autorefresh_multas",
+    )
+
+    if auto_refresh_count > 0:
+        # Limpiar cache para forzar actualización de datos
+        if "multas_cache" in st.session_state:
+            del st.session_state["multas_cache"]
 
 
 def main() -> None:

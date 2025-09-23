@@ -99,7 +99,6 @@ class APIRequestHelper:
 
             # Si infinite_retry=True, continuar el bucle con una pausa
             if infinite_retry:
-                logger.info(f"🔄 Reintentando conexión a {endpoint} en 2 segundos...")
                 time.sleep(2)
             else:
                 # Si infinite_retry=False, salir del bucle

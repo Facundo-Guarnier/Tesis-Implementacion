@@ -129,6 +129,7 @@ class InfoOverlay:
         vehicle_count: int,
         wait_time_seconds: int,
         zone_name: str = "",
+        show_fps: bool = True,
     ) -> np.ndarray:
         """
         Agregar overlay de información completa al frame
@@ -141,23 +142,38 @@ class InfoOverlay:
             vehicle_count: Cantidad de vehículos detectados
             wait_time_seconds: Tiempo de espera en segundos
             zone_name: Nombre de la zona (opcional)
+            show_fps: Mostrar información de FPS (True por defecto)
         """
         # Preparar información sin emojis ni tildes
         info_lines = [
             ("INFORMACION DE DETECCION", self.text_color, "header"),
-            # FPS - mismo color verde para ambos
-            (f"FPS Procesamiento: {fps_real}", self.fps_color, "fps_real"),
-            (f"FPS Fuente: {fps_original:.1f}", self.fps_color, "fps_original"),
-            # Separador
-            ("", self.text_color, "separator"),
-            # Detección - mismo color naranja para vehículos y tiempo
-            (f"Vehiculos: {vehicle_count}", self.detection_color, "vehicles"),
-            (f"Tiempo Espera: {wait_time_seconds}s", self.detection_color, "wait_time"),
-            # Separador
-            ("", self.text_color, "separator"),
-            # Información general - mismo color blanco
-            (f"Tipo: {source_type.capitalize()}", self.info_color, "source"),
         ]
+
+        # Agregar FPS solo si está habilitado
+        if show_fps:
+            info_lines.extend(
+                [
+                    (f"FPS Procesamiento: {fps_real}", self.fps_color, "fps_real"),
+                    (f"FPS Fuente: {fps_original:.1f}", self.fps_color, "fps_original"),
+                    ("", self.text_color, "separator"),
+                ]
+            )
+
+        # Agregar resto de información
+        info_lines.extend(
+            [
+                (f"Vehiculos: {vehicle_count}", self.detection_color, "vehicles"),
+                (
+                    f"Tiempo Espera: {wait_time_seconds}s",
+                    self.detection_color,
+                    "wait_time",
+                ),
+                # Separador
+                ("", self.text_color, "separator"),
+                # Información general - mismo color blanco
+                (f"Tipo: {source_type.capitalize()}", self.info_color, "source"),
+            ]
+        )
 
         # Agregar zona si se especifica
         if zone_name:
@@ -234,6 +250,7 @@ class InfoOverlay:
         fps_real: int,
         fps_original: float,
         source_type: str,
+        show_fps: bool = True,
     ) -> np.ndarray:
         """
         Versión simplificada del overlay solo con información de FPS
@@ -247,4 +264,5 @@ class InfoOverlay:
             vehicle_count=0,
             wait_time_seconds=0,
             zone_name="",
+            show_fps=show_fps,
         )

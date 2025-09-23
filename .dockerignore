@@ -1,0 +1,68 @@
+# Git y control de versiones
+.git
+.gitignore
+.github/
+
+# Archivos de documentación
+README.md
+docs/
+*.md
+
+# Dependencias y caché
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Poetry
+poetry.lock.backup
+.poetry/
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+temp/
+.tmp/
+*.log
+*.tmp
+
+# Resultados y assets grandes (se montan como volúmenes)
+results/
+assets/dataset-*
+assets/yolo_models/
+backups/
+
+# Archivos de configuración específicos del desarrollo
+config.yaml.backup
+backup_dependencies/
+
+# Scripts de desarrollo
+scripts/
+test_*.py
+Untitled-*.py
+
+# Archivos de Windows
+*.ini
+desktop.ini
+
+# Logs (se montan como volúmenes)
+logs/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-1080x1920-30fps\\Zona A\\20250829_131853.mp4"
     # v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-1080x1920-30fps\\Zona G\\20250829_131155.mp4"
     # v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-nuevos_video_2\\Zona C\\20250906_111435.mp4"
-    v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-nuevos_video_3\\Zona A - Alternativo\\20250914_122636_Clipchamp.mp4"
+    v = "D:\\Repositorios_GitHub\\Tesis-Implementacion\\assets\\dataset-nuevos_video_3\\Zona B\\20250914_122919.mp4"
     c = Coordinates(v)
 
     print("\n" + "=" * 60)
