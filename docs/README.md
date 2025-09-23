@@ -26,6 +26,7 @@ Reglas y buenas prácticas que deben seguirse durante el desarrollo.
 
 Documentos de consulta sobre la lógica específica y los detalles técnicos del proyecto.
 
+- **[`dqn_hyperparameters.md`](./3_reference/dqn_hyperparameters.md)**: Documentación completa de todos los hiperparámetros del entrenamiento DQN simplificado, incluyendo conceptos base y configuración.
 - **[`yolo_model_info.md`](./3_reference/yolo_model_info.md)**: Información sobre el modelo de detección de objetos YOLO, incluyendo la lista de clases que puede identificar.
 - **[`traffic_logic.md`](./3_reference/traffic_logic.md)**: Definición de los estados y fases de los semáforos utilizados en la simulación.
 - **[`external_references.md`](./3_reference/external_references.md)**: Recopilación de enlaces, comandos y recursos externos útiles para el proyecto (SUMO, tutoriales, etc.).

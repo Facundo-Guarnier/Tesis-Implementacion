@@ -1255,6 +1255,7 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                 )
 
             st.markdown("---")
+            st.subheader("Opciones de Debug")
 
             # Opciones de Debug
             if "debug" in deteccion:
@@ -1426,28 +1427,53 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                 with st.expander("🔬 Entrenamiento Simplificado DQN", expanded=False):
                     entrenamiento_simplificado = decision["entrenamiento_simplificado"]
 
-                    st.markdown("**Configuración Básica Simplificada**")
+                    # === 🎯 ENTRENAMIENTO PRINCIPAL ===
+                    st.markdown("**🎯 Entrenamiento Principal**")
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.entrenar",
-                            "Activar Entrenamiento Simplificado",
+                            "Activar Entrenamiento",
                             entrenamiento_simplificado.get("entrenar", False),
                             config,
                         )
-                        render_field_widget(
-                            "decision.entrenamiento_simplificado.path_resultado",
-                            "Path Resultados",
-                            entrenamiento_simplificado.get("path_resultado", ""),
-                            config,
-                        )
+                    with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.num_epocas",
                             "Número Épocas",
                             entrenamiento_simplificado.get("num_epocas", 100),
                             config,
                         )
+                    with col3:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.steps",
+                            "Steps por Época",
+                            entrenamiento_simplificado.get("steps", 10),
+                            config,
+                        )
+
+                    st.markdown("---")
+
+                    # === 💾 SISTEMA DE MEMORIA (EXPERIENCE REPLAY) ===
+                    st.markdown("**💾 Sistema de Memoria (Experience Replay)**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.memory",
+                            "Memory (Búfer Total)",
+                            entrenamiento_simplificado.get("memory", 50000),
+                            config,
+                        )
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.min_replay_size",
+                            "Min Replay Size",
+                            entrenamiento_simplificado.get("min_replay_size", 2000),
+                            config,
+                        )
+                    with col3:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.batch_size",
                             "Batch Size",
@@ -1455,75 +1481,75 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             config,
                         )
 
-                    with col2:
-                        render_field_widget(
-                            "decision.entrenamiento_simplificado.steps",
-                            "Steps",
-                            entrenamiento_simplificado.get("steps", 10),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_simplificado.memory",
-                            "Memory",
-                            entrenamiento_simplificado.get("memory", 50000),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_simplificado.min_replay_size",
-                            "Min Replay Size",
-                            entrenamiento_simplificado.get("min_replay_size", 2000),
-                            config,
-                        )
-                        render_field_widget(
-                            "decision.entrenamiento_simplificado.learning_rate",
-                            "Learning Rate",
-                            entrenamiento_simplificado.get("learning_rate", 0.001),
-                            config,
-                        )
+                    st.markdown("---")
 
-                    with col3:
+                    # === 🔍 EXPLORACIÓN (EPSILON-GREEDY) ===
+                    st.markdown("**🔍 Exploración (Epsilon-Greedy)**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.epsilon",
-                            "Epsilon",
+                            "Epsilon (Inicial)",
                             entrenamiento_simplificado.get("epsilon", 1.0),
                             config,
                         )
+                    with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.epsilon_decay",
                             "Epsilon Decay",
                             entrenamiento_simplificado.get("epsilon_decay", 0.995),
                             config,
                         )
+                    with col3:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.epsilon_min",
-                            "Epsilon Mín",
+                            "Epsilon Mínimo",
                             entrenamiento_simplificado.get("epsilon_min", 0.1),
                             config,
                         )
-                        render_field_widget(
-                            "decision.entrenamiento_simplificado.gamma",
-                            "Gamma",
-                            entrenamiento_simplificado.get("gamma", 0.85),
-                            config,
-                        )
 
-                    st.markdown("**Arquitectura y Algoritmos Simplificados**")
+                    st.markdown("---")
+
+                    # === 🧠 ARQUITECTURA DE RED ===
+                    st.markdown("**🧠 Arquitectura de Red**")
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.learning_rate",
+                            "Learning Rate",
+                            entrenamiento_simplificado.get("learning_rate", 0.001),
+                            config,
+                        )
+                    with col2:
+                        render_field_widget(
+                            "decision.entrenamiento_simplificado.gamma",
+                            "Gamma (Factor Descuento)",
+                            entrenamiento_simplificado.get("gamma", 0.85),
+                            config,
+                        )
+                    with col3:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.hidden_layers",
                             "Capas Ocultas",
                             entrenamiento_simplificado.get("hidden_layers", [128, 128]),
                             config,
                         )
+
+                    st.markdown("---")
+
+                    # === 🎯 ALGORITMOS DQN ===
+                    st.markdown("**🎯 Algoritmos DQN**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.use_double_dqn",
                             "Double DQN",
                             entrenamiento_simplificado.get("use_double_dqn", True),
                             config,
                         )
-
                     with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.use_dueling_dqn",
@@ -1531,22 +1557,31 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             entrenamiento_simplificado.get("use_dueling_dqn", True),
                             config,
                         )
+                    with col3:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.target_update_frequency",
-                            "Target Update Freq",
+                            "Target Update Frequency",
                             entrenamiento_simplificado.get(
                                 "target_update_frequency", 200
                             ),
                             config,
                         )
 
-                    with col3:
+                    st.markdown("---")
+
+                    # === ⚙️ ESTABILIZACIÓN DEL ENTRENAMIENTO ===
+                    st.markdown("**⚙️ Estabilización del Entrenamiento**")
+                    col1, _, _ = st.columns(3)
+                    with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.warmup_steps",
                             "Warmup Steps",
                             entrenamiento_simplificado.get("warmup_steps", 250),
                             config,
                         )
+
+                    col1, col2, _ = st.columns(3)
+                    with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.use_gradient_clipping",
                             "Gradient Clipping",
@@ -1555,24 +1590,23 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             ),
                             config,
                         )
-
-                    st.markdown("**Estabilidad y Evaluación**")
-                    col1, col2, col3 = st.columns(3)
-
-                    with col1:
+                    with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.gradient_clip_norm",
                             "Gradient Clip Norm",
                             entrenamiento_simplificado.get("gradient_clip_norm", 0.8),
                             config,
                         )
+
+                    col1, col2, _ = st.columns(3)
+
+                    with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.use_huber_loss",
                             "Huber Loss",
                             entrenamiento_simplificado.get("use_huber_loss", True),
                             config,
                         )
-
                     with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.use_he_initialization",
@@ -1582,20 +1616,28 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             ),
                             config,
                         )
+
+                    st.markdown("---")
+
+                    # === 📊 EVALUACIÓN Y MONITOREO ===
+                    st.markdown("**📊 Evaluación y Monitoreo**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.enable_evaluation",
                             "Activar Evaluación",
                             entrenamiento_simplificado.get("enable_evaluation", True),
                             config,
                         )
-
-                    with col3:
+                    with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.evaluation_episodes",
                             "Episodios Evaluación",
                             entrenamiento_simplificado.get("evaluation_episodes", 10),
                             config,
                         )
+                    with col3:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.evaluation_frequency",
                             "Frecuencia Evaluación",
@@ -1603,7 +1645,10 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             config,
                         )
 
-                    st.markdown("**Early Stopping**")
+                    st.markdown("---")
+
+                    # === ⏹️ EARLY STOPPING ===
+                    st.markdown("**⏹️ Early Stopping**")
                     col1, col2 = st.columns(2)
 
                     with col1:
@@ -1613,7 +1658,6 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             entrenamiento_simplificado.get("patience", 10),
                             config,
                         )
-
                     with col2:
                         render_field_widget(
                             "decision.entrenamiento_simplificado.min_improvement",
@@ -1621,6 +1665,17 @@ def render_simple_config(manager: Any, config: dict[str, Any]) -> None:
                             entrenamiento_simplificado.get("min_improvement", 0.01),
                             config,
                         )
+
+                    st.markdown("---")
+
+                    # === 📁 ARCHIVOS DE RESULTADOS ===
+                    st.markdown("**📁 Archivos de Resultados**")
+                    render_field_widget(
+                        "decision.entrenamiento_simplificado.path_resultado",
+                        "Path Resultados",
+                        entrenamiento_simplificado.get("path_resultado", ""),
+                        config,
+                    )
 
             # TODO: El entrenamiento completo está deshabilitado temporalmente
             # === ENTRENAMIENTO COMPLETO ===
