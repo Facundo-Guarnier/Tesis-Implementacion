@@ -141,8 +141,8 @@ def reescalar_carpeta_videos(
                     )
 
 
-nueva_resolucion = (1080, 1920)
-factor_reduccion_fps = 2  #! 30/factor = fps
+nueva_resolucion: Resolution = (970, 1720)  #! (ancho, alto)
+factor_reduccion_fps: float = 2  #! fps_originales/factor = fps
 
 # #! Reescalar todos los videos carpetas
 # carpeta_entrada = "C:\\Users\\facun\\Desktop\\nuevos_video"
