@@ -319,12 +319,14 @@ class SimplifiedDQNTrainer:
         """
         Construye modelo Dueling DQN simplificado.
         ```
-                                        +--> [Dense 256] --> [Dense 1 (V)] --+
+                                        +--> [Dense x2] --> [Dense 1 (V)] --+
                                         |                                    |
-            Input --> [Dense 256] --(bifurcación)                      [Combinación] --> Q-Values
+            Input --> [Dense x1] --(bifurcación)                      [Combinación] --> Q-Values
                                         |                                    |
-                                        +--> [Dense 256] --> [Dense 16 (A)]--+
+                                        +--> [Dense x2] --> [Dense 16 (A)]--+
         ```
+        x1: Todas menos la última capa oculta
+        x2: Última capa oculta para cada stream
         """
         # Input layer
         inputs = tf.keras.layers.Input(shape=(self.state_size,))
