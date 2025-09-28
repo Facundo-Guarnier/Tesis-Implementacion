@@ -2302,6 +2302,32 @@ def render_database_page() -> None:
             )
             return
 
+        # Filtrar sesiones: mantener la más reciente siempre + las que tengan alertas
+        def has_alerts(db_path: str) -> bool:
+            """Verificar si una base de datos tiene registros de alertas."""
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM reporte")
+                count = cursor.fetchone()[0]
+                conn.close()
+                return bool(count > 0)
+            except Exception:
+                return False
+
+        # Filtrar: siempre mantener la primera (más reciente) + las que tengan alertas
+        if len(db_files) > 1:
+            filtered_files = [db_files[0]]  # Siempre mantener la más reciente
+            for db_file in db_files[1:]:  # Verificar el resto
+                if has_alerts(db_file):
+                    filtered_files.append(db_file)
+            db_files = filtered_files
+
+        # Si después del filtro no quedan archivos, mostrar mensaje
+        if not db_files:
+            st.warning("⚠️ No se encontraron sesiones con alertas de congestión")
+            return
+
         # Selección de archivo de DB
         st.sidebar.markdown("---")
         st.sidebar.subheader("📊 Seleccionar Sesión")
