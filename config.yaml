@@ -36,8 +36,20 @@ deteccion:
     guardar: false #! Guardar el video con los resultados
     zona: "Zona B"
     path_destino: "results/deteccion/"
-    # path_origen: assets\dataset-nuevos_video_3\Zona A - Alternativo\20250914_122636_Clipchamp.mp4
-    path_origen: assets\dataset-nuevos_video_3\Zona B\20250914_122919 - Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona A\20250914_122636_Clipchamp.mp4
+    path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona B\20250914_122919_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona C\20250906_111435.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona C\20240102_132223_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona D\20240102_132428_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona E\20240102_132552_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona F\20240102_132831_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona G\20250829_131155.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona H\20240102_133013_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona I\20240102_133216_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona J\20240102_133419_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona K\20250829_130648.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona L\20240102_133830_Clipchamp.mp4
+
 
   procesar_camara: false #! Procesar la cámara en tiempo real
 
