@@ -512,7 +512,9 @@ def render_local_service(
                         st.rerun()
 
     # Logs siempre disponibles para servicios locales (corriendo o detenidos)
-    with st.expander(f"📋 Logs de {display_name}", expanded=False):
+    # Usar nombre limpio sin emoji para logs
+    clean_name = controller.get_service_name_for_logs(service_name)
+    with st.expander(f"📋 Logs de {clean_name}", expanded=False):
         render_service_logs(service_name, controller)
 
 
@@ -780,7 +782,7 @@ def render_services_page() -> None:
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(
-                    "Servicios Activos",
+                    "🔧 Servicios Activos",
                     f"{summary['running_services']}/{summary['total_services']}",
                 )
             with col3:

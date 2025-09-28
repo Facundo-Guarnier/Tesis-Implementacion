@@ -27,8 +27,8 @@ class RemoteServiceController:
 
     # Nombres amigables para mostrar en UI
     SERVICE_NAMES = {
-        "decision": "Decisión",
-        "reporting": "Reportes",
+        "decision": "🧠 Decisión",
+        "reporting": "📊 Reportes",
     }
 
     def __init__(self) -> None:
@@ -197,6 +197,23 @@ class RemoteServiceController:
             Nombre amigable para mostrar en UI
         """
         return self.SERVICE_NAMES.get(service_name, service_name.title())
+
+    def get_service_name_for_logs(self, service_name: str) -> str:
+        """
+        Obtener nombre sin emoji para logs.
+
+        Args:
+            service_name: Nombre interno del servicio
+
+        Returns:
+            Nombre sin emoji para logs
+        """
+        # Mapeo directo sin emojis
+        clean_names = {
+            "decision": "Decisión",
+            "reporting": "Reportes",
+        }
+        return clean_names.get(service_name, service_name.title())
 
     def is_service_running(self, service_name: str) -> bool:
         """

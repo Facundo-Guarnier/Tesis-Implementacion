@@ -32,10 +32,10 @@ class ServiceController:
 
     # Nombres amigables para mostrar en UI
     SERVICE_NAMES = {
-        "simulation": "Simulación",
-        "decision": "Decisión",
-        "detection": "Detección",
-        "reporting": "Reportes",
+        "simulation": "🚗 Simulación",
+        "decision": "🧠 Decisión",
+        "detection": "👁️ Detección",
+        "reporting": "📊 Reportes",
     }
 
     def __init__(self) -> None:
@@ -297,6 +297,25 @@ class ServiceController:
             Nombre amigable para mostrar
         """
         return self.SERVICE_NAMES.get(service_name, service_name.title())
+
+    def get_service_name_for_logs(self, service_name: str) -> str:
+        """
+        Obtener nombre sin emoji para logs.
+
+        Args:
+            service_name: Nombre interno del servicio
+
+        Returns:
+            Nombre sin emoji para logs
+        """
+        # Mapeo directo sin emojis
+        clean_names = {
+            "simulation": "Simulación",
+            "decision": "Decisión",
+            "detection": "Detección",
+            "reporting": "Reportes",
+        }
+        return clean_names.get(service_name, service_name.title())
 
     def get_running_services_count(self) -> tuple[int, int]:
         """
