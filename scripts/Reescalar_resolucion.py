@@ -141,23 +141,23 @@ def reescalar_carpeta_videos(
                     )
 
 
-nueva_resolucion = (1080, 1920)
+nueva_resolucion = (1024, 1820)
 factor_reduccion_fps = 2  #! 30/factor = fps
 
-# #! Reescalar todos los videos carpetas
-# carpeta_entrada = "C:\\Users\\facun\\Desktop\\nuevos_video"
-# carpeta_salida = "C:\\Users\\facun\\Desktop\\nuevos_video_salida"
-# reescalar_carpeta_videos(
-#     carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps
-# )
+#! Reescalar todos los videos carpetas
+carpeta_entrada = "assets\\dataset-definitivo-1080x1920-30fps"
+carpeta_salida = "assets\\dataset-definitivo-1024x1820-15fps"
+reescalar_carpeta_videos(
+    carpeta_entrada, carpeta_salida, nueva_resolucion, factor_reduccion_fps
+)
 
-#! Reescalar un único video
-ruta_video_entrada = (
-    "assets\\dataset-nuevos_video_3\\Zona B\\20250914_122919 - Clipchamp.mp4"
-)
-ruta_video_salida = (
-    "assets\\dataset-nuevos_video_3\\Zona B\\20250914_122919 - Clipchamp - 2.mp4"
-)
-reescalar_video(
-    ruta_video_entrada, ruta_video_salida, nueva_resolucion, factor_reduccion_fps
-)
+# #! Reescalar un único video
+# ruta_video_entrada = (
+#     "assets\\dataset-nuevos_video_3\\Zona B\\20250914_122919 - Clipchamp.mp4"
+# )
+# ruta_video_salida = (
+#     "assets\\dataset-nuevos_video_3\\Zona B\\20250914_122919 - Clipchamp - 2.mp4"
+# )
+# reescalar_video(
+#     ruta_video_entrada, ruta_video_salida, nueva_resolucion, factor_reduccion_fps
+# )

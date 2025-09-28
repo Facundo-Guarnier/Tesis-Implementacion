@@ -49,21 +49,36 @@ class Zone:
         if self._resolution != target_resolution:
             target_points = []
 
-            for point in self.original_points:
-                original_x, original_y = point
+            for i, point in enumerate(self.original_points):
+                try:
+                    original_x, original_y = point
 
-                original_width, original_height = self._resolution
-                target_width, target_height = target_resolution
+                    # Validar que los valores sean numéricos (incluye tipos numpy)
+                    if not isinstance(
+                        original_x, int | float | np.integer | np.floating
+                    ) or not isinstance(
+                        original_y, int | float | np.integer | np.floating
+                    ):
+                        raise TypeError(
+                            f"Coordenadas del punto {i} no son numéricas: x={original_x} (type: {type(original_x)}), y={original_y} (type: {type(original_y)})"
+                        )
 
-                #! Calcular las proporciones de escala en x e y
-                scale_x = target_width / original_width
-                scale_y = target_height / original_height
+                    original_width, original_height = self._resolution
+                    target_width, target_height = target_resolution
 
-                #! Aplicar la escala al punto
-                target_x = int(original_x * scale_x)
-                target_y = int(original_y * scale_y)
+                    #! Calcular las proporciones de escala en x e y
+                    scale_x = target_width / original_width
+                    scale_y = target_height / original_height
 
-                target_points.append([target_x, target_y])
+                    #! Aplicar la escala al punto
+                    target_x = int(original_x * scale_x)
+                    target_y = int(original_y * scale_y)
+
+                    target_points.append([target_x, target_y])
+                except (ValueError, TypeError) as e:
+                    raise TypeError(
+                        f"Error al escalar punto {i} en zona '{self.name}': {e}. Verifique que las coordenadas en zones.yaml sean números válidos."
+                    ) from e
 
             self.rescaled_points = np.array(target_points)
 
@@ -78,21 +93,36 @@ class Zone:
         if self._resolution != target_resolution:
             target_points = []
 
-            for point in self.original_fine_points:
-                original_x, original_y = point
+            for i, point in enumerate(self.original_fine_points):
+                try:
+                    original_x, original_y = point
 
-                original_width, original_height = self._resolution
-                target_width, target_height = target_resolution
+                    # Validar que los valores sean numéricos (incluye tipos numpy)
+                    if not isinstance(
+                        original_x, int | float | np.integer | np.floating
+                    ) or not isinstance(
+                        original_y, int | float | np.integer | np.floating
+                    ):
+                        raise TypeError(
+                            f"Coordenadas del punto de multa {i} no son numéricas: x={original_x} (type: {type(original_x)}), y={original_y} (type: {type(original_y)})"
+                        )
 
-                #! Calcular las proporciones de escala en x e y
-                scale_x = target_width / original_width
-                scale_y = target_height / original_height
+                    original_width, original_height = self._resolution
+                    target_width, target_height = target_resolution
 
-                #! Aplicar la escala al punto
-                target_x = int(original_x * scale_x)
-                target_y = int(original_y * scale_y)
+                    #! Calcular las proporciones de escala en x e y
+                    scale_x = target_width / original_width
+                    scale_y = target_height / original_height
 
-                target_points.append([target_x, target_y])
+                    #! Aplicar la escala al punto
+                    target_x = int(original_x * scale_x)
+                    target_y = int(original_y * scale_y)
+
+                    target_points.append([target_x, target_y])
+                except (ValueError, TypeError) as e:
+                    raise TypeError(
+                        f"Error al escalar punto de multa {i} en zona '{self.name}': {e}. Verifique que las coordenadas en zones.yaml sean números válidos."
+                    ) from e
 
             self.rescaled_fine_points = np.array(target_points)
 
