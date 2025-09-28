@@ -3621,13 +3621,62 @@ def render_api_testing_page() -> None:
             else:
                 st.error(f"❌ Error: {result.get('error', 'No response')}")
 
-    # Tabs principales
-    tab_multas, tab_metricas, tab_historial = st.tabs(
-        ["🚨 Multas", "📊 Métricas", "📜 Historial"]
-    )
+    # Inicializar estado del tab activo
+    if "api_active_tab" not in st.session_state:
+        st.session_state.api_active_tab = "multas"
 
-    with tab_metricas:
+    # Tabs personalizadas usando columnas para control total del auto-refresh
+    col_multas, col_metricas, col_historial = st.columns(3)
+
+    with col_multas:
+        if st.button(
+            "🚨 Multas",
+            use_container_width=True,
+            type=(
+                "primary"
+                if st.session_state.api_active_tab == "multas"
+                else "secondary"
+            ),
+            key="tab_multas",
+        ):
+            st.session_state.api_active_tab = "multas"
+            st.rerun()
+
+    with col_metricas:
+        if st.button(
+            "📊 Métricas",
+            use_container_width=True,
+            type=(
+                "primary"
+                if st.session_state.api_active_tab == "metricas"
+                else "secondary"
+            ),
+            key="tab_metricas",
+        ):
+            st.session_state.api_active_tab = "metricas"
+            st.rerun()
+
+    with col_historial:
+        if st.button(
+            "📜 Historial",
+            use_container_width=True,
+            type=(
+                "primary"
+                if st.session_state.api_active_tab == "historial"
+                else "secondary"
+            ),
+            key="tab_historial",
+        ):
+            st.session_state.api_active_tab = "historial"
+            st.rerun()
+
+    st.markdown("---")
+
+    if st.session_state.api_active_tab == "metricas":
         st.subheader("📊 Endpoints de Métricas")
+
+        # Indicador de estado del auto-refresh
+        st.info("ℹ️ Auto-refresh deshabilitado en Métricas para mejor rendimiento")
 
         # GET /cantidad
         render_api_endpoint_card(
@@ -3707,7 +3756,7 @@ def render_api_testing_page() -> None:
             key_prefix="espera_zona",
         )
 
-    with tab_multas:
+    if st.session_state.api_active_tab == "multas":
         st.subheader("🚨 Endpoints de Multas")
 
         # POST /multas/{zona}
@@ -3788,9 +3837,11 @@ def render_api_testing_page() -> None:
             # Forzar rerun para actualizar contenido
             st.rerun()
         last_refresh = st.session_state.get("last_multas_refresh", "Nunca")
-        st.caption(
-            f"🕒 Última actualización: {last_refresh} • 🔄 Auto-refresh: Activo (cada 1s)"
-        )
+
+        # Mostrar estado del auto-refresh - siempre activo en tab multas
+        refresh_status = "🔄 Auto-refresh: ✅ Activo (cada 1s)"
+
+        st.caption(f"🕒 Última actualización: {last_refresh} • {refresh_status}")
 
         # Obtener fechas disponibles
         available_dates = get_multas_dates()
@@ -3844,8 +3895,13 @@ def render_api_testing_page() -> None:
                 st.session_state["multas_selected_date"] = selected_date
                 render_multas_gallery(selected_date)
 
-    with tab_historial:
+    if st.session_state.api_active_tab == "historial":
         st.subheader("📜 Historial de Requests")
+
+        # Indicador de estado del auto-refresh
+        st.info(
+            "ℹ️ Auto-refresh deshabilitado en Historial para preservar datos estáticos"
+        )
 
         if not st.session_state.api_history:
             st.info("📝 No hay requests en el historial")
@@ -3910,16 +3966,21 @@ def render_api_testing_page() -> None:
                             language="json",
                         )
 
-    # Auto-refresh cada 1 segundo usando streamlit_autorefresh (mismo patrón que logs)
-    auto_refresh_count = st_autorefresh(
-        interval=1000,  # 1 segundo = 1000ms
-        key="autorefresh_multas",
-    )
+    # Auto-refresh inteligente según el tab activo
+    active_tab = st.session_state.api_active_tab
 
-    if auto_refresh_count > 0:
-        # Limpiar cache para forzar actualización de datos
-        if "multas_cache" in st.session_state:
-            del st.session_state["multas_cache"]
+    # Solo hacer auto-refresh si estamos en el tab de multas
+    if active_tab == "multas":
+        # MULTAS: Auto-refresh cada 1 segundo (siempre activo)
+        auto_refresh_count = st_autorefresh(
+            interval=1000,  # 1 segundo
+            key="autorefresh_multas_only",
+        )
+
+        if auto_refresh_count > 0:
+            # Limpiar cache de multas para forzar actualización
+            if "multas_cache" in st.session_state:
+                del st.session_state["multas_cache"]
 
 
 def main() -> None:
