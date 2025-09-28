@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import threading
 import time
@@ -149,12 +150,25 @@ class DetectorService:
         self.video_processor.zone.scale_fine_points(self.video_processor.resolution)
         self.line_zones: list[sv.LineZone] = []
         p = self.video_processor.zone.rescaled_fine_points
+
+        # Crear líneas de multa con extensión automática en vértices para evitar gaps de detección
+        # Valor fijo de x pixels de extensión - suficiente para la mayoría de casos de uso
+        VERTEX_EXTENSION_PIXELS = 3
+
         for i in range(len(p) - 1):
-            start = sv.Point(p[i][0], p[i][1])
-            end = sv.Point(p[i + 1][0], p[i + 1][1])
+            start_point = sv.Point(p[i][0], p[i][1])
+            end_point = sv.Point(p[i + 1][0], p[i + 1][1])
+
+            # Aplicar extensión automática en vértices
+            extended_start, extended_end = self._extend_line_segment(
+                start_point, end_point, VERTEX_EXTENSION_PIXELS
+            )
+
             self.line_zones.append(
                 sv.LineZone(
-                    start=start, end=end, triggering_anchors=[sv.Position.CENTER]
+                    start=extended_start,
+                    end=extended_end,
+                    triggering_anchors=[sv.Position.CENTER],
                 )
             )  #! Crear la línea de multa y cuenta los objetos cuando su centro cruzan la linea.
 
@@ -164,6 +178,47 @@ class DetectorService:
             text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
+
+    def _extend_line_segment(
+        self, start_point: sv.Point, end_point: sv.Point, extension_pixels: int
+    ) -> tuple[sv.Point, sv.Point]:
+        """
+        Extiende un segmento de línea en ambas direcciones para evitar gaps en vértices.
+
+        Args:
+            start_point: Punto inicial de la línea
+            end_point: Punto final de la línea
+            extension_pixels: Cantidad de pixels para extender en cada dirección
+
+        Returns:
+            Tupla con los puntos extendidos (start_extendido, end_extendido)
+        """
+        # Calcular vector direccional
+        dx = end_point.x - start_point.x
+        dy = end_point.y - start_point.y
+
+        # Calcular longitud del segmento
+        length = math.sqrt(dx * dx + dy * dy)
+
+        # Evitar división por cero para líneas de longitud 0
+        if length == 0:
+            return start_point, end_point
+
+        # Normalizar el vector direccional
+        unit_x = dx / length
+        unit_y = dy / length
+
+        # Extender en ambas direcciones
+        extended_start = sv.Point(
+            start_point.x - unit_x * extension_pixels,
+            start_point.y - unit_y * extension_pixels,
+        )
+        extended_end = sv.Point(
+            end_point.x + unit_x * extension_pixels,
+            end_point.y + unit_y * extension_pixels,
+        )
+
+        return extended_start, extended_end
 
     def _zone_expects_portrait(self) -> bool:
         """Indicar si la zona configurada es de orientación vertical (alto >= ancho)."""
