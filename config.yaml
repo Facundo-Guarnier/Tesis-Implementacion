@@ -24,7 +24,7 @@ deteccion:
   debug:
     show_object_ids: false #! Mostrar IDs de tracking de objetos para debugging
     show_multas_counter: false #! Mostrar contador de multas y direcciones de cruzamiento
-    show_fps: false #! Mostrar información de FPS en el overlay de información
+    show_fps: true #! Mostrar información de FPS en el overlay de información
 
   carpeta_dataset:
     procesar: false #! Procesar todos los videos de la carpeta del dataset
@@ -37,7 +37,9 @@ deteccion:
     zona: "Zona B"
     path_destino: "results/deteccion/"
     # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona A\20250914_122636_Clipchamp.mp4
-    path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona B\20250914_122919_Clipchamp.mp4
+    # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona B\20250914_122919_Clipchamp.mp4
+    path_origen: assets\dataset-definitivo-1024x1820-15fps\Zona B\20250914_122919_Clipchamp.mp4
+
     # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona C\20250906_111435.mp4
     # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona C\20240102_132223_Clipchamp.mp4
     # path_origen: assets\dataset-definitivo-1080x1920-30fps\Zona D\20240102_132428_Clipchamp.mp4

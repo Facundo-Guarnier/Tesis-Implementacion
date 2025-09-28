@@ -29,7 +29,7 @@ CONFIG_TOOLTIPS: dict[str, str] = {
     "deteccion.un_video.procesar": "Procesar un video en específico",
     "deteccion.un_video.guardar": "Guardar el video con los resultados de detección",
     "deteccion.un_video.zona": "Zona de detección para el video",
-    "deteccion.un_video.path_origen": "Ruta del video a procesar. 1080x1920-30fps o 576x1024-5fps",
+    "deteccion.un_video.path_origen": "Ruta del video a procesar. 1080x1920-30fps o 1024x1820-15fps",
     "deteccion.un_video.path_destino": "Carpeta donde se guardará el resultado",
     # Detección - Cámara
     "deteccion.procesar_camara": "Procesar la cámara en tiempo real",
