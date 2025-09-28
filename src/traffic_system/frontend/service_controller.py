@@ -42,7 +42,7 @@ class ServiceController:
         """Inicializar el controlador de servicios."""
         self._process_cache: dict[str, psutil.Process | None] = {}
         self._last_check_time: float = 0
-        self._cache_duration = 5  # Cache por 5 segundos
+        self._cache_duration = 30  # Cache por 30 segundos (optimizado para UI)
 
         # Crear directorio de logs para servicios
         self.logs_dir = Path("logs/services")
@@ -71,26 +71,45 @@ class ServiceController:
             if current_time - self._last_check_time < self._cache_duration:
                 cached_process = self._process_cache.get(service_name)
                 if cached_process is not None:
-                    return bool(cached_process.is_running())
+                    try:
+                        return bool(cached_process.is_running())
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        # Proceso cached ya no existe, limpiar cache
+                        self._process_cache[service_name] = None
 
-            # Buscar proceso por nombre de archivo
+            # Buscar proceso por nombre de archivo (optimizado)
             script_name = self.SERVICES[service_name]
+            found_process = None
 
-            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
-                try:
-                    cmdline = proc.info.get("cmdline", [])
-                    if cmdline and any(script_name in arg for arg in cmdline):
-                        # Verificar que sea un proceso Python válido
-                        if any("python" in arg.lower() for arg in cmdline):
-                            self._process_cache[service_name] = proc
-                            self._last_check_time = current_time
-                            return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
+            # Filtrar solo procesos Python para eficiencia
+            try:
+                for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                    try:
+                        # Saltar procesos que claramente no son Python
+                        proc_name = proc.info.get("name", "").lower()
+                        if "python" not in proc_name and "py" not in proc_name:
+                            continue
 
-            # No se encontró el proceso
-            self._process_cache[service_name] = None
-            return False
+                        cmdline = proc.info.get("cmdline", [])
+                        if cmdline and any(script_name in arg for arg in cmdline):
+                            # Verificar que sea un proceso Python válido
+                            if any("python" in arg.lower() for arg in cmdline):
+                                found_process = proc
+                                break
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+
+            except Exception as e:
+                log_warning(f"Error iterando procesos para {service_name}: {e}")
+
+            # Actualizar cache y resultado
+            if found_process:
+                self._process_cache[service_name] = found_process
+                self._last_check_time = current_time
+                return True
+            else:
+                self._process_cache[service_name] = None
+                return False
 
         except Exception as e:
             log_error(f"Error verificando estado de {service_name}: {e}")

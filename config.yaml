@@ -19,7 +19,7 @@ deteccion:
   path_resultados_deteccion: "results/detection_results/" #! Carpeta donde se guardan los resultados de detección automática
   forced_rotation_degrees: 0 #! Forzar rotación de frames (0, 90, 180, 270)
   window_fixed: true #! Ventana fija (no se redimensiona automáticamente)
-  window_size: [460, 820] #! Tamaño de ventana fija [ancho, alto]
+  window_size: [416, 740] #! Tamaño de ventana fija [ancho, alto]
 
   debug:
     show_object_ids: false #! Mostrar IDs de tracking de objetos para debugging
@@ -28,8 +28,8 @@ deteccion:
 
   carpeta_dataset:
     procesar: false #! Procesar todos los videos de la carpeta del dataset
-    path_origen: "assets/dataset-1080x1920-30fps/" #! Carpeta con los videos a procesar
-    path_destino: "results/deteccion_dataset/" #! Carpeta donde se guardarán los resultados
+    path_origen: "assets/dataset-definitivo-1024x1820-15fps/" #! Carpeta con los videos a procesar
+    path_destino: "results/deteccion_dataset-definitivo-1024x1820-15fps/" #! Carpeta donde se guardarán los resultados
 
   un_video:
     procesar: true #! Procesar un video en específico

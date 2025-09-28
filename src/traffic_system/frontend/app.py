@@ -188,8 +188,7 @@ def calculate_services_count() -> tuple[int, int, str]:
                 # Para servicios remotos, verificar estado remoto real
                 try:
                     if remote_controller:
-                        # Limpiar caché para obtener estado actualizado
-                        remote_controller.clear_cache()
+                        # Usar caché existente para respuesta rápida (solo limpiar en verificación manual)
                         remote_status_raw = remote_controller.get_service_status(
                             svc_name
                         )
@@ -730,16 +729,39 @@ def render_services_page() -> None:
 
         return summary
 
+    def smart_services_check() -> Any:
+        """Verificación inteligente de servicios que respeta cache existente."""
+        cache_key = "services_summary_cache"
+        cache_time_key = "services_summary_cache_time"
+
+        # Verificar si hay cache válido (30 segundos)
+        current_time = time.time()
+        if cache_key in st.session_state and cache_time_key in st.session_state:
+            cache_age = current_time - st.session_state[cache_time_key]
+            if cache_age < 30:  # Cache válido por 30 segundos
+                # Usar cache existente, solo actualizar conteos híbridos
+                summary = st.session_state[cache_key]
+                return calculate_hybrid_service_count(summary)
+
+        # Si no hay cache válido, hacer verificación completa pero SIN limpiar cache remoto
+        summary = controller.get_services_summary()
+        st.session_state[cache_key] = summary
+        st.session_state[cache_time_key] = current_time
+
+        return calculate_hybrid_service_count(summary)
+
     def force_services_check() -> Any:
         """Forzar verificación manual de servicios."""
         cache_key = "services_summary_cache"
         cache_time_key = "services_summary_cache_time"
 
         with st.spinner("🔍 Verificando estado de servicios..."):
+            # Limpiar caches para verificación completa (SOLO en verificación manual)
+            controller._last_check_time = 0  # Forzar re-verificación local
+            remote_controller.clear_cache()  # Forzar re-verificación remota
+
             # Actualizar servicios locales
             summary = controller.get_services_summary()
-            # Limpiar cache de servicios remotos para forzar re-verificación
-            remote_controller.clear_cache()
 
             # CRÍTICO: Actualizar el cache PRIMERO para que calculate_services_count() tenga datos frescos
             st.session_state[cache_key] = summary
@@ -769,9 +791,11 @@ def render_services_page() -> None:
         st.session_state[cache_time_key] = time.time()
 
     try:
-        summary = get_services_summary_manual()
+        # Usar verificación inteligente primero (respeta cache)
+        summary = smart_services_check()
 
         if summary is None:
+            # Fallback: botón de verificación manual
             if st.button(
                 "🔍 Verificar Servicios", use_container_width=True, type="primary"
             ):
@@ -779,16 +803,17 @@ def render_services_page() -> None:
                 st.rerun()
 
         if summary:
-            col1, col2, col3 = st.columns(3)
+            col1, _, col3 = st.columns(3)
             with col1:
                 st.metric(
                     "🔧 Servicios Activos",
                     f"{summary['running_services']}/{summary['total_services']}",
                 )
+
             with col3:
                 if st.button(
                     "🔄 Actualizar Estado",
-                    help="Verificar estado real de todos los servicios",
+                    help="Verificar estado real de todos los servicios (ignora cache)",
                 ):
                     summary = force_services_check()
                     # Actualizar timestamp para forzar re-evaluación de componentes remotos

@@ -5,6 +5,7 @@ Maneja verificación de estado de servicios remotos usando endpoints /health.
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Literal
 
 import requests
@@ -35,11 +36,11 @@ class RemoteServiceController:
         """Inicializar el controlador de servicios remotos."""
         self._status_cache: dict[str, dict[str, Any]] = {}
         self._last_check_time: float = 0
-        self._cache_duration = 3  # Cache por x segundos
+        self._cache_duration = 30  # Cache por 30 segundos (optimizado para UI)
 
-        # Configuración de requests
-        self.timeout = 2  # segundos timeout (aumentado para evitar timeouts prematuros)
-        self.max_retries = 2  # reducido para respuesta más rápida
+        # Configuración de requests (optimizada para respuesta rápida)
+        self.timeout = 1  # timeout reducido para respuesta más rápida
+        self.max_retries = 1  # solo 1 reintento para evitar demoras largas
 
     def _get_service_url(self, service_name: str) -> str | None:
         """
@@ -123,9 +124,9 @@ class RemoteServiceController:
                     log_error(f"{service_name}: error inesperado: {e}")
                     return "error"
 
-            # Esperar antes del siguiente intento
+            # Pequeña pausa entre reintentos (reducida para velocidad)
             if attempt < self.max_retries - 1:
-                time.sleep(0.5)
+                time.sleep(0.1)  # Reducido de 0.5s a 0.1s
 
         return "error"
 
@@ -183,6 +184,40 @@ class RemoteServiceController:
 
         for service_name in self.REMOTE_SERVICES:
             status_dict[service_name] = self.get_service_status(service_name)
+
+        return status_dict
+
+    def get_all_services_status_parallel(self) -> dict[str, ServiceStatus]:
+        """
+        Obtener el estado de todos los servicios remotos en paralelo.
+        Más rápido que verificación secuencial cuando hay múltiples servicios.
+
+        Returns:
+            Diccionario con el estado de cada servicio
+        """
+        status_dict = {}
+
+        # Verificar servicios en paralelo usando ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=len(self.REMOTE_SERVICES)) as executor:
+            # Enviar todas las verificaciones
+            future_to_service = {
+                executor.submit(self.get_service_status, service): service
+                for service in self.REMOTE_SERVICES
+            }
+
+            # Recopilar resultados a medida que se completan
+            for future in as_completed(future_to_service):
+                service_name = future_to_service[future]
+                try:
+                    status = future.result(
+                        timeout=self.timeout + 1
+                    )  # Timeout extra para el future
+                    status_dict[service_name] = status
+                except Exception as e:
+                    log_error(
+                        f"Error verificando servicio paralelo {service_name}: {e}"
+                    )
+                    status_dict[service_name] = "error"
 
         return status_dict
 
