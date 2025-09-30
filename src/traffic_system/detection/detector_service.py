@@ -174,7 +174,7 @@ class DetectorService:
 
         #! Anotador de línea de multas
         self.line_zone_annotator = sv.LineZoneAnnotator(
-            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            thickness=max(1, int(5 * self.video_processor.scale_factor)),
             text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
             text_scale=max(1, int(1 * self.video_processor.scale_factor)),
         )
@@ -657,7 +657,7 @@ class DetectorService:
                 pt1=start_point,
                 pt2=end_point,
                 color=(255, 255, 255),  # Blanco
-                thickness=max(1, int(3 * self.video_processor.scale_factor)),
+                thickness=max(1, int(5 * self.video_processor.scale_factor)),
             )
 
         return frame_with_lines
