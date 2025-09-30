@@ -2314,9 +2314,26 @@ def render_database_page() -> None:
         db_pattern = "results/reportes/*/reporte.db"
         db_files = glob.glob(db_pattern)
 
-        # Ordenar por fecha de modificación (más reciente primero)
+        # TODO: Ordenamiento anterior por fecha de modificación (para rollback futuro)
+        # if db_files:
+        #     db_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+        # Ordenar por fecha del nombre del directorio (más reciente primero)
         if db_files:
-            db_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+
+            def extract_datetime_from_path(db_path: str) -> str:
+                """Extraer timestamp del nombre del directorio padre."""
+                try:
+                    parent_dir = os.path.basename(os.path.dirname(db_path))
+                    if parent_dir.startswith("report_"):
+                        # Extraer la parte de fecha: report_YYYY-MM-DD_HH-MM-SS
+                        date_part = parent_dir.replace("report_", "")
+                        return date_part  # YYYY-MM-DD_HH-MM-SS formato se ordena correctamente como string
+                    return "0000-00-00_00-00-00"  # Fallback para archivos sin patrón
+                except Exception:
+                    return "0000-00-00_00-00-00"  # Fallback en caso de error
+
+            db_files.sort(key=extract_datetime_from_path, reverse=True)
 
         # Mostrar información de archivos encontrados
         if not db_files:
@@ -2634,8 +2651,23 @@ def render_comparisons_page() -> None:
 
         # Mostrar información de archivos encontrados
         if db_files:
-            # Ordenar por fecha de modificación (más nueva primero)
-            db_files.sort(key=os.path.getmtime, reverse=True)
+            # #! Ordenamiento anterior por fecha de modificación
+            # db_files.sort(key=os.path.getmtime, reverse=True)
+
+            #! Ordenar por fecha del nombre del directorio (más nueva primero)
+            def extract_datetime_from_comparison_path(db_path: str) -> str:
+                """Extraer timestamp del nombre del directorio padre para comparaciones."""
+                try:
+                    parent_dir = os.path.basename(os.path.dirname(db_path))
+                    if parent_dir.startswith("comparison_"):
+                        # Extraer la parte de fecha: comparison_YYYY-MM-DD_HH-MM-SS
+                        date_part = parent_dir.replace("comparison_", "")
+                        return date_part  # YYYY-MM-DD_HH-MM-SS formato se ordena correctamente como string
+                    return "0000-00-00_00-00-00"  # Fallback para archivos sin patrón
+                except Exception:
+                    return "0000-00-00_00-00-00"  # Fallback en caso de error
+
+            db_files.sort(key=extract_datetime_from_comparison_path, reverse=True)
         else:
             st.warning(
                 "📭 No se encontraron bases de datos de comparaciones.\n\n"

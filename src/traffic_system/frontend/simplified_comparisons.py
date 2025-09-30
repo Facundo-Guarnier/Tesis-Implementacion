@@ -44,8 +44,28 @@ def render_simplified_comparisons_page() -> None:
             )
             return
 
-        # Usar la base de datos más reciente
-        latest_db = max(db_files, key=os.path.getmtime)
+        # TODO: Selección anterior por fecha de modificación (para rollback futuro)
+        # latest_db = max(db_files, key=os.path.getmtime)
+
+        # Usar la base de datos más reciente según fecha del nombre del archivo
+        def extract_datetime_from_filename(db_path: str) -> str:
+            """Extraer timestamp del nombre del archivo para comparaciones simplificadas."""
+            try:
+                # Buscar patrón comparison_YYYY-MM-DD_HH-MM-SS en el path completo
+                if "comparison_" in db_path:
+                    # Buscar en el path completo
+                    import re
+
+                    match = re.search(
+                        r"comparison_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", db_path
+                    )
+                    if match:
+                        return match.group(1)
+                return "0000-00-00_00-00-00"  # Fallback
+            except Exception:
+                return "0000-00-00_00-00-00"  # Fallback en caso de error
+
+        latest_db = max(db_files, key=extract_datetime_from_filename)
         st.sidebar.success(f"📊 Usando datos de: `{os.path.basename(latest_db)}`")
 
         # Conectar a la base de datos
@@ -59,7 +79,7 @@ def render_simplified_comparisons_page() -> None:
             conn,
         )
 
-        summary_df = pd.read_sql_query("SELECT * FROM comparacion_resumenes", conn)
+        # summary_df = pd.read_sql_query("SELECT * FROM comparacion_resumenes", conn)
         conn.close()
 
         if metrics_df.empty:
@@ -163,7 +183,7 @@ def render_simplified_comparisons_page() -> None:
                     y=metrics_df["s1_tiempo_actual"],
                     mode="lines",
                     name="🤖 DQN (Inteligente)",
-                    line=dict(color="#1f77b4", width=3),
+                    line={"color": "#1f77b4", "width": 3},
                     hovertemplate="DQN: %{y:.1f}s<br>Minuto: %{x:.1f}<extra></extra>",
                 )
             )
@@ -175,7 +195,7 @@ def render_simplified_comparisons_page() -> None:
                     y=metrics_df["s2_tiempo_actual"],
                     mode="lines",
                     name="⏰ Tiempos Fijos",
-                    line=dict(color="#d62728", width=3),
+                    line={"color": "#d62728", "width": 3},
                     hovertemplate="Fijo: %{y:.1f}s<br>Minuto: %{x:.1f}<extra></extra>",
                 )
             )
@@ -186,9 +206,13 @@ def render_simplified_comparisons_page() -> None:
                 yaxis_title="Tiempo de Espera (segundos)",
                 height=400,
                 showlegend=True,
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-                ),
+                legend={
+                    "orientation": "h",
+                    "yanchor": "bottom",
+                    "y": 1.02,
+                    "xanchor": "right",
+                    "x": 1,
+                },
             )
 
             st.plotly_chart(fig_tiempo, use_container_width=True)
@@ -215,7 +239,7 @@ def render_simplified_comparisons_page() -> None:
                     y=metrics_df["s1_vehiculos_actual"],
                     mode="lines",
                     name="🤖 DQN (Inteligente)",
-                    line=dict(color="#1f77b4", width=3),
+                    line={"color": "#1f77b4", "width": 3},
                     hovertemplate="DQN: %{y:.1f} vehículos<br>Minuto: %{x:.1f}<extra></extra>",
                 )
             )
@@ -227,7 +251,7 @@ def render_simplified_comparisons_page() -> None:
                     y=metrics_df["s2_vehiculos_actual"],
                     mode="lines",
                     name="⏰ Tiempos Fijos",
-                    line=dict(color="#d62728", width=3),
+                    line={"color": "#d62728", "width": 3},
                     hovertemplate="Fijo: %{y:.1f} vehículos<br>Minuto: %{x:.1f}<extra></extra>",
                 )
             )
@@ -238,9 +262,13 @@ def render_simplified_comparisons_page() -> None:
                 yaxis_title="Número de Vehículos",
                 height=400,
                 showlegend=True,
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-                ),
+                legend={
+                    "orientation": "h",
+                    "yanchor": "bottom",
+                    "y": 1.02,
+                    "xanchor": "right",
+                    "x": 1,
+                },
             )
 
             st.plotly_chart(fig_vehiculos, use_container_width=True)
