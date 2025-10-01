@@ -1,6 +1,5 @@
-# docker build --no-cache -f docker/reporting-service/Dockerfile -t traffic-reporting-service .
-# docker run --name traffic-reporting-service -v ${PWD}/config.yaml:/app/config.yaml -v ${PWD}/results:/app/results -v ${PWD}/logs:/app/logs -p 8081:8081 traffic-reporting-service
-
+# docker build --no-cache -f docker/reporting-service/Dockerfile -t traffic-reporting-service:v2 .
+# docker run --name traffic-reporting-service -v ${PWD}/config.yaml:/app/config.yaml -v ${PWD}/results:/app/results -v ${PWD}/logs:/app/logs -p 8081:8081 traffic-reporting-service:v2
 # Dockerfile para Reporting Service
 FROM python:3.11-slim
 
