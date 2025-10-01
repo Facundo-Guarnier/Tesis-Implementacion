@@ -19,7 +19,7 @@ deteccion:
   path_resultados_deteccion: "results/detection_results/" #! Carpeta donde se guardan los resultados de detección automática
   forced_rotation_degrees: 0 #! Forzar rotación de frames (0, 90, 180, 270)
   window_fixed: true #! Ventana fija (no se redimensiona automáticamente)
-  window_size: [416, 740] #! Tamaño de ventana fija [ancho, alto]
+  window_size: [394, 700] #! Tamaño de ventana fija [ancho, alto]
 
   debug:
     show_object_ids: false #! Mostrar IDs de tracking de objetos para debugging
