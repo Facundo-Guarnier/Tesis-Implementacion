@@ -352,7 +352,7 @@ class ReportService:
 
         # 1. Verificar tiempo total de espera
         tiempo_espera_total = data.get_tiempo_espera_total()
-        if tiempo_espera_total > self.settings.tiempo_total_espera_maximo:
+        if tiempo_espera_total >= self.settings.tiempo_total_espera_maximo:
             self.logger.warning(
                 f"{data.steps}: Tiempo total espera SUPERADO - "
                 f"Valor: {tiempo_espera_total:.1f}s | Umbral: {self.settings.tiempo_total_espera_maximo}s"
@@ -360,7 +360,7 @@ class ReportService:
 
         # 2. Verificar tiempo de espera por zona
         for i, zone_wait_time in enumerate(data.tiempos_espera):
-            if zone_wait_time > self.settings.tiempo_zona_espera_maximo:
+            if zone_wait_time >= self.settings.tiempo_zona_espera_maximo:
                 zone_name = zone_names[i]
                 self.logger.warning(
                     f"{data.steps}: Zona {zone_name} tiempo espera SUPERADO - "
@@ -369,7 +369,7 @@ class ReportService:
 
         # 3. Verificar total de vehiculos
         total_vehiculos = data.get_total_vehiculos()
-        if total_vehiculos > self.settings.total_vehiculos_maximo:
+        if total_vehiculos >= self.settings.total_vehiculos_maximo:
             self.logger.warning(
                 f"{data.steps}: Total vehiculos SUPERADO - "
                 f"Valor: {total_vehiculos} | Umbral: {self.settings.total_vehiculos_maximo}"
@@ -378,7 +378,7 @@ class ReportService:
         # 4. Verificar cantidad de vehiculos por zona
         vehiculos_ordenados = data.get_vehiculos_ordenados()
         for i, zone_vehicles in enumerate(vehiculos_ordenados):
-            if zone_vehicles > self.settings.zona_vehiculos_maximo:
+            if zone_vehicles >= self.settings.zona_vehiculos_maximo:
                 zone_name = zone_names[i]
                 self.logger.warning(
                     f"{data.steps}: Zona {zone_name} vehiculos SUPERADO - "

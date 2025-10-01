@@ -2512,21 +2512,21 @@ def render_database_page() -> None:
 
                 # Resaltar tiempo total de espera
                 if "Tiempo Espera Total" in df_styled.columns:
-                    mask = df_styled["Tiempo Espera Total"] > tiempo_total_max
+                    mask = df_styled["Tiempo Espera Total"] >= tiempo_total_max
                     styles.loc[mask, "Tiempo Espera Total"] = exceeded_style
 
                 # Resaltar vehículos totales
                 if "Vehículos Total" in df_styled.columns:
-                    mask = df_styled["Vehículos Total"] > vehiculos_total_max
+                    mask = df_styled["Vehículos Total"] >= vehiculos_total_max
                     styles.loc[mask, "Vehículos Total"] = exceeded_style
 
                 # Resaltar tiempos de espera por zona
                 for col in df_styled.columns:
                     if "Zona" in col and "Tiempo" in col:
-                        mask = df_styled[col] > tiempo_zona_max
+                        mask = df_styled[col] >= tiempo_zona_max
                         styles.loc[mask, col] = exceeded_style
                     elif "Zona" in col and "Vehículos" in col:
-                        mask = df_styled[col] > vehiculos_zona_max
+                        mask = df_styled[col] >= vehiculos_zona_max
                         styles.loc[mask, col] = exceeded_style
 
                 return styles

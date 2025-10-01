@@ -1,0 +1,34 @@
+# Streamlit Configuration for ZeroTier Network Access
+# Permite acceso desde otras interfaces de red (ZeroTier, LAN, etc.)
+
+[server]
+# Escuchar en todas las interfaces (0.0.0.0) para permitir conexiones remotas
+address = "0.0.0.0"
+port = 8501
+
+# Habilitar CORS para permitir conexiones desde diferentes orígenes
+enableCORS = true
+enableXsrfProtection = true
+
+# Configuración de WebSocket para conexiones remotas
+enableWebsocketCompression = true
+
+[browser]
+# No abrir automáticamente el navegador al iniciar
+gatherUsageStats = false
+
+[runner]
+# Mejora el rendimiento
+magicEnabled = true
+fastReruns = true
+
+[logger]
+level = "info"
+
+[theme]
+# Tema claro por defecto
+base = "light"
+# primaryColor = "#FF4B4B"
+# backgroundColor = "#FFFFFF"
+# secondaryBackgroundColor = "#F0F2F6"
+# textColor = "#262730"
