@@ -23,7 +23,7 @@ class APIRequestHelper:
     de forma consistente para todos los clientes API del proyecto.
     """
 
-    DEFAULT_TIMEOUT = 10
+    DEFAULT_TIMEOUT = 2
 
     @staticmethod
     def safe_request(

@@ -134,11 +134,11 @@ class DetectorService:
 
         #! Dibujador de box en los objetos (sin color fijo - será dinámico)
         self.bounding_box_annotator = sv.BoxAnnotator(
-            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            thickness=max(1, int(5 * self.video_processor.scale_factor)),
         )
         self.label_annotator = sv.LabelAnnotator(
-            text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
-            text_scale=max(1, int(1 * self.video_processor.scale_factor)),
+            text_thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            text_scale=max(1, int(2 * self.video_processor.scale_factor)),
         )
 
         # Colores pasteles para objetos dentro y fuera de zona
@@ -174,9 +174,9 @@ class DetectorService:
 
         #! Anotador de línea de multas
         self.line_zone_annotator = sv.LineZoneAnnotator(
-            thickness=max(1, int(5 * self.video_processor.scale_factor)),
-            text_thickness=max(1, int(2 * self.video_processor.scale_factor)),
-            text_scale=max(1, int(1 * self.video_processor.scale_factor)),
+            thickness=max(1, int(6 * self.video_processor.scale_factor)),
+            text_thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            text_scale=max(1, int(2 * self.video_processor.scale_factor)),
         )
 
     def _extend_line_segment(
@@ -561,11 +561,11 @@ class DetectorService:
         # Crear anotadores separados para cada tipo de objeto
         box_annotator_inside = sv.BoxAnnotator(
             color=sv.Color(r=144, g=238, b=144),  # Verde pastel
-            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            thickness=max(1, int(4 * self.video_processor.scale_factor)),
         )
         box_annotator_outside = sv.BoxAnnotator(
             color=sv.Color(r=255, g=182, b=193),  # Rosa pastel
-            thickness=max(1, int(3 * self.video_processor.scale_factor)),
+            thickness=max(1, int(4 * self.video_processor.scale_factor)),
         )
 
         # Separar detecciones por ubicación
@@ -657,7 +657,7 @@ class DetectorService:
                 pt1=start_point,
                 pt2=end_point,
                 color=(255, 255, 255),  # Blanco
-                thickness=max(1, int(5 * self.video_processor.scale_factor)),
+                thickness=max(1, int(6 * self.video_processor.scale_factor)),
             )
 
         return frame_with_lines
