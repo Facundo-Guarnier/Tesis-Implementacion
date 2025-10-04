@@ -36,10 +36,12 @@ class RemoteServiceController:
         """Inicializar el controlador de servicios remotos."""
         self._status_cache: dict[str, dict[str, Any]] = {}
         self._last_check_time: float = 0
-        self._cache_duration = 30  # Cache por 30 segundos (optimizado para UI)
+        self._cache_duration = (
+            120  # Cache por 120 segundos (evita verificaciones frecuentes)
+        )
 
-        # Configuración de requests (optimizada para respuesta rápida)
-        self.timeout = 1  # timeout reducido para respuesta más rápida
+        # Configuración de requests (optimizada para servicios pesados)
+        self.timeout = 5  # timeout aumentado para servicios procesando (YOLOv8)
         self.max_retries = 1  # solo 1 reintento para evitar demoras largas
 
     def _get_service_url(self, service_name: str) -> str | None:

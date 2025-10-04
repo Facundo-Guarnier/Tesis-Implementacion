@@ -734,11 +734,11 @@ def render_services_page() -> None:
         cache_key = "services_summary_cache"
         cache_time_key = "services_summary_cache_time"
 
-        # Verificar si hay cache válido (30 segundos)
+        # Verificar si hay cache válido (120 segundos)
         current_time = time.time()
         if cache_key in st.session_state and cache_time_key in st.session_state:
             cache_age = current_time - st.session_state[cache_time_key]
-            if cache_age < 30:  # Cache válido por 30 segundos
+            if cache_age < 120:  # Cache válido por 120 segundos (evita bucle)
                 # Usar cache existente, solo actualizar conteos híbridos
                 summary = st.session_state[cache_key]
                 return calculate_hybrid_service_count(summary)
@@ -796,6 +796,7 @@ def render_services_page() -> None:
 
         if summary is None:
             # Fallback: botón de verificación manual
+            st.info("💡 Haz click en 'Verificar Servicios' para actualizar el estado")
             if st.button(
                 "🔍 Verificar Servicios", use_container_width=True, type="primary"
             ):
@@ -803,12 +804,20 @@ def render_services_page() -> None:
                 st.rerun()
 
         if summary:
-            col1, _, col3 = st.columns(3)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(
                     "🔧 Servicios Activos",
                     f"{summary['running_services']}/{summary['total_services']}",
                 )
+
+            with col2:
+                # Mostrar edad del cache
+                cache_age = int(
+                    time.time()
+                    - st.session_state.get("services_summary_cache_time", time.time())
+                )
+                st.caption(f"⏱️ Última verificación: hace {cache_age}s")
 
             with col3:
                 if st.button(
